@@ -1,151 +1,57 @@
-/**********************************************
-*** GENERAL
-**********************************************/
-
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
+.box {
+  font-family: "MaisonNeue", "Segoe UI", "Helvetica Neue", -apple-system,
+    system-ui, BlinkMacSystemFont, Roboto, Arial, sans-serif,
+    "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+  font-weight: inherit;
+  font-size: 18px;
+  line-height: 140%;
+  width: 700px;
+  padding: 10px;
+  align: center;
+  border: 2px solid gray;
+  margin: 10;
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+  margin-top: 30px;
+}
+.info {
+  position: relative;
+  left: 80px;
+  top: 2px;
 }
 
-.clearfix::after {
-    content: "";
-    display: table;
-    clear: both;
+.nav {
 }
 
-body {
-    color: #555;
-    font-family: Open Sans;
-    font-size: 16px;
-    position: relative;
-    height: 100vh;
-    font-weight: 400;
+.button {
+  border-width: 0px;
+  background-color: transparent;
 }
 
-.right { float: right; }
-.red { color: #FF5049 !important; }
-.red-focus:focus { border: 1px solid #FF5049 !important; }
-
-
-h1{
-    text-transform: uppercase;
-    font-size: 30px;
-    font-weight: 400;
-    margin-bottom: 15px;
+.header {
+  padding: 17px;
+  text-align: center;
+  background: #4042422d;
+  color: white;
+  font-size: 28px;
 }
 
-.btn-goblin { 
-    background-color: #bebaba; 
-    border: none;
-    color: rgb(27, 27, 27);
-    padding: 15px 32px;
-    border-radius: 4px;
-    text-align: center;
-    text-decoration: none;
-    display: inline-block;
-    font-size: 16px;
+.buttom {
+  padding: 17px;
+  text-align: center;
+  background: #4042422d;
+  color: white;
+  font-size: 22px;
 }
 
-.btn-goblin:hover {
-    box-shadow: 0 12px 16px 0 rgba(0,0,0,0.24), 0 17px 50px 0 rgba(0,0,0,0.19);
-  }
-
-.btn-drow { 
-    background-color: #bebaba; 
-    border: none;
-    color: rgb(27, 27, 27);
-    padding: 15px 32px;
-    border-radius: 4px;
-    text-align: center;
-    text-decoration: none;
-    display: inline-block;
-    font-size: 16px;
+.share {
 }
 
-.btn-drow:hover {
-    box-shadow: 0 12px 16px 0 rgba(0,0,0,0.24), 0 17px 50px 0 rgba(0,0,0,0.19);
-  }
-
-.btn-bugbear { 
-    background-color: #bebaba; 
-    border: none;
-    color: rgb(27, 27, 27);
-    padding: 15px 32px;
-    border-radius: 4px;
-    text-align: center;
-    text-decoration: none;
-    display: inline-block;
-    font-size: 16px;
+em {
+  color: rgb(255, 60, 0);
+  font-style: normal;
 }
-
-.btn-bugbear:hover {
-    box-shadow: 0 12px 16px 0 rgba(0,0,0,0.24), 0 17px 50px 0 rgba(0,0,0,0.19);
-  }
-
-h2 {
-    text-transform: uppercase;
-    font-size: 18px;
-    font-weight: 400;
-    margin-bottom: 15px;
+strong {
+  font-weight: bold;
 }
-
-.monsters__title { color: #28B9B5; }
-
-.item {
-    padding: 13px;
-    border-bottom: 1px solid #e7e7e7;
-}
-
-.item:first-child { border-top: 1px solid #e7e7e7; }
-.item:nth-child(even) { background-color: #f7f7f7; }
-
-
-.item__delete {
-    float: left;
-}
-
-.item__delete--btn {
-    font-size: 22px;
-    background: none;
-    border: none;
-    cursor: pointer;
-    display: inline-block;
-    vertical-align: middle;
-    line-height: 1;
-    display: none;
-}
-
-.item__delete--btn:focus { outline: none; }
-.item__delete--btn:active { transform: translateY(2px); }
-
-.item:hover .item__delete--btn { display: block; }
-.item:hover .item__value { transform: translateX(-20px); }
-.item:hover .item__percentage { transform: translateX(-20px); }
-
-
-.btn-melee { 
-    background-color: #bebaba; 
-    border: none;
-    color: rgb(27, 27, 27);
-    padding: 10px 20px;
-    border-radius: 4px;
-    text-align: center;
-    text-decoration: none;
-    display: inline-block;
-    font-size: 16px;
-}
-
-.btn-ranged { 
-    background-color: #bebaba; 
-    border: none;
-    color: rgb(27, 27, 27);
-    padding: 10px 20px;
-    border-radius: 4px;
-    text-align: center;
-    text-decoration: none;
-    display: inline-block;
-    font-size: 16px;
-}
-
-
