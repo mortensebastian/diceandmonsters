@@ -56,8 +56,11 @@
     nextId: 1,
     activeId: null,     // whose turn it is (id), or null
     editingInitId: null, // combatant being edited in the tracker, or null
-    editInitMode: 'd20'  // tracker edit field: 'd20' roll or final 'total'
+    editInitMode: 'd20', // tracker edit field: 'd20' roll or final 'total'
+    saved: []            // saved encounters (also persisted to localStorage)
   };
+
+  var STORAGE_KEY = 'diceAndMonsters.encounters';
 
   /* =========================================================
      3. MODEL
@@ -736,6 +739,132 @@
     logLine('Encounter cleared.', 'spawn');
   }
 
+  /* ---- Saving / loading encounters ---- */
+
+  function loadSavedFromStorage() {
+    try { return JSON.parse(window.localStorage.getItem(STORAGE_KEY)) || []; }
+    catch (e) { return []; }
+  }
+
+  function persistSaved() {
+    try { window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state.saved)); }
+    catch (e) { /* storage blocked (e.g. on file://) - stays in memory only */ }
+  }
+
+  // Plain-object snapshot of a combatant. Monsters keep only their
+  // template slug (re-linked from the library on load) to stay lean.
+  function serializeCombatant(c) {
+    var o = {
+      kind: c.kind, name: c.name, hp: c.hp, maxHp: c.maxHp, ac: c.ac,
+      dead: c.dead, initiative: c.initiative, initRoll: c.initRoll,
+      initMod: c.initMod, conditions: c.conditions.slice()
+    };
+    if (c.kind === 'monster' && c.template) o.templateSlug = c.template.slug;
+    return o;
+  }
+
+  function deserializeCombatant(o) {
+    var c = baseCombatant(o.kind, o.name);
+    c.hp = (o.hp == null ? null : o.hp);
+    c.maxHp = (o.maxHp == null ? null : o.maxHp);
+    c.ac = (o.ac == null ? null : o.ac);
+    c.dead = !!o.dead;
+    c.initiative = (o.initiative == null ? null : o.initiative);
+    c.initRoll = (o.initRoll == null ? null : o.initRoll);
+    c.initMod = o.initMod || 0;
+    c.conditions = (o.conditions || []).slice();
+    if (o.kind === 'monster') {
+      var t = templateBySlug(o.templateSlug);
+      if (t) { c.template = t; c.attacks = t.attacks || []; }
+    }
+    return c;
+  }
+
+  function savedIndexByName(name) {
+    for (var i = 0; i < state.saved.length; i++) {
+      if (state.saved[i].name.toLowerCase() === name.toLowerCase()) return i;
+    }
+    return -1;
+  }
+
+  // Save the current encounter under a name. Overwrites a same-named one.
+  function saveEncounter(name) {
+    name = (name || '').trim();
+    if (!name) { logLine('Give the encounter a name before saving.', 'spawn'); return false; }
+    if (!state.combatants.length) {
+      logLine('Nothing to save - the encounter is empty.', 'spawn');
+      return false;
+    }
+    var entry = {
+      name: name,
+      savedAt: Date.now(),
+      combatants: state.combatants.map(serializeCombatant)
+    };
+    var idx = savedIndexByName(name);
+    if (idx !== -1) state.saved[idx] = entry; else state.saved.push(entry);
+    state.saved.sort(function (a, b) { return a.name.localeCompare(b.name); });
+    persistSaved();
+    renderSavedList();
+    logLine((idx !== -1 ? 'Updated' : 'Saved') + ' encounter "' + name +
+      '" (' + entry.combatants.length + ' combatants).', 'spawn');
+    return true;
+  }
+
+  // Load a saved encounter, replacing the current one.
+  function loadEncounter(index) {
+    var entry = state.saved[index];
+    if (!entry) return;
+    if (state.combatants.length &&
+        !window.confirm('Load "' + entry.name + '"? This replaces the current encounter.')) {
+      return;
+    }
+    state.combatants = entry.combatants.map(deserializeCombatant);
+    state.activeId = null;
+    state.editingInitId = null;
+    renderAll();
+    renderTurnOrder();
+    logLine('Loaded encounter "' + entry.name + '" (' +
+      state.combatants.length + ' combatants).', 'spawn');
+  }
+
+  function deleteEncounter(index) {
+    var entry = state.saved[index];
+    if (!entry) return;
+    if (!window.confirm('Delete saved encounter "' + entry.name + '"?')) return;
+    state.saved.splice(index, 1);
+    persistSaved();
+    renderSavedList();
+    logLine('Deleted saved encounter "' + entry.name + '".', 'spawn');
+  }
+
+  function renderSavedList() {
+    if (!state.saved.length) {
+      el.savedList.innerHTML = '<p class="saved__empty">No saved encounters yet.</p>';
+      return;
+    }
+    el.savedList.innerHTML = state.saved.map(function (s, i) {
+      var monsters = s.combatants.filter(function (c) { return c.kind === 'monster'; }).length;
+      var players = s.combatants.length - monsters;
+      var plural = function (n, word) { return n + ' ' + word + (n === 1 ? '' : 's'); };
+      return '<div class="saved__item">' +
+        '<span class="saved__name">' + esc(s.name) + '</span>' +
+        '<span class="saved__meta">' + plural(monsters, 'monster') + ', ' +
+          plural(players, 'player') + '</span>' +
+        '<button class="btn-load" data-action="load" data-index="' + i + '">Load</button>' +
+        '<button class="btn-del" data-action="delete" data-index="' + i + '">Delete</button>' +
+      '</div>';
+    }).join('');
+  }
+
+  function onSavedClick(ev) {
+    var btn = ev.target.closest('[data-action]');
+    if (!btn) return;
+    var i = parseInt(btn.getAttribute('data-index'), 10);
+    var action = btn.getAttribute('data-action');
+    if (action === 'load') loadEncounter(i);
+    else if (action === 'delete') deleteEncounter(i);
+  }
+
   function readTarget(cardNode) {
     var sel = cardNode.querySelector('select[data-role="target"]');
     var id = sel && sel.value ? parseInt(sel.value, 10) : NaN;
@@ -906,6 +1035,9 @@
     el.initBtn    = document.querySelector('.btn-init');
     el.nextBtn    = document.querySelector('.btn-next');
     el.turnOrder  = document.querySelector('#turn-order');
+    el.encName    = document.querySelector('#encounter-name');
+    el.saveBtn    = document.querySelector('.btn-save-encounter');
+    el.savedList  = document.querySelector('#saved-list');
     el.clearBtn   = document.querySelector('.btn-clear');
     el.list       = document.querySelector('.monster__list');
     el.encMeta    = document.querySelector('#encounter-meta');
@@ -919,12 +1051,15 @@
       return;
     }
 
+    state.saved = loadSavedFromStorage();
+
     populateCrFilter();
     populateTypeFilter();
     populateSizeFilter();
     populateMonsterSelect();
     renderAll();
     renderTurnOrder();
+    renderSavedList();
 
     el.search.addEventListener('input', populateMonsterSelect);
     el.crFilter.addEventListener('change', populateMonsterSelect);
@@ -958,6 +1093,16 @@
 
     el.initBtn.addEventListener('click', rollInitiative);
     el.nextBtn.addEventListener('click', nextTurn);
+
+    function submitSave() {
+      if (saveEncounter(el.encName.value)) el.encName.value = '';
+    }
+    el.saveBtn.addEventListener('click', submitSave);
+    el.encName.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') submitSave();
+    });
+    el.savedList.addEventListener('click', onSavedClick);
+
     el.clearBtn.addEventListener('click', clearEncounter);
     el.list.addEventListener('click', onListClick);
     el.list.addEventListener('keydown', onListKeydown);

@@ -262,6 +262,50 @@ button:disabled { opacity: .4; cursor: not-allowed; box-shadow: none; }
 .badge--ac     { background: #3b4150; color: #e6e6e6; }
 
 /**********************************************
+*** SAVED ENCOUNTERS
+**********************************************/
+
+.saved {
+    background: #1d2029;
+    border: 1px solid #2c3140;
+    border-radius: 10px;
+    padding: 18px;
+}
+.saved__title { font-size: 16px; color: #27ae60; margin-bottom: 12px; }
+
+.saved__row { display: flex; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+.saved__name-input {
+    flex: 1;
+    min-width: 160px;
+    background: #12141a;
+    border: 1px solid #2c3140;
+    color: #e6e6e6;
+    border-radius: 6px;
+    padding: 10px 12px;
+    font-family: inherit;
+    font-size: 15px;
+}
+.btn-save-encounter { background: #27ae60; }
+.btn-save-encounter:hover { background: #2ecc71; }
+
+.saved__empty { color: #6c7589; font-style: italic; font-size: 13px; }
+
+.saved__item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 12px;
+    background: #12141a;
+    border: 1px solid #2c3140;
+    border-radius: 6px;
+    margin-bottom: 6px;
+}
+.saved__name { font-weight: 600; color: #fff; }
+.saved__meta { flex: 1; font-size: 12px; color: #8a93a6; }
+.btn-load { background: #2980b9; padding: 6px 14px; font-size: 13px; }
+.btn-del  { background: #3b4150; padding: 6px 14px; font-size: 13px; }
+
+/**********************************************
 *** ENCOUNTER
 **********************************************/
 
