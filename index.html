@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="no">
+<html lang="en">
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -11,13 +11,13 @@
     <body>
         <header class="topbar">
             <h1>Dice &amp; Monsters</h1>
-            <p class="tagline">Bygg en D&amp;D-encounter, angrip, og se monstrene dø.</p>
+            <p class="tagline">Build a D&amp;D encounter, attack, and watch the monsters die.</p>
         </header>
 
-        <!-- Monstervelger: alle monstrene fra fila -->
+        <!-- Monster picker: all monsters from the file -->
         <section class="picker">
             <div class="picker__row">
-                <input type="text" id="search" class="picker__search" placeholder="Søk monster…">
+                <input type="text" id="search" class="picker__search" placeholder="Search monster…">
             </div>
             <div class="picker__row picker__row--filters">
                 <select id="cr-filter" class="picker__cr"></select>
@@ -30,52 +30,52 @@
             <div class="picker__row picker__row--actions">
                 <span id="match-count" class="picker__count"></span>
                 <div class="picker__buttons">
-                    <button class="btn-random">Tilfeldig</button>
-                    <button class="btn-add">Legg til i encounter</button>
+                    <button class="btn-random">Random</button>
+                    <button class="btn-add">Add to encounter</button>
                 </div>
             </div>
         </section>
 
-        <!-- Spillere (foreløpig bare navn) -->
+        <!-- Players (name only for now) -->
         <section class="players">
-            <h2 class="players__title">Spillere</h2>
+            <h2 class="players__title">Players</h2>
             <div class="players__row">
-                <input type="text" id="player-name" class="players__name" placeholder="Spillernavn…">
-                <input type="number" id="player-init" class="players__init" placeholder="init +" title="Valgfritt initiativ-tillegg">
-                <input type="number" id="player-ac" class="players__init" placeholder="AC" title="Valgfri AC (kan settes senere)">
-                <button class="btn-add-player">Legg til spiller</button>
+                <input type="text" id="player-name" class="players__name" placeholder="Player name…">
+                <input type="number" id="player-init" class="players__init" placeholder="init +" title="Optional initiative modifier">
+                <input type="number" id="player-ac" class="players__init" placeholder="AC" title="Optional AC (can be set later)">
+                <button class="btn-add-player">Add player</button>
             </div>
         </section>
 
-        <!-- Turordning / initiativ -->
+        <!-- Turn order / initiative -->
         <section class="tracker">
             <div class="tracker__head">
-                <h2 class="tracker__title">Turordning</h2>
+                <h2 class="tracker__title">Turn order</h2>
                 <div class="tracker__buttons">
-                    <button class="btn-init">Rull initiativ</button>
-                    <button class="btn-next" disabled>Neste tur</button>
+                    <button class="btn-init">Roll initiative</button>
+                    <button class="btn-next" disabled>Next turn</button>
                 </div>
             </div>
             <div id="turn-order" class="turn"></div>
         </section>
 
-        <!-- Encounteren -->
+        <!-- The encounter -->
         <section class="encounter">
             <div class="encounter__head">
                 <h2 class="encounter__title">Encounter</h2>
                 <span id="encounter-meta" class="encounter__meta"></span>
-                <button class="btn-clear">Tøm encounter</button>
+                <button class="btn-clear">Clear encounter</button>
             </div>
             <div class="monster__list"></div>
         </section>
 
-        <!-- Kamplogg -->
+        <!-- Combat log -->
         <section class="logwrap">
-            <h2 class="logwrap__title">Kamplogg</h2>
+            <h2 class="logwrap__title">Combat log</h2>
             <div id="log" class="log"></div>
         </section>
 
-        <!-- Standard 5e-tilstander som forslag (fritekst er også lov) -->
+        <!-- Standard 5e conditions as suggestions (free text is also allowed) -->
         <datalist id="conditions-list">
             <option value="Blinded"></option>
             <option value="Charmed"></option>

@@ -1,23 +1,23 @@
 /* ============================================================
    Dice & Monsters
    ------------------------------------------------------------
-   Restrukturert i tydelige lag:
-     1. Terninger      - tilfeldighet og terningkast
-     2. Data           - monsterbiblioteket + tilstand
-     3. Modell         - combatants (monster ELLER spiller)
-     4. Kamp           - angrep, skade, dod, initiativ, turordning
-     5. UI             - rendring, kamplogg, hendelser
+   Structured into clear layers:
+     1. Dice     - randomness and dice rolls
+     2. Data     - the monster library + state
+     3. Model    - combatants (monster OR player)
+     4. Combat   - attacks, damage, death, initiative, turn order
+     5. UI       - rendering, combat log, events
 
-   En "combatant" er enten et monster eller en spiller. Spillere
-   har forelopig bare navn (+ valgfritt initiativ-tillegg), men
-   modellen har plass til hp/maxHp/ac/stats slik at et fullt
-   character sheet kan kobles pa senere uten a rive opp resten.
+   A "combatant" is either a monster or a player. Players have
+   only a name for now (+ optional initiative modifier / AC), but
+   the model has room for hp/maxHp/ac/stats so a full character
+   sheet can be attached later without reworking the rest.
    ============================================================ */
 (function () {
   'use strict';
 
   /* =========================================================
-     1. TERNINGER
+     1. DICE
      ========================================================= */
 
   function rollDie(sides) {
@@ -38,7 +38,7 @@
     return (n >= 0 ? '+' : '') + n;
   }
 
-  // Escape brukerinput (navn, tilstander) for trygg innsetting i HTML.
+  // Escape user input (names, conditions) for safe insertion into HTML.
   function esc(s) {
     return String(s).replace(/[&<>"']/g, function (ch) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch];
@@ -46,41 +46,41 @@
   }
 
   /* =========================================================
-     2. DATA + TILSTAND
+     2. DATA + STATE
      ========================================================= */
 
-  var library = []; // alle monstrene fra fila
+  var library = []; // all monsters from the file
 
   var state = {
-    combatants: [],     // monstre og spillere om hverandre
+    combatants: [],     // monsters and players mixed together
     nextId: 1,
-    activeId: null,     // hvem sin tur det er (id), eller null
-    editingInitId: null // combatant som redigeres i sporeren, eller null
+    activeId: null,     // whose turn it is (id), or null
+    editingInitId: null // combatant being edited in the tracker, or null
   };
 
   /* =========================================================
-     3. MODELL
+     3. MODEL
      ========================================================= */
 
-  // Felles "skall" for en combatant. Spillere far null der de
-  // mangler tall na - fyll dem inn senere for HP/stats.
+  // Shared "shell" for a combatant. Players get null where they
+  // lack numbers for now - fill them in later for HP/stats.
   function baseCombatant(kind, name) {
     return {
       id: state.nextId++,
       kind: kind,        // 'monster' | 'player'
       name: name,
-      hp: null,          // settes for noe med HP-counter
+      hp: null,          // set for anything with an HP counter
       maxHp: null,
       ac: null,
       dead: false,
-      initiative: null,  // settes nar initiativ rulles
-      initMod: 0,         // tillegg til initiativ-kastet
-      conditions: [],     // tilstander, f.eks. "Poisoned", "Prone"
+      initiative: null,  // set when initiative is rolled
+      initMod: 0,         // modifier added to the initiative roll
+      conditions: [],     // conditions, e.g. "Poisoned", "Prone"
       attacks: []
     };
   }
 
-  // Rull HP fra hit dice (f.eks. "18d10+36").
+  // Roll HP from hit dice (e.g. "18d10+36").
   function rollHp(template) {
     var m = /(\d+)d(\d+)([+\-]\d+)?/.exec(template.hitDice || '');
     if (!m) return template.hp;
@@ -99,9 +99,9 @@
     return c;
   }
 
-  // Spiller: navn + valgfritt initiativ-tillegg + valgfri AC.
-  // HP holder spilleren selv styr pa (DM-en skal ikke kjenne den);
-  // AC trenger DM-en for a avgjore om monsterets angrep treffer.
+  // Player: name + optional initiative modifier + optional AC.
+  // HP is the player's own business (the DM shouldn't know it);
+  // the DM needs AC to decide whether a monster's attack hits.
   function createPlayer(name, initMod, ac) {
     var c = baseCombatant('player', name);
     c.initMod = initMod || 0;
@@ -120,41 +120,41 @@
     return '#' + c.id + ' ' + c.name;
   }
 
-  // Har denne combatanten en HP-counter? (Spillere: nei - egen sak.)
+  // Does this combatant have an HP counter? (Players: no - their own.)
   function hasHp(c) {
     return c.maxHp != null;
   }
 
-  // Kan angripes? Krever en AC a rulle mot. Monstre har alltid;
-  // spillere far det nar DM-en skriver inn AC-en deres.
+  // Can it be targeted? Requires an AC to roll against. Monsters
+  // always have one; players get it when the DM types in their AC.
   function canBeTargeted(c) {
     return c.ac != null;
   }
 
-  // Korte forklaringer pa standard 5e-tilstander (norsk).
+  // Short explanations of the standard 5e conditions.
   var CONDITION_INFO = {
-    'blinded': 'Kan ikke se: bom automatisk hvis syn kreves, og angrep mot den har fordel.',
-    'charmed': 'Kan ikke angripe den som sjarmet den; sjarmoren har fordel pa sosiale sjekker.',
-    'concentration': 'Tar den skade, ma den besta Con-redning (DC 10 / halv skade) for a beholde besvergelsen.',
-    'deafened': 'Kan ikke hore, og feiler automatisk sjekker som krever horsel.',
-    'frightened': 'Ulempe pa sjekker og angrep mens kilden er synlig; kan ikke bevege seg naermere den.',
-    'grappled': 'Fart blir 0; ingen bonus til fart.',
-    'incapacitated': 'Kan verken ta handlinger eller reaksjoner.',
-    'invisible': 'Usynlig: angrep mot den har ulempe, dens egne angrep har fordel.',
-    'paralyzed': 'Handlingslammet og ute av stand til a bevege seg; angrep har fordel, naertreff blir kritisk.',
-    'petrified': 'Forvandlet til stein: bevisstlos, motstand mot all skade, immun mot gift og sykdom.',
-    'poisoned': 'Ulempe pa angrep og evnesjekker.',
-    'prone': 'Liggende: ulempe pa angrep; naerangrep mot den har fordel, fjernangrep har ulempe.',
-    'restrained': 'Fart 0; angrep mot den har fordel, dens angrep ulempe, ulempe pa Dex-redning.',
-    'stunned': 'Handlingslammet, kan ikke bevege seg; angrep mot den har fordel, feiler Str- og Dex-redning.',
-    'unconscious': 'Bevisstlos og liggende, slipper alt; angrep har fordel, naertreff blir kritisk.'
+    'blinded': "Can't see; auto-fails sight-based checks. Attacks against it have advantage, its own have disadvantage.",
+    'charmed': "Can't attack the charmer; the charmer has advantage on social checks against it.",
+    'concentration': 'On taking damage, make a Con save (DC 10 or half the damage) to keep the spell.',
+    'deafened': "Can't hear; auto-fails checks that require hearing.",
+    'frightened': "Disadvantage on checks and attacks while the source is in sight; can't move closer to it.",
+    'grappled': 'Speed becomes 0; gains no bonus to speed.',
+    'incapacitated': "Can't take actions or reactions.",
+    'invisible': 'Attacks against it have disadvantage; its own attacks have advantage.',
+    'paralyzed': "Incapacitated and can't move; attacks have advantage, hits within 5 ft are critical.",
+    'petrified': 'Turned to stone: unconscious, resistance to all damage, immune to poison and disease.',
+    'poisoned': 'Disadvantage on attack rolls and ability checks.',
+    'prone': 'Disadvantage on attacks; melee against it has advantage, ranged has disadvantage.',
+    'restrained': 'Speed 0; attacks against it have advantage, its own have disadvantage, disadvantage on Dex saves.',
+    'stunned': "Incapacitated and can't move; attacks against it have advantage, auto-fails Str and Dex saves.",
+    'unconscious': 'Unconscious and prone, drops everything; attacks have advantage, hits within 5 ft are critical.'
   };
 
   function conditionInfo(name) {
     return CONDITION_INFO[String(name).toLowerCase()] || '';
   }
 
-  // Tilstander - samme for monstre og spillere.
+  // Conditions - the same for monsters and players.
   function addCondition(c, cond) {
     cond = (cond || '').trim();
     if (!cond) return false;
@@ -171,7 +171,7 @@
   }
 
   /* =========================================================
-     4. KAMP
+     4. COMBAT
      ========================================================= */
 
   function applyDamage(c, amount) {
@@ -192,8 +192,8 @@
 
   function performAttack(attacker, attack, target) {
     if (target && target.dead) {
-      logLine(combatantLabel(attacker) + ' angriper ' +
-        combatantLabel(target) + ', men det er allerede dodt.', 'miss');
+      logLine(combatantLabel(attacker) + ' attacks ' +
+        combatantLabel(target) + ', but it is already dead.', 'miss');
       return;
     }
 
@@ -202,13 +202,13 @@
     var fumble = d20 === 1;
     var toHit = d20 + attack.toHit;
 
-    var who = combatantLabel(attacker) + ' bruker ' + attack.name;
-    var vs = target ? (' mot ' + combatantLabel(target)) : '';
+    var who = combatantLabel(attacker) + ' uses ' + attack.name;
+    var vs = target ? (' on ' + combatantLabel(target)) : '';
 
     var isMiss = fumble || (target && toHit < target.ac);
     if (isMiss) {
-      var why = fumble ? 'Kritisk bom!' :
-        ('rullet ' + toHit + ' vs AC ' + target.ac + ' - bom.');
+      var why = fumble ? 'Critical miss!' :
+        ('rolled ' + toHit + ' vs AC ' + target.ac + ' - miss.');
       logLine(who + vs + ': ' + why, 'miss');
       return;
     }
@@ -217,37 +217,37 @@
     var dmg = (attack.sides > 0 ? rollDice(diceCount, attack.sides) : 0) + attack.bonus;
     if (dmg < 0) dmg = 0;
 
-    var hitTxt = crit ? 'KRITISK TREFF!' :
-      ('rullet ' + toHit + (target ? ' vs AC ' + target.ac : '') + ' - treff.');
-    var dmgTxt = dmg + ' ' + (attack.type || '') + ' skade';
+    var hitTxt = crit ? 'CRITICAL HIT!' :
+      ('rolled ' + toHit + (target ? ' vs AC ' + target.ac : '') + ' - hit.');
+    var dmgTxt = dmg + ' ' + (attack.type || '') + ' damage';
 
     if (target && hasHp(target)) {
-      // Monster (eller noe med HP): trekk fra skaden.
+      // Monster (or anything with HP): subtract the damage.
       applyDamage(target, dmg);
       var status = target.dead
-        ? (' ' + combatantLabel(target) + ' DOR!')
-        : (' (' + target.hp + '/' + target.maxHp + ' HP igjen)');
+        ? (' ' + combatantLabel(target) + ' DIES!')
+        : (' (' + target.hp + '/' + target.maxHp + ' HP left)');
       logLine(who + vs + ': ' + hitTxt + ' ' + dmgTxt + '.' + status,
         target.dead ? 'kill' : 'hit');
       refreshCard(target);
     } else if (target) {
-      // Spiller med AC men uten HP-teller: rapporter, ikke trekk fra.
+      // Player with AC but no HP counter: report it, don't subtract.
       logLine(who + vs + ': ' + hitTxt + ' ' + dmgTxt +
-        ' - ' + combatantLabel(target) + ' noterer skaden selv.', 'hit');
+        ' - ' + combatantLabel(target) + ' tracks the damage themselves.', 'hit');
     } else {
       logLine(who + ': ' + hitTxt + ' ' + dmgTxt + '.', 'hit');
     }
   }
 
-  // ---- Initiativ + turordning ----
+  // ---- Initiative + turn order ----
 
-  // Rull d20 + initMod for alle. Setter forste til aktiv.
+  // Roll d20 + initMod for everyone. Makes the first one active.
   function rollInitiative() {
     if (!state.combatants.length) return;
     state.combatants.forEach(function (c) {
       c.initiative = rollDie(20) + c.initMod;
     });
-    logLine('--- Initiativ rullet ---', 'turn');
+    logLine('--- Initiative rolled ---', 'turn');
     orderedCombatants().forEach(function (c) {
       logLine(combatantLabel(c) + ': ' + c.initiative +
         ' (d20 ' + signed(c.initMod) + ')', 'turn');
@@ -257,11 +257,11 @@
     renderAll();
     renderTurnOrder();
     if (state.activeId) {
-      logLine('Forst ut: ' + combatantLabel(findCombatant(state.activeId)) + '.', 'turn');
+      logLine('First up: ' + combatantLabel(findCombatant(state.activeId)) + '.', 'turn');
     }
   }
 
-  // Alle med initiativ, sortert hoyest forst (tie-break: initMod, id).
+  // Everyone with initiative, highest first (tie-break: initMod, id).
   function orderedCombatants() {
     return state.combatants
       .filter(function (c) { return c.initiative != null; })
@@ -277,16 +277,16 @@
     return orderedCombatants().filter(function (c) { return !c.dead; });
   }
 
-  // Gi tur til neste levende combatant i rekkefolgen.
+  // Pass the turn to the next living combatant in the order.
   function nextTurn() {
     var order = orderedAlive();
     if (!order.length) { state.activeId = null; return; }
     var ids = order.map(function (c) { return c.id; });
     var idx = ids.indexOf(state.activeId);
     var nextIdx = (idx + 1) % ids.length;
-    if (idx !== -1 && nextIdx === 0) logLine('--- Ny runde ---', 'turn');
+    if (idx !== -1 && nextIdx === 0) logLine('--- New round ---', 'turn');
     state.activeId = ids[nextIdx];
-    logLine('Tur: ' + combatantLabel(findCombatant(state.activeId)) + '.', 'turn');
+    logLine('Turn: ' + combatantLabel(findCombatant(state.activeId)) + '.', 'turn');
     updateActiveHighlight();
     renderTurnOrder();
   }
@@ -304,7 +304,7 @@
     el.log.insertBefore(line, el.log.firstChild);
   }
 
-  // ---- Monstervelger ----
+  // ---- Monster picker ----
   function uniqueCrLabels() {
     var seen = {}, list = [];
     library.forEach(function (m) {
@@ -314,7 +314,7 @@
     return list.map(function (m) { return m.crLabel; });
   }
 
-  // Distinkte verdier av et felt (alfabetisk).
+  // Distinct values of a field (alphabetical).
   function uniqueField(field) {
     var seen = {}, list = [];
     library.forEach(function (m) {
@@ -327,7 +327,7 @@
   var SIZE_ORDER = ['Tiny', 'Small', 'Medium', 'Large', 'Huge', 'Gargantuan'];
 
   function populateCrFilter() {
-    var opts = '<option value="">Alle CR</option>';
+    var opts = '<option value="">All CR</option>';
     uniqueCrLabels().forEach(function (cr) {
       opts += '<option value="' + cr + '">CR ' + cr + '</option>';
     });
@@ -335,7 +335,7 @@
   }
 
   function populateTypeFilter() {
-    var opts = '<option value="">Alle typer</option>';
+    var opts = '<option value="">All types</option>';
     uniqueField('type').forEach(function (t) {
       opts += '<option value="' + esc(t) + '">' + esc(t) + '</option>';
     });
@@ -346,7 +346,7 @@
     var sizes = uniqueField('size').sort(function (a, b) {
       return SIZE_ORDER.indexOf(a) - SIZE_ORDER.indexOf(b);
     });
-    var opts = '<option value="">Alle størrelser</option>';
+    var opts = '<option value="">All sizes</option>';
     sizes.forEach(function (s) {
       opts += '<option value="' + esc(s) + '">' + esc(s) + '</option>';
     });
@@ -368,10 +368,10 @@
 
     el.select.innerHTML = matches.map(function (m) {
       return '<option value="' + m.slug + '">' + m.name +
-        '  (CR ' + m.crLabel + ', ' + m.attacks.length + ' angrep)</option>';
+        '  (CR ' + m.crLabel + ', ' + m.attacks.length + ' attacks)</option>';
     }).join('');
 
-    el.count.textContent = matches.length + ' av ' + library.length + ' monstre';
+    el.count.textContent = matches.length + ' of ' + library.length + ' monsters';
     el.addBtn.disabled = matches.length === 0;
   }
 
@@ -382,7 +382,7 @@
     return null;
   }
 
-  // ---- Kort-rendring ----
+  // ---- Card rendering ----
   function hpClass(c) {
     var ratio = c.hp / c.maxHp;
     if (c.dead) return 'hpbar__fill--dead';
@@ -392,14 +392,14 @@
   }
 
   function hpBarHtml(c) {
-    // HP-bar bare for noe som har en HP-teller (monstre). Spillere
-    // har ingen - de holder styr pa egen HP.
+    // HP bar only for things with an HP counter (monsters). Players
+    // have none - they keep track of their own HP.
     if (!hasHp(c)) return '';
     var ratio = Math.round(c.hp / c.maxHp * 100);
     return '<div class="hpbar">' +
       '<div class="hpbar__fill ' + hpClass(c) + '" style="width:' + ratio + '%"></div>' +
       '<span class="hpbar__label">' + c.hp + ' / ' + c.maxHp + ' HP' +
-        (c.dead ? ' &middot; DOD' : '') + '</span>' +
+        (c.dead ? ' &middot; DEAD' : '') + '</span>' +
     '</div>';
   }
 
@@ -412,23 +412,23 @@
       var tag = a.ranged ? ' &#10148;' : '';
       return '<button class="btn-attack" data-action="attack" data-attack="' + i + '">' +
         a.name + tag + '<span class="btn-attack__meta">' +
-        signed(a.toHit) + ' treff &middot; ' + dmg + ' ' + a.type + '</span></button>';
+        signed(a.toHit) + ' to hit &middot; ' + dmg + ' ' + a.type + '</span></button>';
     }).join('') + '</div>';
   }
 
   function targetSelectHtml(c) {
-    // Alle levende combatants med en AC a rulle mot (monstre, og
-    // spillere som har fatt AC). Spillere uten AC kan ikke velges.
+    // All living combatants with an AC to roll against (monsters, and
+    // players who have been given an AC). Players without AC can't be picked.
     var others = state.combatants.filter(function (o) {
       return o.id !== c.id && !o.dead && canBeTargeted(o);
     });
     if (!c.attacks.length) return '';
-    var opts = '<option value="">- ingen / bare kast -</option>';
+    var opts = '<option value="">- none / just roll -</option>';
     opts += others.map(function (o) {
       return '<option value="' + o.id + '">#' + o.id + ' ' + esc(o.name) +
         ' (AC ' + o.ac + ')</option>';
     }).join('');
-    return '<label class="target">Mal: <select data-role="target">' +
+    return '<label class="target">Target: <select data-role="target">' +
       opts + '</select></label>';
   }
 
@@ -436,9 +436,9 @@
     if (!hasHp(c)) return '';
     return '<div class="manual">' +
       '<input type="number" min="0" class="manual__input" data-role="amount" placeholder="HP">' +
-      '<button class="btn-damage" data-action="damage">Ta skade</button>' +
-      '<button class="btn-heal" data-action="heal">Helbred</button>' +
-      '<button class="btn-remove" data-action="remove">Fjern</button>' +
+      '<button class="btn-damage" data-action="damage">Damage</button>' +
+      '<button class="btn-heal" data-action="heal">Heal</button>' +
+      '<button class="btn-remove" data-action="remove">Remove</button>' +
     '</div>';
   }
 
@@ -448,7 +448,7 @@
     if (c.kind === 'player') {
       var ac = c.ac != null
         ? '<span class="badge badge--ac">AC ' + c.ac + '</span>' : '';
-      return '<span class="item__meta"><span class="badge badge--player">Spiller</span>' +
+      return '<span class="item__meta"><span class="badge badge--player">Player</span>' +
         ac + init + '</span>';
     }
     var t = c.template;
@@ -466,16 +466,16 @@
     return '<div class="item__stats">' + stats + '</div>';
   }
 
-  // Tilstander (chips + forslagsfelt + korte forklaringer).
+  // Conditions (chips + suggestion field + short explanations).
   function conditionsHtml(c) {
     var chips = c.conditions.map(function (cond) {
       var info = conditionInfo(cond);
       return '<span class="chip" data-action="remove-condition" data-cond="' +
-        esc(cond) + '" title="' + esc(info || 'Egendefinert tilstand') +
-        ' (klikk for a fjerne)">' + esc(cond) + ' &times;</span>';
+        esc(cond) + '" title="' + esc(info || 'Custom condition') +
+        ' (click to remove)">' + esc(cond) + ' &times;</span>';
     }).join('');
 
-    // Synlige korte forklaringer for de aktive tilstandene.
+    // Visible short explanations for the active conditions.
     var effects = c.conditions.map(function (cond) {
       var info = conditionInfo(cond);
       return info ? '<li><b>' + esc(cond) + '</b> – ' + esc(info) + '</li>' : '';
@@ -483,25 +483,25 @@
     var effectsHtml = effects ? '<ul class="cond-effects">' + effects + '</ul>' : '';
 
     return '<div class="conditions">' +
-      '<span class="conditions__label">Tilstander:</span>' +
+      '<span class="conditions__label">Conditions:</span>' +
       '<span class="conditions__chips">' +
-        (chips || '<span class="conditions__none">ingen</span>') +
+        (chips || '<span class="conditions__none">none</span>') +
       '</span>' +
       '<input class="conditions__input" data-role="condition" list="conditions-list" ' +
-        'placeholder="legg til…">' +
+        'placeholder="add…">' +
       '<button class="btn-cond" data-action="add-condition">+</button>' +
     '</div>' + effectsHtml;
   }
 
-  // Spillerkontroller: valgfri AC + fjern. Initiativ redigeres i
-  // turordnings-boksen. Ingen HP - spilleren eier sin egen HP.
+  // Player controls: optional AC + remove. Initiative is edited in
+  // the turn-order box. No HP - the player owns their own HP.
   function playerControlsHtml(c) {
     return '<div class="manual">' +
       '<label class="ac-edit">AC <input type="number" min="0" ' +
         'class="manual__input manual__input--ac" data-role="ac" ' +
         'value="' + (c.ac != null ? c.ac : '') + '" placeholder="–"></label>' +
-      '<button class="btn-set-ac" data-action="set-ac">Sett AC</button>' +
-      '<button class="btn-remove" data-action="remove">Fjern</button>' +
+      '<button class="btn-set-ac" data-action="set-ac">Set AC</button>' +
+      '<button class="btn-remove" data-action="remove">Remove</button>' +
     '</div>';
   }
 
@@ -528,19 +528,19 @@
 
   function renderAll() {
     if (!state.combatants.length) {
-      el.list.innerHTML = '<p class="empty">Ingen i encounteren enna. ' +
-        'Legg til monstre og spillere over.</p>';
+      el.list.innerHTML = '<p class="empty">No combatants yet. ' +
+        'Add monsters and players above.</p>';
     } else {
       el.list.innerHTML = state.combatants.map(cardHtml).join('');
     }
     var alive = state.combatants.filter(function (c) { return !c.dead; }).length;
     el.encMeta.textContent = state.combatants.length
-      ? (state.combatants.length + ' i encounteren - ' + alive + ' i live')
+      ? (state.combatants.length + ' in encounter - ' + alive + ' alive')
       : '';
   }
 
-  // Alle combatants for sporeren: de med initiativ forst (hoyest
-  // overst), de uten initiativ nederst. Slik kan alle redigeres.
+  // All combatants for the tracker: those with initiative first
+  // (highest on top), those without at the bottom. So all are editable.
   function trackerOrder() {
     return state.combatants.slice().sort(function (a, b) {
       var ai = a.initiative == null ? -Infinity : a.initiative;
@@ -549,11 +549,11 @@
     });
   }
 
-  // Turordning-sporing med redigerbart initiativ for alle.
+  // Turn-order tracker with editable initiative for everyone.
   function renderTurnOrder() {
     if (!state.combatants.length) {
       el.turnOrder.innerHTML =
-        '<p class="turn__hint">Legg til monstre og spillere, og rull eller skriv inn initiativ.</p>';
+        '<p class="turn__hint">Add monsters and players, then roll or type in initiative.</p>';
       el.nextBtn.disabled = true;
       return;
     }
@@ -564,29 +564,34 @@
       if (c.id === state.activeId) cls += ' turn__row--active';
       if (c.dead) cls += ' turn__row--dead';
 
-      var initCell, editCell;
+      var initGroup;
       if (c.id === state.editingInitId) {
-        // Redigeringsmodus: tallfelt + lagre.
-        initCell = '<input type="number" class="turn__init-input" data-role="track-init" ' +
-          'value="' + (c.initiative != null ? c.initiative : '') + '" placeholder="–">';
-        editCell = '<button class="btn-track-save" data-action="save-init">Lagre</button>';
+        // Edit mode: number field + save (check symbol).
+        initGroup = '<span class="turn__initgroup">' +
+          '<input type="number" class="turn__init-input" data-role="track-init" ' +
+            'value="' + (c.initiative != null ? c.initiative : '') + '" placeholder="–">' +
+          '<button class="btn-track-save" data-action="save-init" ' +
+            'title="Save" aria-label="Save">&#10003;</button>' +
+        '</span>';
       } else {
-        initCell = '<span class="turn__init">' +
-          (c.initiative != null ? c.initiative : '–') + '</span>';
-        editCell = '<button class="btn-track-edit" data-action="edit-init" ' +
-          'title="Endre initiativ">Endre</button>';
+        // Number + pencil symbol right next to it.
+        initGroup = '<span class="turn__initgroup">' +
+          '<span class="turn__init">' +
+            (c.initiative != null ? c.initiative : '–') + '</span>' +
+          '<button class="btn-track-edit" data-action="edit-init" ' +
+            'title="Edit initiative" aria-label="Edit initiative">&#9998;</button>' +
+        '</span>';
       }
 
       var conds = c.conditions.length
         ? '<span class="turn__cond">' + c.conditions.map(esc).join(', ') + '</span>' : '';
 
       return '<div class="' + cls + '" data-id="' + c.id + '">' +
-        initCell +
+        initGroup +
         '<span class="turn__name">' + esc(c.name) + '</span>' +
         conds +
-        '<span class="turn__tag">' + (c.kind === 'player' ? 'spiller' : 'monster') +
-          (c.dead ? ' &middot; dod' : '') + '</span>' +
-        editCell +
+        '<span class="turn__tag">' + (c.kind === 'player' ? 'player' : 'monster') +
+          (c.dead ? ' &middot; dead' : '') + '</span>' +
       '</div>';
     }).join('');
 
@@ -605,14 +610,14 @@
     }
     var label = node.querySelector('.hpbar__label');
     if (label) {
-      label.textContent = c.hp + ' / ' + c.maxHp + ' HP' + (c.dead ? ' · DOD' : '');
+      label.textContent = c.hp + ' / ' + c.maxHp + ' HP' + (c.dead ? ' · DEAD' : '');
     }
     var alive = state.combatants.filter(function (x) { return !x.dead; }).length;
-    el.encMeta.textContent = state.combatants.length + ' i encounteren - ' + alive + ' i live';
+    el.encMeta.textContent = state.combatants.length + ' in encounter - ' + alive + ' alive';
     renderTurnOrder();
   }
 
-  // Tegn ett kort pa nytt (uten a roto i de andre kortene).
+  // Re-render a single card (without disturbing the other cards).
   function rerenderCard(c) {
     var node = el.list.querySelector('.item[data-id="' + c.id + '"]');
     if (node) node.outerHTML = cardHtml(c);
@@ -626,16 +631,16 @@
     }
   }
 
-  /* ---- Handlinger ---- */
+  /* ---- Actions ---- */
 
-  // Hvis kampen alt er i gang, gi nykommeren et initiativ med en gang.
+  // If combat is already underway, give the newcomer an initiative now.
   function rollInitiativeIfActive(c) {
     var inProgress = state.combatants.some(function (x) {
       return x.id !== c.id && x.initiative != null;
     });
     if (inProgress) {
       c.initiative = rollDie(20) + c.initMod;
-      logLine(combatantLabel(c) + ' ruller initiativ ' + c.initiative + '.', 'turn');
+      logLine(combatantLabel(c) + ' rolls initiative ' + c.initiative + '.', 'turn');
     }
   }
 
@@ -647,7 +652,7 @@
     rollInitiativeIfActive(c);
     renderAll();
     renderTurnOrder();
-    logLine(combatantLabel(c) + ' dukker opp (' + c.maxHp + ' HP, AC ' + c.ac + ').', 'spawn');
+    logLine(combatantLabel(c) + ' appears (' + c.maxHp + ' HP, AC ' + c.ac + ').', 'spawn');
   }
 
   function addPlayer(name, initMod, ac) {
@@ -661,7 +666,7 @@
     var extra = [];
     if (initMod) extra.push('init ' + signed(initMod));
     if (ac != null) extra.push('AC ' + ac);
-    logLine('Spiller ' + combatantLabel(c) + ' blir med' +
+    logLine('Player ' + combatantLabel(c) + ' joins' +
       (extra.length ? ' (' + extra.join(', ') + ')' : '') + '.', 'spawn');
   }
 
@@ -674,7 +679,7 @@
     }
     renderAll();
     renderTurnOrder();
-    if (c) logLine(combatantLabel(c) + ' fjernet.', 'spawn');
+    if (c) logLine(combatantLabel(c) + ' removed.', 'spawn');
   }
 
   function clearEncounter() {
@@ -683,7 +688,7 @@
     state.activeId = null;
     renderAll();
     renderTurnOrder();
-    logLine('Encounteren ble tomt.', 'spawn');
+    logLine('Encounter cleared.', 'spawn');
   }
 
   function readTarget(cardNode) {
@@ -715,8 +720,8 @@
       var dmg = readAmount(cardNode);
       if (dmg > 0) {
         applyDamage(c, dmg);
-        logLine(combatantLabel(c) + ' tar ' + dmg + ' skade.' +
-          (c.dead ? ' Den DOR!' : ' (' + c.hp + '/' + c.maxHp + ' HP)'),
+        logLine(combatantLabel(c) + ' takes ' + dmg + ' damage.' +
+          (c.dead ? ' It DIES!' : ' (' + c.hp + '/' + c.maxHp + ' HP)'),
           c.dead ? 'kill' : 'hit');
         refreshCard(c);
       }
@@ -725,7 +730,7 @@
       var amt = readAmount(cardNode);
       if (amt > 0) {
         applyHeal(c, amt);
-        logLine(combatantLabel(c) + ' helbredes ' + amt + ' HP (' +
+        logLine(combatantLabel(c) + ' heals ' + amt + ' HP (' +
           c.hp + '/' + c.maxHp + ').', 'heal');
         refreshCard(c);
       }
@@ -736,9 +741,9 @@
       var ac = parseInt(rawAc, 10);
       c.ac = (rawAc === '' || isNaN(ac) || ac < 0) ? null : ac;
       logLine(combatantLabel(c) + (c.ac != null
-        ? ' har na AC ' + c.ac + ' - kan angripes.'
-        : ' har ingen AC satt.'), 'spawn');
-      renderAll();        // oppdater mal-lister + meta hos alle
+        ? ' now has AC ' + c.ac + ' - can be targeted.'
+        : ' has no AC set.'), 'spawn');
+      renderAll();        // refresh target lists + meta on everyone
       renderTurnOrder();
 
     } else if (action === 'add-condition') {
@@ -746,7 +751,7 @@
       if (addCondition(c, condInput && condInput.value)) {
         var added = c.conditions[c.conditions.length - 1];
         var info = conditionInfo(added);
-        logLine(combatantLabel(c) + ' er na ' + added +
+        logLine(combatantLabel(c) + ' is now ' + added +
           (info ? ' - ' + info : '') + '.', 'spawn');
         rerenderCard(c);
         renderTurnOrder();
@@ -762,7 +767,7 @@
     }
   }
 
-  // ---- Turordnings-boksen: redigere initiativ for alle ----
+  // ---- Turn-order box: edit initiative for everyone ----
   function commitTrackInit(c) {
     var input = el.turnOrder.querySelector(
       '.turn__row[data-id="' + c.id + '"] input[data-role="track-init"]');
@@ -771,10 +776,10 @@
     c.initiative = (raw === '' || isNaN(iv)) ? null : iv;
     state.editingInitId = null;
     logLine(combatantLabel(c) + (c.initiative != null
-      ? ' har na initiativ ' + c.initiative + '.'
-      : ' fjernet fra initiativrekkefolgen.'), 'turn');
-    rerenderCard(c);     // oppdater Init-badge pa kortet
-    renderTurnOrder();   // sorter rekkefolgen pa nytt
+      ? ' now has initiative ' + c.initiative + '.'
+      : ' removed from the initiative order.'), 'turn');
+    rerenderCard(c);     // update the Init badge on the card
+    renderTurnOrder();   // re-sort the order
   }
 
   function onTrackClick(ev) {
@@ -805,7 +810,7 @@
     }
   }
 
-  // Enter i et felt = trykk pa den tilhorende knappen i kortet.
+  // Enter in a field = press the matching button on the card.
   function onListKeydown(ev) {
     if (ev.key !== 'Enter') return;
     var input = ev.target;
@@ -843,8 +848,8 @@
     library = (window.MONSTER_DATA || []).slice();
 
     if (!library.length) {
-      el.list.innerHTML = '<p class="empty">Fant ingen monsterdata. ' +
-        'Sjekk at monsters-data.js er lastet.</p>';
+      el.list.innerHTML = '<p class="empty">No monster data found. ' +
+        'Check that monsters-data.js is loaded.</p>';
       return;
     }
 
@@ -893,7 +898,7 @@
     el.turnOrder.addEventListener('click', onTrackClick);
     el.turnOrder.addEventListener('keydown', onTrackKeydown);
 
-    logLine('Klar! ' + library.length + ' monstre lastet. Legg til monstre og spillere.', 'spawn');
+    logLine('Ready! ' + library.length + ' monsters loaded. Add monsters and players.', 'spawn');
   }
 
   document.addEventListener('DOMContentLoaded', init);

@@ -183,8 +183,10 @@ button:disabled { opacity: .4; cursor: not-allowed; box-shadow: none; }
 .turn__name { flex: 1; font-weight: 600; color: #fff; }
 .turn__tag { font-size: 12px; color: #8a93a6; text-transform: uppercase; letter-spacing: .5px; }
 
+.turn__initgroup { display: inline-flex; align-items: center; gap: 6px; }
+
 .turn__init-input {
-    width: 56px;
+    width: 48px;
     text-align: center;
     background: #1d2029;
     border: 1px solid #e1b12c;
@@ -195,15 +197,26 @@ button:disabled { opacity: .4; cursor: not-allowed; box-shadow: none; }
     font-weight: 700;
     font-size: 14px;
 }
+
+/* Compact icon buttons (pencil/check) - language-independent */
+.btn-track-edit, .btn-track-save {
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    line-height: 1;
+    border-radius: 5px;
+}
 .btn-track-edit {
     background: transparent;
     border: 1px solid #3b4150;
     color: #9aa3b2;
-    padding: 4px 10px;
-    font-size: 12px;
 }
 .btn-track-edit:hover { background: #2c3140; color: #fff; box-shadow: none; }
-.btn-track-save { background: #e1b12c; color: #1b1b1b; padding: 4px 12px; font-size: 12px; }
+.btn-track-save { background: #e1b12c; color: #1b1b1b; }
 
 /**********************************************
 *** BADGES
