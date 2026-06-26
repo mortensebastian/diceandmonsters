@@ -193,6 +193,23 @@ button:disabled { opacity: .4; cursor: not-allowed; box-shadow: none; }
     text-align: center;
 }
 
+/* d20 / Total segmented toggle in the init edit field */
+.init-mode {
+    display: inline-flex;
+    border: 1px solid #3b4150;
+    border-radius: 5px;
+    overflow: hidden;
+}
+.init-mode button {
+    background: #1d2029;
+    color: #9aa3b2;
+    padding: 3px 8px;
+    font-size: 11px;
+    border-radius: 0;
+}
+.init-mode button:hover { box-shadow: none; background: #2c3140; }
+.init-mode button.active { background: #e1b12c; color: #1b1b1b; }
+
 .turn__init-input {
     width: 48px;
     text-align: center;

@@ -55,7 +55,8 @@
     combatants: [],     // monsters and players mixed together
     nextId: 1,
     activeId: null,     // whose turn it is (id), or null
-    editingInitId: null // combatant being edited in the tracker, or null
+    editingInitId: null, // combatant being edited in the tracker, or null
+    editInitMode: 'd20'  // tracker edit field: 'd20' roll or final 'total'
   };
 
   /* =========================================================
@@ -587,13 +588,26 @@
 
       var initGroup;
       if (c.id === state.editingInitId) {
-        // Edit mode: d20 field + modifier shown + save (check symbol).
+        // Edit mode: d20-roll or final-total field + save (check symbol).
+        var mode = state.editInitMode;
+        var curVal = mode === 'total'
+          ? (c.initiative != null ? c.initiative : '')
+          : (c.initRoll != null ? c.initRoll : '');
+        var modChip = mode === 'd20'
+          ? '<span class="turn__initmod" title="initiative modifier">' +
+              signed(c.initMod) + '</span>'
+          : '';
+        var toggle = '<span class="init-mode">' +
+          '<button class="' + (mode === 'd20' ? 'active' : '') + '" ' +
+            'data-action="init-mode" data-mode="d20" title="Enter the d20 roll; the modifier is added">d20</button>' +
+          '<button class="' + (mode === 'total' ? 'active' : '') + '" ' +
+            'data-action="init-mode" data-mode="total" title="Enter the final initiative directly">Total</button>' +
+        '</span>';
         initGroup = '<span class="turn__initgroup">' +
           '<input type="number" class="turn__init-input" data-role="track-init" ' +
-            'value="' + (c.initRoll != null ? c.initRoll : '') + '" placeholder="d20" ' +
-            'title="d20 roll">' +
-          '<span class="turn__initmod" title="initiative modifier">' +
-            signed(c.initMod) + '</span>' +
+            'value="' + curVal + '" placeholder="' + (mode === 'total' ? 'total' : 'd20') + '" ' +
+            'title="' + (mode === 'total' ? 'final initiative' : 'd20 roll') + '">' +
+          modChip + toggle +
           '<button class="btn-track-save" data-action="save-init" ' +
             'title="Save" aria-label="Save">&#10003;</button>' +
         '</span>';
@@ -803,14 +817,18 @@
     var input = el.turnOrder.querySelector(
       '.turn__row[data-id="' + c.id + '"] input[data-role="track-init"]');
     var raw = (input && input.value || '').trim();
-    var d20 = parseInt(raw, 10);
-    if (raw === '' || isNaN(d20)) {
+    var n = parseInt(raw, 10);
+    if (raw === '' || isNaN(n)) {
       // Empty = drop out of the order entirely.
       c.initRoll = null;
       c.initiative = null;
+    } else if (state.editInitMode === 'total') {
+      // The field is the final total; set it directly, no breakdown.
+      c.initRoll = null;
+      c.initiative = n;
     } else {
       // The field is the d20 roll; the modifier is added on top.
-      setInitiative(c, d20);
+      setInitiative(c, n);
     }
     state.editingInitId = null;
     logLine(combatantLabel(c) + (c.initiative != null
@@ -829,9 +847,19 @@
     var action = btn.getAttribute('data-action');
     if (action === 'edit-init') {
       state.editingInitId = id;
+      state.editInitMode = 'd20';
       renderTurnOrder();
     } else if (action === 'save-init') {
       commitTrackInit(c);
+    } else if (action === 'init-mode') {
+      // Switch d20 <-> total, keeping whatever was already typed.
+      var inp = btn.closest('.turn__row').querySelector('input[data-role="track-init"]');
+      var keep = inp ? inp.value : '';
+      state.editInitMode = btn.getAttribute('data-mode');
+      renderTurnOrder();
+      var inp2 = el.turnOrder.querySelector(
+        '.turn__row[data-id="' + id + '"] input[data-role="track-init"]');
+      if (inp2) inp2.value = keep;
     }
   }
 
