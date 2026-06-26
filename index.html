@@ -32,6 +32,28 @@
             </div>
         </section>
 
+        <!-- Spillere (foreløpig bare navn) -->
+        <section class="players">
+            <h2 class="players__title">Spillere</h2>
+            <div class="players__row">
+                <input type="text" id="player-name" class="players__name" placeholder="Spillernavn…">
+                <input type="number" id="player-init" class="players__init" placeholder="init +" title="Valgfritt initiativ-tillegg">
+                <button class="btn-add-player">Legg til spiller</button>
+            </div>
+        </section>
+
+        <!-- Turordning / initiativ -->
+        <section class="tracker">
+            <div class="tracker__head">
+                <h2 class="tracker__title">Turordning</h2>
+                <div class="tracker__buttons">
+                    <button class="btn-init">Rull initiativ</button>
+                    <button class="btn-next" disabled>Neste tur</button>
+                </div>
+            </div>
+            <div id="turn-order" class="turn"></div>
+        </section>
+
         <!-- Encounteren -->
         <section class="encounter">
             <div class="encounter__head">
