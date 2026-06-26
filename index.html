@@ -1,76 +1,54 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="no">
     <head>
         <meta charset="UTF-8">
-        <link href="https://fonts.googleapis.com/css?family=Open+Sans:100,300,400,600" rel="stylesheet" type="text/css">
-        <link href="http://code.ionicframework.com/ionicons/2.0.1/css/ionicons.min.css" rel="stylesheet" type="text/css">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <link href="https://fonts.googleapis.com/css?family=Open+Sans:100,300,400,600,700" rel="stylesheet" type="text/css">
         <link type="text/css" rel="stylesheet" href="style.css">
-        <title>Dice and Monsters</title>
+        <title>Dice &amp; Monsters</title>
     </head>
 
-
     <body>
-        <h1>Dice and Monsters</h1>
+        <header class="topbar">
+            <h1>Dice &amp; Monsters</h1>
+            <p class="tagline">Bygg en D&amp;D-encounter, angrip, og se monstrene dø.</p>
+        </header>
 
-
-
-        <label for="">Choose a race:</label>
-        <select id="race">
-          <option value="Goblin">Goblin</option>
-          <option value="Drow">Drow</option>
-          <option value="Bugbear">Bugbear</option>
-
-        </select>
-
-        
-        <button class="btn-create"><i class=""></i>Create Monster</button>
-
-
-        <div class="monsters">
-            <h2 class="monsters__title">Monsters</h2>
-            
-            <div class="monster__list">
-               
-                <!--
-                <div class="item clearfix" id="monster-0">
-                    <div class="monster__description">monster</div>
-                    <div class="right clearfix">
-                        <div class="monster__hp">HP: 10</div>
-                        <div class="item__ac">AC: 12</div>
-                        <div class="item__melee">Melee attack bonus to hit: 2</div>
-                        <div class="item__meleeDMG">Melee attack dmg dice: 3</div>
-                        <div class="item__range">Range attack to hit: 4</div>
-                        <div class="item__rangeDMG">Range attack dmg dice: 5</div>
-                        <div class="item__delete">
-                            <button class="item__delete--btn"><i class="ion-ios-close-outline"></i></button>
-                        <div class="item__attack">
-                        <button class="btn-melee"><i class="ion-ios-plus-outline"></i>Melee Attack</button>
-                        <button class="btn-ranged"><i class="ion-ios-loop"></i>Ranged Attack</button>
-                        <div class="hit" id="hit">72</div>
-                        <div class="dmg" id="dmg">72</div>
-                            
-                        </div>
-                    </div>
+        <!-- Monstervelger: alle monstrene fra fila -->
+        <section class="picker">
+            <div class="picker__row">
+                <input type="text" id="search" class="picker__search" placeholder="Søk monster…">
+                <select id="cr-filter" class="picker__cr"></select>
+            </div>
+            <div class="picker__row">
+                <select id="monster-select" class="picker__select" size="6"></select>
+            </div>
+            <div class="picker__row picker__row--actions">
+                <span id="match-count" class="picker__count"></span>
+                <div class="picker__buttons">
+                    <button class="btn-random">Tilfeldig</button>
+                    <button class="btn-add">Legg til i encounter</button>
                 </div>
+            </div>
+        </section>
 
-                gamle angreps knapper:
-                        <button class="btn-goblin"><i class="ion-ios-plus-outline"></i>Goblin Attack</button>
-                        <button class="btn-goblinRanged"><i class="ion-ios-loop"></i>Goblin Ranged Attack</button>
-                        <button class="btn-drow"><i class="ion-ios-download-outline"></i>Drow Attack</button>
-                        <button class="btn-drowRanged"><i class="ion-ios-download-outline"></i>Drow Ranged Attack</button>
-                        <button class="btn-bugbear"><i class="ion-ios-plus-outline"></i>Bugbear Attack</button>
-                        <button class="btn-bugbearRanged"><i class="ion-ios-loop"></i>Bugbear Ranged Attack</button>
-                        <div class="hit" id="hit">72</div>
-                        <div class="dmg" id="dmg">72</div>
+        <!-- Encounteren -->
+        <section class="encounter">
+            <div class="encounter__head">
+                <h2 class="encounter__title">Encounter</h2>
+                <span id="encounter-meta" class="encounter__meta"></span>
+                <button class="btn-clear">Tøm encounter</button>
+            </div>
+            <div class="monster__list"></div>
+        </section>
 
-                gamle creat buttons
-        <button class="btn-goblin"><i class=""></i>Create Goblin</button>
-        <button class="btn-drow"><i class=""></i>Create Drow</button>
-        <button class="btn-bugbear"><i class=""></i>Create Bugbear</button>
-            -->
+        <!-- Kamplogg -->
+        <section class="logwrap">
+            <h2 class="logwrap__title">Kamplogg</h2>
+            <div id="log" class="log"></div>
+        </section>
 
+        <script src="monsters-data.js"></script>
+        <script src="Dice&Monsters.js"></script>
     </body>
-
-    <script src="Dice&Monsters.js">
-    </script>
 </html>
