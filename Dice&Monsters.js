@@ -73,8 +73,9 @@
       maxHp: null,
       ac: null,
       dead: false,
-      initiative: null,  // set when initiative is rolled
-      initMod: 0,         // modifier added to the initiative roll
+      initiative: null,  // total: initRoll + initMod (set when rolled)
+      initRoll: null,    // the raw d20 result, so we can show the breakdown
+      initMod: 0,         // modifier added to the d20 (Dex mod, feats, …)
       conditions: [],     // conditions, e.g. "Poisoned", "Prone"
       attacks: []
     };
@@ -241,16 +242,34 @@
 
   // ---- Initiative + turn order ----
 
+  // Short visible breakdown, e.g. "16 + 1" (or just "16" when no mod).
+  function initBreakdown(c) {
+    if (c.initRoll == null) return '';
+    if (!c.initMod) return String(c.initRoll);
+    return c.initRoll + (c.initMod > 0 ? ' + ' + c.initMod : ' - ' + (-c.initMod));
+  }
+
+  // Breakdown for the combat log, e.g. " (d20 16, mod +1)".
+  function initLogBreak(c) {
+    return c.initRoll != null
+      ? ' (d20 ' + c.initRoll + ', mod ' + signed(c.initMod) + ')' : '';
+  }
+
+  // Set a combatant's initiative from a given d20 roll + its modifier.
+  function setInitiative(c, d20) {
+    c.initRoll = d20;
+    c.initiative = d20 + c.initMod;
+  }
+
   // Roll d20 + initMod for everyone. Makes the first one active.
   function rollInitiative() {
     if (!state.combatants.length) return;
     state.combatants.forEach(function (c) {
-      c.initiative = rollDie(20) + c.initMod;
+      setInitiative(c, rollDie(20));
     });
     logLine('--- Initiative rolled ---', 'turn');
     orderedCombatants().forEach(function (c) {
-      logLine(combatantLabel(c) + ': ' + c.initiative +
-        ' (d20 ' + signed(c.initMod) + ')', 'turn');
+      logLine(combatantLabel(c) + ': ' + c.initiative + initLogBreak(c), 'turn');
     });
     var order = orderedAlive();
     state.activeId = order.length ? order[0].id : null;
@@ -443,8 +462,10 @@
   }
 
   function metaHtml(c) {
+    var initTitle = c.initRoll != null
+      ? ' title="d20 ' + c.initRoll + ', mod ' + signed(c.initMod) + '"' : '';
     var init = c.initiative != null
-      ? '<span class="badge badge--init">Init ' + c.initiative + '</span>' : '';
+      ? '<span class="badge badge--init"' + initTitle + '>Init ' + c.initiative + '</span>' : '';
     if (c.kind === 'player') {
       var ac = c.ac != null
         ? '<span class="badge badge--ac">AC ' + c.ac + '</span>' : '';
@@ -566,18 +587,27 @@
 
       var initGroup;
       if (c.id === state.editingInitId) {
-        // Edit mode: number field + save (check symbol).
+        // Edit mode: d20 field + modifier shown + save (check symbol).
         initGroup = '<span class="turn__initgroup">' +
           '<input type="number" class="turn__init-input" data-role="track-init" ' +
-            'value="' + (c.initiative != null ? c.initiative : '') + '" placeholder="–">' +
+            'value="' + (c.initRoll != null ? c.initRoll : '') + '" placeholder="d20" ' +
+            'title="d20 roll">' +
+          '<span class="turn__initmod" title="initiative modifier">' +
+            signed(c.initMod) + '</span>' +
           '<button class="btn-track-save" data-action="save-init" ' +
             'title="Save" aria-label="Save">&#10003;</button>' +
         '</span>';
       } else {
-        // Number + pencil symbol right next to it.
+        // Total + breakdown (d20 + mod) + pencil right next to it.
+        var brk = c.initRoll != null
+          ? '<span class="turn__initbreak" title="d20 ' + c.initRoll +
+              ' + initiative modifier ' + signed(c.initMod) + '">(' +
+              esc(initBreakdown(c)) + ')</span>'
+          : '';
         initGroup = '<span class="turn__initgroup">' +
           '<span class="turn__init">' +
             (c.initiative != null ? c.initiative : '–') + '</span>' +
+          brk +
           '<button class="btn-track-edit" data-action="edit-init" ' +
             'title="Edit initiative" aria-label="Edit initiative">&#9998;</button>' +
         '</span>';
@@ -639,8 +669,9 @@
       return x.id !== c.id && x.initiative != null;
     });
     if (inProgress) {
-      c.initiative = rollDie(20) + c.initMod;
-      logLine(combatantLabel(c) + ' rolls initiative ' + c.initiative + '.', 'turn');
+      setInitiative(c, rollDie(20));
+      logLine(combatantLabel(c) + ' rolls initiative ' + c.initiative +
+        initLogBreak(c) + '.', 'turn');
     }
   }
 
@@ -772,11 +803,18 @@
     var input = el.turnOrder.querySelector(
       '.turn__row[data-id="' + c.id + '"] input[data-role="track-init"]');
     var raw = (input && input.value || '').trim();
-    var iv = parseInt(raw, 10);
-    c.initiative = (raw === '' || isNaN(iv)) ? null : iv;
+    var d20 = parseInt(raw, 10);
+    if (raw === '' || isNaN(d20)) {
+      // Empty = drop out of the order entirely.
+      c.initRoll = null;
+      c.initiative = null;
+    } else {
+      // The field is the d20 roll; the modifier is added on top.
+      setInitiative(c, d20);
+    }
     state.editingInitId = null;
     logLine(combatantLabel(c) + (c.initiative != null
-      ? ' now has initiative ' + c.initiative + '.'
+      ? ' now has initiative ' + c.initiative + initLogBreak(c) + '.'
       : ' removed from the initiative order.'), 'turn');
     rerenderCard(c);     // update the Init badge on the card
     renderTurnOrder();   // re-sort the order

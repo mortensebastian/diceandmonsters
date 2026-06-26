@@ -184,6 +184,14 @@ button:disabled { opacity: .4; cursor: not-allowed; box-shadow: none; }
 .turn__tag { font-size: 12px; color: #8a93a6; text-transform: uppercase; letter-spacing: .5px; }
 
 .turn__initgroup { display: inline-flex; align-items: center; gap: 6px; }
+.turn__initbreak { font-size: 11px; color: #8a93a6; white-space: nowrap; }
+.turn__initmod {
+    font-size: 12px;
+    font-weight: 700;
+    color: #e1b12c;
+    min-width: 22px;
+    text-align: center;
+}
 
 .turn__init-input {
     width: 48px;
