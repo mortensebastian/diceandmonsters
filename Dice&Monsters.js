@@ -52,9 +52,10 @@
   var library = []; // alle monstrene fra fila
 
   var state = {
-    combatants: [], // monstre og spillere om hverandre
+    combatants: [],     // monstre og spillere om hverandre
     nextId: 1,
-    activeId: null  // hvem sin tur det er (id), eller null
+    activeId: null,     // hvem sin tur det er (id), eller null
+    editingInitId: null // combatant som redigeres i sporeren, eller null
   };
 
   /* =========================================================
@@ -128,6 +129,29 @@
   // spillere far det nar DM-en skriver inn AC-en deres.
   function canBeTargeted(c) {
     return c.ac != null;
+  }
+
+  // Korte forklaringer pa standard 5e-tilstander (norsk).
+  var CONDITION_INFO = {
+    'blinded': 'Kan ikke se: bom automatisk hvis syn kreves, og angrep mot den har fordel.',
+    'charmed': 'Kan ikke angripe den som sjarmet den; sjarmoren har fordel pa sosiale sjekker.',
+    'concentration': 'Tar den skade, ma den besta Con-redning (DC 10 / halv skade) for a beholde besvergelsen.',
+    'deafened': 'Kan ikke hore, og feiler automatisk sjekker som krever horsel.',
+    'frightened': 'Ulempe pa sjekker og angrep mens kilden er synlig; kan ikke bevege seg naermere den.',
+    'grappled': 'Fart blir 0; ingen bonus til fart.',
+    'incapacitated': 'Kan verken ta handlinger eller reaksjoner.',
+    'invisible': 'Usynlig: angrep mot den har ulempe, dens egne angrep har fordel.',
+    'paralyzed': 'Handlingslammet og ute av stand til a bevege seg; angrep har fordel, naertreff blir kritisk.',
+    'petrified': 'Forvandlet til stein: bevisstlos, motstand mot all skade, immun mot gift og sykdom.',
+    'poisoned': 'Ulempe pa angrep og evnesjekker.',
+    'prone': 'Liggende: ulempe pa angrep; naerangrep mot den har fordel, fjernangrep har ulempe.',
+    'restrained': 'Fart 0; angrep mot den har fordel, dens angrep ulempe, ulempe pa Dex-redning.',
+    'stunned': 'Handlingslammet, kan ikke bevege seg; angrep mot den har fordel, feiler Str- og Dex-redning.',
+    'unconscious': 'Bevisstlos og liggende, slipper alt; angrep har fordel, naertreff blir kritisk.'
+  };
+
+  function conditionInfo(name) {
+    return CONDITION_INFO[String(name).toLowerCase()] || '';
   }
 
   // Tilstander - samme for monstre og spillere.
@@ -290,6 +314,18 @@
     return list.map(function (m) { return m.crLabel; });
   }
 
+  // Distinkte verdier av et felt (alfabetisk).
+  function uniqueField(field) {
+    var seen = {}, list = [];
+    library.forEach(function (m) {
+      var v = m[field];
+      if (v && !seen[v]) { seen[v] = true; list.push(v); }
+    });
+    return list.sort();
+  }
+
+  var SIZE_ORDER = ['Tiny', 'Small', 'Medium', 'Large', 'Huge', 'Gargantuan'];
+
   function populateCrFilter() {
     var opts = '<option value="">Alle CR</option>';
     uniqueCrLabels().forEach(function (cr) {
@@ -298,11 +334,34 @@
     el.crFilter.innerHTML = opts;
   }
 
+  function populateTypeFilter() {
+    var opts = '<option value="">Alle typer</option>';
+    uniqueField('type').forEach(function (t) {
+      opts += '<option value="' + esc(t) + '">' + esc(t) + '</option>';
+    });
+    el.typeFilter.innerHTML = opts;
+  }
+
+  function populateSizeFilter() {
+    var sizes = uniqueField('size').sort(function (a, b) {
+      return SIZE_ORDER.indexOf(a) - SIZE_ORDER.indexOf(b);
+    });
+    var opts = '<option value="">Alle størrelser</option>';
+    sizes.forEach(function (s) {
+      opts += '<option value="' + esc(s) + '">' + esc(s) + '</option>';
+    });
+    el.sizeFilter.innerHTML = opts;
+  }
+
   function populateMonsterSelect() {
     var q = el.search.value.trim().toLowerCase();
     var cr = el.crFilter.value;
+    var type = el.typeFilter.value;
+    var size = el.sizeFilter.value;
     var matches = library.filter(function (m) {
       if (cr && m.crLabel !== cr) return false;
+      if (type && m.type !== type) return false;
+      if (size && m.size !== size) return false;
       if (q && m.name.toLowerCase().indexOf(q) === -1) return false;
       return true;
     });
@@ -407,12 +466,22 @@
     return '<div class="item__stats">' + stats + '</div>';
   }
 
-  // Tilstander (chips + forslagsfelt) - brukes av begge korttyper.
+  // Tilstander (chips + forslagsfelt + korte forklaringer).
   function conditionsHtml(c) {
     var chips = c.conditions.map(function (cond) {
+      var info = conditionInfo(cond);
       return '<span class="chip" data-action="remove-condition" data-cond="' +
-        esc(cond) + '" title="Klikk for a fjerne">' + esc(cond) + ' &times;</span>';
+        esc(cond) + '" title="' + esc(info || 'Egendefinert tilstand') +
+        ' (klikk for a fjerne)">' + esc(cond) + ' &times;</span>';
     }).join('');
+
+    // Synlige korte forklaringer for de aktive tilstandene.
+    var effects = c.conditions.map(function (cond) {
+      var info = conditionInfo(cond);
+      return info ? '<li><b>' + esc(cond) + '</b> – ' + esc(info) + '</li>' : '';
+    }).filter(Boolean).join('');
+    var effectsHtml = effects ? '<ul class="cond-effects">' + effects + '</ul>' : '';
+
     return '<div class="conditions">' +
       '<span class="conditions__label">Tilstander:</span>' +
       '<span class="conditions__chips">' +
@@ -421,18 +490,13 @@
       '<input class="conditions__input" data-role="condition" list="conditions-list" ' +
         'placeholder="legg til…">' +
       '<button class="btn-cond" data-action="add-condition">+</button>' +
-    '</div>';
+    '</div>' + effectsHtml;
   }
 
-  // Spillerkontroller: redigerbart initiativ + valgfri AC + fjern.
-  // Spillere ruller sin egen terning, sa initiativet skrives inn.
-  // Ingen HP-/skadefelt - spilleren eier sin egen HP.
+  // Spillerkontroller: valgfri AC + fjern. Initiativ redigeres i
+  // turordnings-boksen. Ingen HP - spilleren eier sin egen HP.
   function playerControlsHtml(c) {
     return '<div class="manual">' +
-      '<label class="init-edit">Init <input type="number" ' +
-        'class="manual__input manual__input--init" data-role="init" ' +
-        'value="' + (c.initiative != null ? c.initiative : '') + '" placeholder="–"></label>' +
-      '<button class="btn-set-init" data-action="set-init">Sett</button>' +
       '<label class="ac-edit">AC <input type="number" min="0" ' +
         'class="manual__input manual__input--ac" data-role="ac" ' +
         'value="' + (c.ac != null ? c.ac : '') + '" placeholder="–"></label>' +
@@ -475,30 +539,59 @@
       : '';
   }
 
-  // Turordning-sporing.
+  // Alle combatants for sporeren: de med initiativ forst (hoyest
+  // overst), de uten initiativ nederst. Slik kan alle redigeres.
+  function trackerOrder() {
+    return state.combatants.slice().sort(function (a, b) {
+      var ai = a.initiative == null ? -Infinity : a.initiative;
+      var bi = b.initiative == null ? -Infinity : b.initiative;
+      return (bi - ai) || (b.initMod - a.initMod) || (a.id - b.id);
+    });
+  }
+
+  // Turordning-sporing med redigerbart initiativ for alle.
   function renderTurnOrder() {
-    var order = orderedCombatants();
-    if (!order.length) {
+    if (!state.combatants.length) {
       el.turnOrder.innerHTML =
-        '<p class="turn__hint">Rull initiativ for a sette turordningen.</p>';
+        '<p class="turn__hint">Legg til monstre og spillere, og rull eller skriv inn initiativ.</p>';
       el.nextBtn.disabled = true;
       return;
     }
-    el.nextBtn.disabled = false;
-    el.turnOrder.innerHTML = order.map(function (c) {
+    el.nextBtn.disabled = !state.combatants.some(function (c) { return c.initiative != null; });
+
+    el.turnOrder.innerHTML = trackerOrder().map(function (c) {
       var cls = 'turn__row';
       if (c.id === state.activeId) cls += ' turn__row--active';
       if (c.dead) cls += ' turn__row--dead';
+
+      var initCell, editCell;
+      if (c.id === state.editingInitId) {
+        // Redigeringsmodus: tallfelt + lagre.
+        initCell = '<input type="number" class="turn__init-input" data-role="track-init" ' +
+          'value="' + (c.initiative != null ? c.initiative : '') + '" placeholder="–">';
+        editCell = '<button class="btn-track-save" data-action="save-init">Lagre</button>';
+      } else {
+        initCell = '<span class="turn__init">' +
+          (c.initiative != null ? c.initiative : '–') + '</span>';
+        editCell = '<button class="btn-track-edit" data-action="edit-init" ' +
+          'title="Endre initiativ">Endre</button>';
+      }
+
       var conds = c.conditions.length
         ? '<span class="turn__cond">' + c.conditions.map(esc).join(', ') + '</span>' : '';
+
       return '<div class="' + cls + '" data-id="' + c.id + '">' +
-        '<span class="turn__init">' + c.initiative + '</span>' +
+        initCell +
         '<span class="turn__name">' + esc(c.name) + '</span>' +
         conds +
         '<span class="turn__tag">' + (c.kind === 'player' ? 'spiller' : 'monster') +
           (c.dead ? ' &middot; dod' : '') + '</span>' +
+        editCell +
       '</div>';
     }).join('');
+
+    var input = el.turnOrder.querySelector('input[data-role="track-init"]');
+    if (input) { input.focus(); input.select(); }
   }
 
   function refreshCard(c) {
@@ -648,22 +741,13 @@
       renderAll();        // oppdater mal-lister + meta hos alle
       renderTurnOrder();
 
-    } else if (action === 'set-init') {
-      var initInput = cardNode.querySelector('input[data-role="init"]');
-      var rawInit = (initInput && initInput.value || '').trim();
-      var iv = parseInt(rawInit, 10);
-      c.initiative = (rawInit === '' || isNaN(iv)) ? null : iv;
-      logLine(combatantLabel(c) + (c.initiative != null
-        ? ' har na initiativ ' + c.initiative + '.'
-        : ' fjernet fra initiativrekkefolgen.'), 'turn');
-      rerenderCard(c);
-      renderTurnOrder();
-
     } else if (action === 'add-condition') {
       var condInput = cardNode.querySelector('input[data-role="condition"]');
       if (addCondition(c, condInput && condInput.value)) {
-        logLine(combatantLabel(c) + ' er na ' +
-          c.conditions[c.conditions.length - 1] + '.', 'spawn');
+        var added = c.conditions[c.conditions.length - 1];
+        var info = conditionInfo(added);
+        logLine(combatantLabel(c) + ' er na ' + added +
+          (info ? ' - ' + info : '') + '.', 'spawn');
         rerenderCard(c);
         renderTurnOrder();
       }
@@ -678,13 +762,56 @@
     }
   }
 
+  // ---- Turordnings-boksen: redigere initiativ for alle ----
+  function commitTrackInit(c) {
+    var input = el.turnOrder.querySelector(
+      '.turn__row[data-id="' + c.id + '"] input[data-role="track-init"]');
+    var raw = (input && input.value || '').trim();
+    var iv = parseInt(raw, 10);
+    c.initiative = (raw === '' || isNaN(iv)) ? null : iv;
+    state.editingInitId = null;
+    logLine(combatantLabel(c) + (c.initiative != null
+      ? ' har na initiativ ' + c.initiative + '.'
+      : ' fjernet fra initiativrekkefolgen.'), 'turn');
+    rerenderCard(c);     // oppdater Init-badge pa kortet
+    renderTurnOrder();   // sorter rekkefolgen pa nytt
+  }
+
+  function onTrackClick(ev) {
+    var btn = ev.target.closest('[data-action]');
+    if (!btn) return;
+    var id = parseInt(btn.closest('.turn__row').getAttribute('data-id'), 10);
+    var c = findCombatant(id);
+    if (!c) return;
+    var action = btn.getAttribute('data-action');
+    if (action === 'edit-init') {
+      state.editingInitId = id;
+      renderTurnOrder();
+    } else if (action === 'save-init') {
+      commitTrackInit(c);
+    }
+  }
+
+  function onTrackKeydown(ev) {
+    if (!ev.target.matches || !ev.target.matches('input[data-role="track-init"]')) return;
+    var id = parseInt(ev.target.closest('.turn__row').getAttribute('data-id'), 10);
+    if (ev.key === 'Enter') {
+      ev.preventDefault();
+      var c = findCombatant(id);
+      if (c) commitTrackInit(c);
+    } else if (ev.key === 'Escape') {
+      state.editingInitId = null;
+      renderTurnOrder();
+    }
+  }
+
   // Enter i et felt = trykk pa den tilhorende knappen i kortet.
   function onListKeydown(ev) {
     if (ev.key !== 'Enter') return;
     var input = ev.target;
     if (!input.matches || !input.matches('input[data-role]')) return;
     var action = {
-      init: 'set-init', ac: 'set-ac', condition: 'add-condition', amount: 'damage'
+      ac: 'set-ac', condition: 'add-condition', amount: 'damage'
     }[input.getAttribute('data-role')];
     if (!action) return;
     var btn = input.closest('.item').querySelector('button[data-action="' + action + '"]');
@@ -695,6 +822,8 @@
   function init() {
     el.search     = document.querySelector('#search');
     el.crFilter   = document.querySelector('#cr-filter');
+    el.typeFilter = document.querySelector('#type-filter');
+    el.sizeFilter = document.querySelector('#size-filter');
     el.select     = document.querySelector('#monster-select');
     el.count      = document.querySelector('#match-count');
     el.addBtn     = document.querySelector('.btn-add');
@@ -720,12 +849,16 @@
     }
 
     populateCrFilter();
+    populateTypeFilter();
+    populateSizeFilter();
     populateMonsterSelect();
     renderAll();
     renderTurnOrder();
 
     el.search.addEventListener('input', populateMonsterSelect);
     el.crFilter.addEventListener('change', populateMonsterSelect);
+    el.typeFilter.addEventListener('change', populateMonsterSelect);
+    el.sizeFilter.addEventListener('change', populateMonsterSelect);
 
     el.addBtn.addEventListener('click', function () {
       if (el.select.value) addMonster(el.select.value);
@@ -757,6 +890,8 @@
     el.clearBtn.addEventListener('click', clearEncounter);
     el.list.addEventListener('click', onListClick);
     el.list.addEventListener('keydown', onListKeydown);
+    el.turnOrder.addEventListener('click', onTrackClick);
+    el.turnOrder.addEventListener('keydown', onTrackKeydown);
 
     logLine('Klar! ' + library.length + ' monstre lastet. Legg til monstre og spillere.', 'spawn');
   }
