@@ -353,8 +353,59 @@ button:disabled { opacity: .4; cursor: not-allowed; box-shadow: none; }
 .btn-remove { background: #3b4150; margin-left: auto; }
 .btn-set-ac { background: #2980b9; }
 
-.ac-edit { font-size: 13px; color: #9aa3b2; display: flex; align-items: center; gap: 6px; }
-.manual__input--ac { width: 64px; }
+.ac-edit, .init-edit { font-size: 13px; color: #9aa3b2; display: flex; align-items: center; gap: 6px; }
+.manual__input--ac, .manual__input--init { width: 64px; }
+.btn-set-init { background: #2980b9; }
+
+/**********************************************
+*** CONDITIONS
+**********************************************/
+
+.conditions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding-top: 6px;
+    border-top: 1px dashed #2c3140;
+}
+.conditions__label { font-size: 12px; color: #8a93a6; text-transform: uppercase; letter-spacing: .4px; }
+.conditions__chips { display: inline-flex; flex-wrap: wrap; gap: 6px; }
+.conditions__none { color: #6c7589; font-style: italic; font-size: 12px; }
+
+.chip {
+    display: inline-block;
+    background: #5b3a86;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 3px 9px;
+    border-radius: 11px;
+    cursor: pointer;
+    user-select: none;
+}
+.chip:hover { background: #714aa8; }
+
+.conditions__input {
+    width: 130px;
+    background: #12141a;
+    border: 1px solid #2c3140;
+    color: #e6e6e6;
+    border-radius: 5px;
+    padding: 6px 8px;
+    font-family: inherit;
+    font-size: 13px;
+}
+.btn-cond { background: #5b3a86; padding: 6px 12px; }
+.btn-cond:hover { background: #714aa8; }
+
+.turn__cond {
+    font-size: 11px;
+    color: #b89cd8;
+    background: #2a2140;
+    padding: 1px 7px;
+    border-radius: 9px;
+}
 
 /**********************************************
 *** LOG

@@ -38,6 +38,13 @@
     return (n >= 0 ? '+' : '') + n;
   }
 
+  // Escape brukerinput (navn, tilstander) for trygg innsetting i HTML.
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, function (ch) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch];
+    });
+  }
+
   /* =========================================================
      2. DATA + TILSTAND
      ========================================================= */
@@ -67,6 +74,7 @@
       dead: false,
       initiative: null,  // settes nar initiativ rulles
       initMod: 0,         // tillegg til initiativ-kastet
+      conditions: [],     // tilstander, f.eks. "Poisoned", "Prone"
       attacks: []
     };
   }
@@ -120,6 +128,22 @@
   // spillere far det nar DM-en skriver inn AC-en deres.
   function canBeTargeted(c) {
     return c.ac != null;
+  }
+
+  // Tilstander - samme for monstre og spillere.
+  function addCondition(c, cond) {
+    cond = (cond || '').trim();
+    if (!cond) return false;
+    var exists = c.conditions.some(function (x) {
+      return x.toLowerCase() === cond.toLowerCase();
+    });
+    if (exists) return false;
+    c.conditions.push(cond);
+    return true;
+  }
+
+  function removeCondition(c, cond) {
+    c.conditions = c.conditions.filter(function (x) { return x !== cond; });
   }
 
   /* =========================================================
@@ -342,7 +366,7 @@
     if (!c.attacks.length) return '';
     var opts = '<option value="">- ingen / bare kast -</option>';
     opts += others.map(function (o) {
-      return '<option value="' + o.id + '">' + combatantLabel(o) +
+      return '<option value="' + o.id + '">#' + o.id + ' ' + esc(o.name) +
         ' (AC ' + o.ac + ')</option>';
     }).join('');
     return '<label class="target">Mal: <select data-role="target">' +
@@ -383,10 +407,32 @@
     return '<div class="item__stats">' + stats + '</div>';
   }
 
-  // Spillerkontroller: valgfri AC (kan skrives inn nar som helst)
-  // + fjern. Ingen HP-/skadefelt - spilleren eier sin egen HP.
+  // Tilstander (chips + forslagsfelt) - brukes av begge korttyper.
+  function conditionsHtml(c) {
+    var chips = c.conditions.map(function (cond) {
+      return '<span class="chip" data-action="remove-condition" data-cond="' +
+        esc(cond) + '" title="Klikk for a fjerne">' + esc(cond) + ' &times;</span>';
+    }).join('');
+    return '<div class="conditions">' +
+      '<span class="conditions__label">Tilstander:</span>' +
+      '<span class="conditions__chips">' +
+        (chips || '<span class="conditions__none">ingen</span>') +
+      '</span>' +
+      '<input class="conditions__input" data-role="condition" list="conditions-list" ' +
+        'placeholder="legg til…">' +
+      '<button class="btn-cond" data-action="add-condition">+</button>' +
+    '</div>';
+  }
+
+  // Spillerkontroller: redigerbart initiativ + valgfri AC + fjern.
+  // Spillere ruller sin egen terning, sa initiativet skrives inn.
+  // Ingen HP-/skadefelt - spilleren eier sin egen HP.
   function playerControlsHtml(c) {
     return '<div class="manual">' +
+      '<label class="init-edit">Init <input type="number" ' +
+        'class="manual__input manual__input--init" data-role="init" ' +
+        'value="' + (c.initiative != null ? c.initiative : '') + '" placeholder="–"></label>' +
+      '<button class="btn-set-init" data-action="set-init">Sett</button>' +
       '<label class="ac-edit">AC <input type="number" min="0" ' +
         'class="manual__input manual__input--ac" data-role="ac" ' +
         'value="' + (c.ac != null ? c.ac : '') + '" placeholder="–"></label>' +
@@ -399,15 +445,15 @@
     var active = c.id === state.activeId ? ' item--active' : '';
     var dead = c.dead ? ' item--dead' : '';
     var kindCls = ' item--' + c.kind;
-    var t = c.kind === 'player'
+    var inner = c.kind === 'player'
       ? playerControlsHtml(c)
       : (targetSelectHtml(c) + attackButtonsHtml(c) + manualHtml(c));
-    var controls = t ? '<div class="item__controls">' + t + '</div>' : '';
+    var controls = '<div class="item__controls">' + inner + conditionsHtml(c) + '</div>';
 
     return '' +
       '<div class="item' + kindCls + active + dead + '" data-id="' + c.id + '">' +
         '<div class="item__head">' +
-          '<span class="item__name">' + combatantLabel(c) + '</span>' +
+          '<span class="item__name">#' + c.id + ' ' + esc(c.name) + '</span>' +
           metaHtml(c) +
         '</div>' +
         hpBarHtml(c) +
@@ -443,9 +489,12 @@
       var cls = 'turn__row';
       if (c.id === state.activeId) cls += ' turn__row--active';
       if (c.dead) cls += ' turn__row--dead';
+      var conds = c.conditions.length
+        ? '<span class="turn__cond">' + c.conditions.map(esc).join(', ') + '</span>' : '';
       return '<div class="' + cls + '" data-id="' + c.id + '">' +
         '<span class="turn__init">' + c.initiative + '</span>' +
-        '<span class="turn__name">' + c.name + '</span>' +
+        '<span class="turn__name">' + esc(c.name) + '</span>' +
+        conds +
         '<span class="turn__tag">' + (c.kind === 'player' ? 'spiller' : 'monster') +
           (c.dead ? ' &middot; dod' : '') + '</span>' +
       '</div>';
@@ -468,6 +517,12 @@
     var alive = state.combatants.filter(function (x) { return !x.dead; }).length;
     el.encMeta.textContent = state.combatants.length + ' i encounteren - ' + alive + ' i live';
     renderTurnOrder();
+  }
+
+  // Tegn ett kort pa nytt (uten a roto i de andre kortene).
+  function rerenderCard(c) {
+    var node = el.list.querySelector('.item[data-id="' + c.id + '"]');
+    if (node) node.outerHTML = cardHtml(c);
   }
 
   function updateActiveHighlight() {
@@ -583,19 +638,57 @@
       }
 
     } else if (action === 'set-ac') {
-      var input = cardNode.querySelector('input[data-role="ac"]');
-      var raw = (input && input.value || '').trim();
-      var ac = parseInt(raw, 10);
-      c.ac = (raw === '' || isNaN(ac) || ac < 0) ? null : ac;
+      var acInput = cardNode.querySelector('input[data-role="ac"]');
+      var rawAc = (acInput && acInput.value || '').trim();
+      var ac = parseInt(rawAc, 10);
+      c.ac = (rawAc === '' || isNaN(ac) || ac < 0) ? null : ac;
       logLine(combatantLabel(c) + (c.ac != null
         ? ' har na AC ' + c.ac + ' - kan angripes.'
         : ' har ingen AC satt.'), 'spawn');
       renderAll();        // oppdater mal-lister + meta hos alle
       renderTurnOrder();
 
+    } else if (action === 'set-init') {
+      var initInput = cardNode.querySelector('input[data-role="init"]');
+      var rawInit = (initInput && initInput.value || '').trim();
+      var iv = parseInt(rawInit, 10);
+      c.initiative = (rawInit === '' || isNaN(iv)) ? null : iv;
+      logLine(combatantLabel(c) + (c.initiative != null
+        ? ' har na initiativ ' + c.initiative + '.'
+        : ' fjernet fra initiativrekkefolgen.'), 'turn');
+      rerenderCard(c);
+      renderTurnOrder();
+
+    } else if (action === 'add-condition') {
+      var condInput = cardNode.querySelector('input[data-role="condition"]');
+      if (addCondition(c, condInput && condInput.value)) {
+        logLine(combatantLabel(c) + ' er na ' +
+          c.conditions[c.conditions.length - 1] + '.', 'spawn');
+        rerenderCard(c);
+        renderTurnOrder();
+      }
+
+    } else if (action === 'remove-condition') {
+      removeCondition(c, btn.getAttribute('data-cond'));
+      rerenderCard(c);
+      renderTurnOrder();
+
     } else if (action === 'remove') {
       removeCombatant(id);
     }
+  }
+
+  // Enter i et felt = trykk pa den tilhorende knappen i kortet.
+  function onListKeydown(ev) {
+    if (ev.key !== 'Enter') return;
+    var input = ev.target;
+    if (!input.matches || !input.matches('input[data-role]')) return;
+    var action = {
+      init: 'set-init', ac: 'set-ac', condition: 'add-condition', amount: 'damage'
+    }[input.getAttribute('data-role')];
+    if (!action) return;
+    var btn = input.closest('.item').querySelector('button[data-action="' + action + '"]');
+    if (btn) { ev.preventDefault(); btn.click(); }
   }
 
   /* ---- Init ---- */
@@ -663,6 +756,7 @@
     el.nextBtn.addEventListener('click', nextTurn);
     el.clearBtn.addEventListener('click', clearEncounter);
     el.list.addEventListener('click', onListClick);
+    el.list.addEventListener('keydown', onListKeydown);
 
     logLine('Klar! ' + library.length + ' monstre lastet. Legg til monstre og spillere.', 'spawn');
   }
