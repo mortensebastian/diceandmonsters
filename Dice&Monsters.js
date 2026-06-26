@@ -90,11 +90,13 @@
     return c;
   }
 
-  // Spiller: bare navn (+ valgfritt initiativ-tillegg) for na.
-  // Senere: sett c.maxHp/c.hp for HP-counter, c.ac, c.attacks osv.
-  function createPlayer(name, initMod) {
+  // Spiller: navn + valgfritt initiativ-tillegg + valgfri AC.
+  // HP holder spilleren selv styr pa (DM-en skal ikke kjenne den);
+  // AC trenger DM-en for a avgjore om monsterets angrep treffer.
+  function createPlayer(name, initMod, ac) {
     var c = baseCombatant('player', name);
     c.initMod = initMod || 0;
+    c.ac = (ac == null ? null : ac);
     return c;
   }
 
@@ -109,9 +111,15 @@
     return '#' + c.id + ' ' + c.name;
   }
 
-  // Har denne combatanten en HP-counter? (Spillere: ikke enna.)
+  // Har denne combatanten en HP-counter? (Spillere: nei - egen sak.)
   function hasHp(c) {
     return c.maxHp != null;
+  }
+
+  // Kan angripes? Krever en AC a rulle mot. Monstre har alltid;
+  // spillere far det nar DM-en skriver inn AC-en deres.
+  function canBeTargeted(c) {
+    return c.ac != null;
   }
 
   /* =========================================================
@@ -165,7 +173,8 @@
       ('rullet ' + toHit + (target ? ' vs AC ' + target.ac : '') + ' - treff.');
     var dmgTxt = dmg + ' ' + (attack.type || '') + ' skade';
 
-    if (target) {
+    if (target && hasHp(target)) {
+      // Monster (eller noe med HP): trekk fra skaden.
       applyDamage(target, dmg);
       var status = target.dead
         ? (' ' + combatantLabel(target) + ' DOR!')
@@ -173,6 +182,10 @@
       logLine(who + vs + ': ' + hitTxt + ' ' + dmgTxt + '.' + status,
         target.dead ? 'kill' : 'hit');
       refreshCard(target);
+    } else if (target) {
+      // Spiller med AC men uten HP-teller: rapporter, ikke trekk fra.
+      logLine(who + vs + ': ' + hitTxt + ' ' + dmgTxt +
+        ' - ' + combatantLabel(target) + ' noterer skaden selv.', 'hit');
     } else {
       logLine(who + ': ' + hitTxt + ' ' + dmgTxt + '.', 'hit');
     }
@@ -296,9 +309,9 @@
   }
 
   function hpBarHtml(c) {
-    if (!hasHp(c)) {
-      return '<div class="hp-todo">Ingen HP enda - legges til senere.</div>';
-    }
+    // HP-bar bare for noe som har en HP-teller (monstre). Spillere
+    // har ingen - de holder styr pa egen HP.
+    if (!hasHp(c)) return '';
     var ratio = Math.round(c.hp / c.maxHp * 100);
     return '<div class="hpbar">' +
       '<div class="hpbar__fill ' + hpClass(c) + '" style="width:' + ratio + '%"></div>' +
@@ -321,9 +334,10 @@
   }
 
   function targetSelectHtml(c) {
-    // Bare combatants som faktisk kan ta skade (har HP) og lever.
+    // Alle levende combatants med en AC a rulle mot (monstre, og
+    // spillere som har fatt AC). Spillere uten AC kan ikke velges.
     var others = state.combatants.filter(function (o) {
-      return o.id !== c.id && !o.dead && hasHp(o);
+      return o.id !== c.id && !o.dead && canBeTargeted(o);
     });
     if (!c.attacks.length) return '';
     var opts = '<option value="">- ingen / bare kast -</option>';
@@ -349,8 +363,10 @@
     var init = c.initiative != null
       ? '<span class="badge badge--init">Init ' + c.initiative + '</span>' : '';
     if (c.kind === 'player') {
+      var ac = c.ac != null
+        ? '<span class="badge badge--ac">AC ' + c.ac + '</span>' : '';
       return '<span class="item__meta"><span class="badge badge--player">Spiller</span>' +
-        init + '</span>';
+        ac + init + '</span>';
     }
     var t = c.template;
     return '<span class="item__meta">' + t.size + ' ' + t.type +
@@ -367,17 +383,26 @@
     return '<div class="item__stats">' + stats + '</div>';
   }
 
+  // Spillerkontroller: valgfri AC (kan skrives inn nar som helst)
+  // + fjern. Ingen HP-/skadefelt - spilleren eier sin egen HP.
+  function playerControlsHtml(c) {
+    return '<div class="manual">' +
+      '<label class="ac-edit">AC <input type="number" min="0" ' +
+        'class="manual__input manual__input--ac" data-role="ac" ' +
+        'value="' + (c.ac != null ? c.ac : '') + '" placeholder="–"></label>' +
+      '<button class="btn-set-ac" data-action="set-ac">Sett AC</button>' +
+      '<button class="btn-remove" data-action="remove">Fjern</button>' +
+    '</div>';
+  }
+
   function cardHtml(c) {
     var active = c.id === state.activeId ? ' item--active' : '';
     var dead = c.dead ? ' item--dead' : '';
     var kindCls = ' item--' + c.kind;
-    var controls = '';
-    var t = targetSelectHtml(c) + attackButtonsHtml(c) + manualHtml(c);
-    if (!hasHp(c) && c.kind === 'player') {
-      // Spiller uten stats: bare en fjern-knapp na.
-      t += '<div class="manual"><button class="btn-remove" data-action="remove">Fjern</button></div>';
-    }
-    if (t) controls = '<div class="item__controls">' + t + '</div>';
+    var t = c.kind === 'player'
+      ? playerControlsHtml(c)
+      : (targetSelectHtml(c) + attackButtonsHtml(c) + manualHtml(c));
+    var controls = t ? '<div class="item__controls">' + t + '</div>' : '';
 
     return '' +
       '<div class="item' + kindCls + active + dead + '" data-id="' + c.id + '">' +
@@ -477,16 +502,19 @@
     logLine(combatantLabel(c) + ' dukker opp (' + c.maxHp + ' HP, AC ' + c.ac + ').', 'spawn');
   }
 
-  function addPlayer(name, initMod) {
+  function addPlayer(name, initMod, ac) {
     name = (name || '').trim();
     if (!name) return;
-    var c = createPlayer(name, initMod);
+    var c = createPlayer(name, initMod, ac);
     state.combatants.push(c);
     rollInitiativeIfActive(c);
     renderAll();
     renderTurnOrder();
+    var extra = [];
+    if (initMod) extra.push('init ' + signed(initMod));
+    if (ac != null) extra.push('AC ' + ac);
     logLine('Spiller ' + combatantLabel(c) + ' blir med' +
-      (initMod ? ' (init ' + signed(initMod) + ')' : '') + '.', 'spawn');
+      (extra.length ? ' (' + extra.join(', ') + ')' : '') + '.', 'spawn');
   }
 
   function removeCombatant(id) {
@@ -554,6 +582,17 @@
         refreshCard(c);
       }
 
+    } else if (action === 'set-ac') {
+      var input = cardNode.querySelector('input[data-role="ac"]');
+      var raw = (input && input.value || '').trim();
+      var ac = parseInt(raw, 10);
+      c.ac = (raw === '' || isNaN(ac) || ac < 0) ? null : ac;
+      logLine(combatantLabel(c) + (c.ac != null
+        ? ' har na AC ' + c.ac + ' - kan angripes.'
+        : ' har ingen AC satt.'), 'spawn');
+      renderAll();        // oppdater mal-lister + meta hos alle
+      renderTurnOrder();
+
     } else if (action === 'remove') {
       removeCombatant(id);
     }
@@ -569,6 +608,7 @@
     el.randomBtn  = document.querySelector('.btn-random');
     el.playerName = document.querySelector('#player-name');
     el.playerInit = document.querySelector('#player-init');
+    el.playerAc   = document.querySelector('#player-ac');
     el.addPlayer  = document.querySelector('.btn-add-player');
     el.initBtn    = document.querySelector('.btn-init');
     el.nextBtn    = document.querySelector('.btn-next');
@@ -605,9 +645,13 @@
 
     function submitPlayer() {
       var initMod = parseInt(el.playerInit.value, 10);
-      addPlayer(el.playerName.value, isNaN(initMod) ? 0 : initMod);
+      var ac = parseInt(el.playerAc.value, 10);
+      addPlayer(el.playerName.value,
+        isNaN(initMod) ? 0 : initMod,
+        isNaN(ac) ? null : ac);
       el.playerName.value = '';
       el.playerInit.value = '';
+      el.playerAc.value = '';
       el.playerName.focus();
     }
     el.addPlayer.addEventListener('click', submitPlayer);

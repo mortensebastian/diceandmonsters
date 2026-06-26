@@ -198,6 +198,7 @@ button:disabled { opacity: .4; cursor: not-allowed; box-shadow: none; }
 }
 .badge--player { background: #2980b9; color: #fff; }
 .badge--init   { background: #e1b12c; color: #1b1b1b; }
+.badge--ac     { background: #3b4150; color: #e6e6e6; }
 
 /**********************************************
 *** ENCOUNTER
@@ -350,6 +351,10 @@ button:disabled { opacity: .4; cursor: not-allowed; box-shadow: none; }
 .btn-damage { background: #c0392b; }
 .btn-heal   { background: #27ae60; }
 .btn-remove { background: #3b4150; margin-left: auto; }
+.btn-set-ac { background: #2980b9; }
+
+.ac-edit { font-size: 13px; color: #9aa3b2; display: flex; align-items: center; gap: 6px; }
+.manual__input--ac { width: 64px; }
 
 /**********************************************
 *** LOG
