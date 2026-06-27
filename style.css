@@ -1056,3 +1056,18 @@ button:disabled { opacity: .4; cursor: not-allowed; box-shadow: none; }
     border-radius: 6px; color: #e7dca6; font-size: 13px; white-space: pre-wrap; }
 .treasure-ta { width: 100%; background: #12141a; border: 1px solid #2c3140; color: #e6e6e6;
     border-radius: 6px; padding: 9px 11px; font-family: inherit; font-size: 14px; resize: vertical; }
+
+/* Adventure: ready-made gallery */
+.adv-gallery__title { font-size: 16px; color: #e1b12c; margin-bottom: 4px; }
+.adv-gallery__hint { color: #6c7589; font-size: 13px; margin-bottom: 12px; }
+.adv-gallery__cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+.adv-card {
+    display: flex; flex-direction: column; gap: 5px; text-align: left;
+    background: #1d2029; border: 1px solid #2c3140; border-left: 4px solid #8e44ad;
+    border-radius: 10px; padding: 14px 16px; color: #e6e6e6;
+}
+.adv-card:hover { background: #232734; box-shadow: 0 6px 18px rgba(0,0,0,.35); }
+.adv-card--active { border-color: #e1b12c; border-left-color: #e1b12c; box-shadow: 0 0 0 1px #e1b12c inset; }
+.adv-card__title { font-size: 16px; font-weight: 700; color: #fff; }
+.adv-card__levels { font-size: 12px; color: #e1b12c; }
+.adv-card__sum { font-size: 13px; color: #9aa3b2; font-weight: 400; }

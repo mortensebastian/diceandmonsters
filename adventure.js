@@ -216,8 +216,24 @@
       '<button class="btn-add-scene">+ Add scene</button>';
   }
 
+  function renderGallery() {
+    if (!el.gallery) return;
+    el.gallery.innerHTML = builtins.map(function (a) {
+      var sum = (a.summary || '');
+      if (sum.length > 110) sum = sum.slice(0, 110).replace(/\s+\S*$/, '') + '…';
+      return '<button class="adv-card' + (a.id === active.id ? ' adv-card--active' : '') +
+        '" data-load="' + a.id + '">' +
+        '<span class="adv-card__title">' + esc(a.title) + '</span>' +
+        '<span class="adv-card__levels">Levels ' + esc(a.levels) + ' &middot; ' +
+          a.scenes.length + ' scenes</span>' +
+        '<span class="adv-card__sum">' + esc(sum) + '</span>' +
+      '</button>';
+    }).join('');
+  }
+
   function render() {
     renderSelector();
+    renderGallery();
     el.view.innerHTML = isBuiltin(active) ? readerHtml(active) : editorHtml(active);
   }
 
@@ -350,6 +366,7 @@
     el.status = document.querySelector('#adv-status');
     el.delBtn = document.querySelector('.btn-del-adv');
     el.main = document.querySelector('#adv-main');
+    el.gallery = document.querySelector('#adv-gallery-cards');
 
     var dl = document.querySelector('#mon-list');
     if (dl) {
@@ -378,6 +395,10 @@
     render();
 
     el.select.addEventListener('change', function () { switchTo(el.select.value); });
+    el.gallery.addEventListener('click', function (e) {
+      var card = e.target.closest('[data-load]');
+      if (card) switchTo(card.getAttribute('data-load'));
+    });
     document.querySelector('.btn-new-adv').addEventListener('click', function () { addUser(newAdventure()); });
     document.querySelector('.btn-dup-adv').addEventListener('click', duplicateActive);
     el.delBtn.addEventListener('click', deleteActive);
