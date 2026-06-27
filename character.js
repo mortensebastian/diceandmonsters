@@ -89,6 +89,10 @@
       ac: 10, armor: '', shield: false, initBonus: 0, speed: 30,
       hp: { max: 0, current: 0, temp: 0 }, hitDice: '',
       attacks: [],
+      spellAbility: '', spells: [],
+      deathSaves: { success: [false, false, false], failure: [false, false, false] },
+      inspiration: false,
+      currency: { cp: 0, sp: 0, ep: 0, gp: 0, pp: 0 },
       features: '', equipment: '',
       // Bookkeeping of what race/class/background currently apply, so
       // a later change can be undone cleanly (no double-counting).
@@ -226,6 +230,11 @@
       el.sheet.querySelectorAll('[data-skillprof]'), function (n) {
         n.checked = !!active.skillProf[n.getAttribute('data-skillprof')];
       });
+    Array.prototype.forEach.call(
+      el.sheet.querySelectorAll('[data-death]'), function (n) {
+        var type = n.getAttribute('data-death'), idx = +n.getAttribute('data-didx');
+        n.checked = !!(active.deathSaves && active.deathSaves[type] && active.deathSaves[type][idx]);
+      });
   }
 
   // Recompute and write all derived numbers (no input rebuild).
@@ -250,6 +259,18 @@
 
     el.initTotal.textContent = signed(abilMod('dex') + (active.initBonus || 0));
     el.passive.textContent = 10 + abilMod('wis') + (active.skillProf['perception'] ? pb : 0);
+
+    // Spellcasting (DC = 8 + prof + ability mod; attack = prof + mod).
+    if (el.spellDc) {
+      if (active.spellAbility) {
+        var sm = abilMod(active.spellAbility);
+        el.spellDc.textContent = 8 + pb + sm;
+        el.spellAtk.textContent = signed(pb + sm);
+      } else {
+        el.spellDc.textContent = '—';
+        el.spellAtk.textContent = '—';
+      }
+    }
 
     // AC: computed from armor unless set to manual.
     var acInput = el.sheet.querySelector('input[data-field="ac"]');
@@ -316,16 +337,18 @@
 
   // Build an attack from a weapon (to-hit = ability mod + proficiency,
   // damage = dice + ability mod). Finesse/ranged use Dex.
-  function addWeapon(name) {
+  function addWeapon(name, proficient, twoHanded) {
     var w = weaponByName(name);
     if (!w) return;
     var finesse = w.props.indexOf('finesse') !== -1;
     var ranged = w.props.indexOf('ranged') !== -1;
     var useDex = ranged || (finesse && abilMod('dex') >= abilMod('str'));
     var m = abilMod(useDex ? 'dex' : 'str');
-    var bonus = m + profBonus();
-    var dmg = w.dice + (m > 0 ? '+' + m : (m < 0 ? '' + m : '')) + ' ' + w.type;
-    active.attacks.push({ name: w.name, bonus: signed(bonus), damage: dmg });
+    var bonus = m + (proficient ? profBonus() : 0);
+    var dice = (twoHanded && w.versatileDice) ? w.versatileDice : w.dice;
+    var dmg = dice + (m > 0 ? '+' + m : (m < 0 ? '' + m : '')) + ' ' + w.type;
+    var label = w.name + (twoHanded && w.versatileDice ? ' (two-handed)' : '');
+    active.attacks.push({ name: label, bonus: signed(bonus), damage: dmg });
     persist();
     renderAttacks();
   }
@@ -388,12 +411,27 @@
     el.notes.innerHTML = parts.join(' &middot; ');
   }
 
+  function renderSpells() {
+    el.spells.innerHTML = active.spells.length
+      ? active.spells.map(function (sp, i) {
+          return '<div class="spell-row" data-spell-index="' + i + '">' +
+            '<input type="number" class="spell-lvl" min="0" max="9" ' +
+              'data-spell-field="level" value="' + esc(sp.level) + '" title="Level (0 = cantrip)">' +
+            '<input type="text" placeholder="Spell name" data-spell-field="name" value="' + esc(sp.name) + '">' +
+            '<input type="text" placeholder="Notes (range, save, damage…)" data-spell-field="notes" value="' + esc(sp.notes) + '">' +
+            '<button type="button" class="btn-del-spell" title="Remove">&times;</button>' +
+          '</div>';
+        }).join('')
+      : '<p class="muted">No spells yet.</p>';
+  }
+
   // Full render when switching characters.
   function renderSheet() {
     renderAbilities();
     renderSaves();
     renderSkills();
     renderAttacks();
+    renderSpells();
     fillFields();
     updateNotes();
     updateDerived();
@@ -514,6 +552,12 @@
       var row = t.closest('[data-attack-index]');
       var i = parseInt(row.getAttribute('data-attack-index'), 10);
       active.attacks[i][t.getAttribute('data-attack-field')] = t.value;
+    } else if (t.hasAttribute('data-spell-field')) {
+      var srow = t.closest('[data-spell-index]');
+      var si = parseInt(srow.getAttribute('data-spell-index'), 10);
+      active.spells[si][t.getAttribute('data-spell-field')] = t.value;
+    } else if (t.hasAttribute('data-death')) {
+      active.deathSaves[t.getAttribute('data-death')][+t.getAttribute('data-didx')] = t.checked;
     } else {
       return;
     }
@@ -528,7 +572,9 @@
     } else if (e.target.closest('.btn-add-weapon')) {
       e.preventDefault();
       var ws = document.querySelector('#weapon-select');
-      if (ws && ws.value) addWeapon(ws.value);
+      var prof = document.querySelector('#weapon-prof');
+      var twoH = document.querySelector('#weapon-2h');
+      if (ws && ws.value) addWeapon(ws.value, prof ? prof.checked : true, twoH ? twoH.checked : false);
     } else if (e.target.closest('.btn-add-attack')) {
       e.preventDefault();
       active.attacks.push({ name: '', bonus: '', damage: '' });
@@ -540,6 +586,17 @@
       active.attacks.splice(i, 1);
       persist();
       renderAttacks();
+    } else if (e.target.closest('.btn-add-spell')) {
+      e.preventDefault();
+      active.spells.push({ level: '', name: '', notes: '' });
+      persist();
+      renderSpells();
+    } else if (e.target.classList.contains('btn-del-spell')) {
+      e.preventDefault();
+      var sj = parseInt(e.target.closest('[data-spell-index]').getAttribute('data-spell-index'), 10);
+      active.spells.splice(sj, 1);
+      persist();
+      renderSpells();
     }
   }
 
@@ -552,6 +609,9 @@
     el.saves = document.querySelector('#saves');
     el.skills = document.querySelector('#skills');
     el.attacks = document.querySelector('#attacks');
+    el.spells = document.querySelector('#spells');
+    el.spellDc = document.querySelector('#spell-dc');
+    el.spellAtk = document.querySelector('#spell-atk');
     el.profBonus = document.querySelector('#prof-bonus');
     el.initTotal = document.querySelector('#init-total');
     el.passive = document.querySelector('#passive');
@@ -567,6 +627,11 @@
       // Old sheets had a hand-typed AC: keep it by defaulting to manual.
       if (c.armor === undefined) c.armor = 'manual';
       if (c.shield === undefined) c.shield = false;
+      if (c.spellAbility === undefined) c.spellAbility = '';
+      if (!c.spells) c.spells = [];
+      if (!c.deathSaves) c.deathSaves = { success: [false, false, false], failure: [false, false, false] };
+      if (c.inspiration === undefined) c.inspiration = false;
+      if (!c.currency) c.currency = { cp: 0, sp: 0, ep: 0, gp: 0, pp: 0 };
     });
     if (!chars.length) chars = [newCharacter('pc')];
 

@@ -102,11 +102,70 @@
                 <h2>Attacks</h2>
                 <div class="weapon-add">
                     <select id="weapon-select"></select>
+                    <label class="check-inline">Proficient <input type="checkbox" id="weapon-prof" checked></label>
+                    <label class="check-inline">Two-handed <input type="checkbox" id="weapon-2h"></label>
                     <button type="button" class="btn-add-weapon">+ Add weapon</button>
                 </div>
                 <div id="attacks" class="attacks-list"></div>
                 <button type="button" class="btn-add-attack">+ Add custom attack</button>
             </section>
+
+            <section class="card">
+                <h2>Spells</h2>
+                <div class="grid grid--combat">
+                    <label>Spellcasting ability
+                        <select data-field="spellAbility">
+                            <option value="">None</option>
+                            <option value="int">Intelligence</option>
+                            <option value="wis">Wisdom</option>
+                            <option value="cha">Charisma</option>
+                        </select>
+                    </label>
+                    <div class="derived">
+                        <span class="derived__label">Spell save DC</span>
+                        <span class="derived__val" id="spell-dc">—</span>
+                    </div>
+                    <div class="derived">
+                        <span class="derived__label">Spell attack</span>
+                        <span class="derived__val" id="spell-atk">—</span>
+                    </div>
+                </div>
+                <div id="spells" class="attacks-list"></div>
+                <button type="button" class="btn-add-spell">+ Add spell</button>
+            </section>
+
+            <div class="cols">
+                <section class="card">
+                    <h2>Death saves &amp; inspiration</h2>
+                    <div class="deathsaves">
+                        <div class="ds-group">
+                            <span class="ds-label">Successes</span>
+                            <input type="checkbox" data-death="success" data-didx="0">
+                            <input type="checkbox" data-death="success" data-didx="1">
+                            <input type="checkbox" data-death="success" data-didx="2">
+                        </div>
+                        <div class="ds-group">
+                            <span class="ds-label">Failures</span>
+                            <input type="checkbox" data-death="failure" data-didx="0">
+                            <input type="checkbox" data-death="failure" data-didx="1">
+                            <input type="checkbox" data-death="failure" data-didx="2">
+                        </div>
+                        <label class="check-inline ds-insp">Inspiration
+                            <input type="checkbox" data-field="inspiration">
+                        </label>
+                    </div>
+                </section>
+                <section class="card">
+                    <h2>Currency</h2>
+                    <div class="grid grid--currency">
+                        <label>CP <input type="number" min="0" data-field="currency.cp"></label>
+                        <label>SP <input type="number" min="0" data-field="currency.sp"></label>
+                        <label>EP <input type="number" min="0" data-field="currency.ep"></label>
+                        <label>GP <input type="number" min="0" data-field="currency.gp"></label>
+                        <label>PP <input type="number" min="0" data-field="currency.pp"></label>
+                    </div>
+                </section>
+            </div>
 
             <div class="cols">
                 <section class="card">

@@ -900,3 +900,22 @@ button:disabled { opacity: .4; cursor: not-allowed; box-shadow: none; }
 .btn-add-weapon { background: #2980b9; }
 .btn-add-attack { background: #3b4150; }
 .sheet input[readonly] { opacity: .7; cursor: not-allowed; }
+
+/* Spells */
+.spell-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+.spell-row .spell-lvl { width: 60px !important; flex: none; text-align: center; }
+.spell-row input[data-spell-field="name"] { flex: 2; }
+.spell-row input[data-spell-field="notes"] { flex: 3; }
+.btn-del-spell { background: #3b4150; width: 34px; height: 34px; padding: 0; flex: none; border-radius: 6px; }
+.btn-add-spell { background: #2980b9; }
+
+/* Death saves + inspiration */
+.deathsaves { display: flex; align-items: center; gap: 22px; flex-wrap: wrap; }
+.ds-group { display: flex; align-items: center; gap: 8px; }
+.ds-label { font-size: 12px; color: #8a93a6; text-transform: uppercase; letter-spacing: .4px; }
+.ds-group input[type="checkbox"] { width: 20px; height: 20px; cursor: pointer; }
+.deathsaves .ds-insp { margin-left: auto; }
+
+/* Currency */
+.grid--currency { grid-template-columns: repeat(5, 1fr); }
+@media (max-width: 640px) { .grid--currency { grid-template-columns: repeat(3, 1fr); } }
