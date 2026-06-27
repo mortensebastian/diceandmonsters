@@ -39,6 +39,8 @@
   var ABIL_LABEL = {};
   ABILITIES.forEach(function (a) { ABIL_LABEL[a.key] = a.label; });
 
+  var SRD = window.SRD || { classes: {}, races: {}, backgrounds: {}, alignments: [] };
+
   var SAVE_KEYS = ['str', 'dex', 'con', 'int', 'wis', 'cha'];
 
   var SKILLS = [
@@ -61,6 +63,8 @@
     { key: 'stealth', label: 'Stealth', ability: 'dex' },
     { key: 'survival', label: 'Survival', ability: 'wis' }
   ];
+  var SKILL_LABEL = {};
+  SKILLS.forEach(function (s) { SKILL_LABEL[s.key] = s.label; });
 
   /* ---- State + storage ---- */
   var STORAGE = 'diceAndMonsters.characters';
@@ -85,7 +89,10 @@
       ac: 10, initBonus: 0, speed: 30,
       hp: { max: 0, current: 0, temp: 0 }, hitDice: '',
       attacks: [],
-      features: '', equipment: ''
+      features: '', equipment: '',
+      // Bookkeeping of what race/class/background currently apply, so
+      // a later change can be undone cleanly (no double-counting).
+      raceASI: {}, classSaves: [], bgSkills: []
     };
   }
 
@@ -218,6 +225,85 @@
     el.passive.textContent = 10 + abilMod('wis') + (active.skillProf['perception'] ? pb : 0);
   }
 
+  /* ---- Applying SRD choices (race / class / background) ---- */
+
+  // Race: remove the previously applied ASI, then add the new race's,
+  // and set walking speed. Ability scores stay "final" everywhere else.
+  function applyRace(race) {
+    var old = active.raceASI || {};
+    Object.keys(old).forEach(function (k) {
+      active.abilities[k] = (active.abilities[k] || 10) - old[k];
+    });
+    var r = SRD.races[race];
+    var asi = (r && r.abilities) || {};
+    var applied = {};
+    Object.keys(asi).forEach(function (k) {
+      active.abilities[k] = (active.abilities[k] || 10) + asi[k];
+      applied[k] = asi[k];
+    });
+    active.raceASI = applied;
+    if (r && r.speed) active.speed = r.speed;
+  }
+
+  // Class: swap out old class saves for the new ones, set hit dice.
+  function applyClass(cls) {
+    (active.classSaves || []).forEach(function (k) { active.saveProf[k] = false; });
+    var c = SRD.classes[cls];
+    var saves = (c && c.saves) || [];
+    saves.forEach(function (k) { active.saveProf[k] = true; });
+    active.classSaves = saves.slice();
+    if (c && c.hitDie) active.hitDice = (active.level || 1) + 'd' + c.hitDie;
+  }
+
+  // Background: swap out old granted skills for the new ones.
+  function applyBackground(bg) {
+    (active.bgSkills || []).forEach(function (k) { active.skillProf[k] = false; });
+    var b = SRD.backgrounds[bg];
+    var sk = (b && b.skills) || [];
+    sk.forEach(function (k) { active.skillProf[k] = true; });
+    active.bgSkills = sk.slice();
+  }
+
+  function fillSelect(sel, keys, blank) {
+    var html = blank ? '<option value="">—</option>' : '';
+    html += keys.map(function (k) {
+      return '<option value="' + esc(k) + '">' + esc(k) + '</option>';
+    }).join('');
+    sel.innerHTML = html;
+  }
+
+  function populateIdentitySelects() {
+    fillSelect(el.sheet.querySelector('select[data-field="cls"]'), Object.keys(SRD.classes), true);
+    fillSelect(el.sheet.querySelector('select[data-field="race"]'), Object.keys(SRD.races), true);
+    fillSelect(el.sheet.querySelector('select[data-field="background"]'), Object.keys(SRD.backgrounds), true);
+    fillSelect(el.sheet.querySelector('select[data-field="alignment"]'), SRD.alignments, true);
+  }
+
+  // Summary of what the chosen race/class/background grant.
+  function updateNotes() {
+    var parts = [];
+    var r = SRD.races[active.race];
+    if (r) {
+      var asi = Object.keys(r.abilities || {}).map(function (k) {
+        return k.toUpperCase() + ' +' + r.abilities[k];
+      }).join(', ');
+      parts.push('<b>' + esc(active.race) + '</b>: ' + (asi || 'choose ASI') +
+        ', speed ' + r.speed + (r.note ? '. ' + esc(r.note) : ''));
+    }
+    var c = SRD.classes[active.cls];
+    if (c) {
+      parts.push('<b>' + esc(active.cls) + '</b>: saves ' +
+        c.saves.map(function (s) { return s.toUpperCase(); }).join(' & ') +
+        ', Hit Die d' + c.hitDie);
+    }
+    var b = SRD.backgrounds[active.background];
+    if (b) {
+      parts.push('<b>' + esc(active.background) + '</b>: ' +
+        b.skills.map(function (k) { return SKILL_LABEL[k]; }).join(', '));
+    }
+    el.notes.innerHTML = parts.join(' &middot; ');
+  }
+
   // Full render when switching characters.
   function renderSheet() {
     renderAbilities();
@@ -225,6 +311,7 @@
     renderSkills();
     renderAttacks();
     fillFields();
+    updateNotes();
     updateDerived();
   }
 
@@ -304,7 +391,37 @@
         renderSelector();
         return;
       }
-      if (path === 'name' || path === 'cls' || path === 'level') renderSelector();
+      if (path === 'race') {
+        applyRace(val);
+        persist();
+        fillFields(); updateNotes(); updateDerived();
+        return;
+      }
+      if (path === 'cls') {
+        applyClass(val);
+        persist();
+        fillFields(); updateNotes(); updateDerived(); renderSelector();
+        return;
+      }
+      if (path === 'background') {
+        applyBackground(val);
+        persist();
+        fillFields(); updateNotes(); updateDerived();
+        return;
+      }
+      if (path === 'level') {
+        var cd = SRD.classes[active.cls];
+        if (cd) {
+          active.hitDice = (active.level || 1) + 'd' + cd.hitDie;
+          var hd = el.sheet.querySelector('[data-field="hitDice"]');
+          if (hd) hd.value = active.hitDice;
+        }
+        persist();
+        updateDerived();
+        renderSelector();
+        return;
+      }
+      if (path === 'name') renderSelector();
     } else if (t.hasAttribute('data-saveprof')) {
       active.saveProf[t.getAttribute('data-saveprof')] = t.checked;
     } else if (t.hasAttribute('data-skillprof')) {
@@ -347,11 +464,19 @@
     el.profBonus = document.querySelector('#prof-bonus');
     el.initTotal = document.querySelector('#init-total');
     el.passive = document.querySelector('#passive');
+    el.notes = document.querySelector('#identity-notes');
     el.status = document.querySelector('#save-status');
 
     chars = loadAll();
-    chars.forEach(function (c) { if (!c.category) c.category = 'pc'; }); // migrate old saves
+    chars.forEach(function (c) {
+      if (!c.category) c.category = 'pc';          // migrate old saves
+      if (!c.raceASI) c.raceASI = {};
+      if (!c.classSaves) c.classSaves = [];
+      if (!c.bgSkills) c.bgSkills = [];
+    });
     if (!chars.length) chars = [newCharacter('pc')];
+
+    populateIdentitySelects();
 
     var startId = getActiveId();
     active = null;

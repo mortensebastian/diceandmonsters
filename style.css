@@ -871,3 +871,16 @@ button:disabled { opacity: .4; cursor: not-allowed; box-shadow: none; }
     border-radius: 10px;
 }
 .party-note { color: #6c7589; font-size: 13px; margin-top: 14px; }
+
+/* Identity grant summary line */
+.identity-notes {
+    margin-top: 12px;
+    padding: 10px 12px;
+    background: #12141a;
+    border: 1px solid #2c3140;
+    border-radius: 6px;
+    font-size: 13px;
+    color: #9aa3b2;
+}
+.identity-notes b { color: #e1b12c; }
+.identity-notes:empty { display: none; }

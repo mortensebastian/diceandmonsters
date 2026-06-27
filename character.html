@@ -37,11 +37,11 @@
                 <h2>Identity</h2>
                 <div class="grid grid--identity">
                     <label>Name <input type="text" data-field="name"></label>
-                    <label>Class <input type="text" data-field="cls"></label>
+                    <label>Class <select data-field="cls"></select></label>
                     <label>Level <input type="number" min="1" max="20" data-field="level"></label>
-                    <label>Race <input type="text" data-field="race"></label>
-                    <label>Background <input type="text" data-field="background"></label>
-                    <label>Alignment <input type="text" data-field="alignment"></label>
+                    <label>Race <select data-field="race"></select></label>
+                    <label>Background <select data-field="background"></select></label>
+                    <label>Alignment <select data-field="alignment"></select></label>
                     <label>Type
                         <select data-field="category">
                             <option value="pc">My character</option>
@@ -49,6 +49,7 @@
                         </select>
                     </label>
                 </div>
+                <p id="identity-notes" class="identity-notes"></p>
             </section>
 
             <section class="card">
@@ -112,6 +113,7 @@
             </div>
         </form>
 
+        <script src="srd-data.js"></script>
         <script src="character.js"></script>
     </body>
 </html>
