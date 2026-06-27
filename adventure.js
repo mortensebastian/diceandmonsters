@@ -53,7 +53,9 @@
     return null;
   }
 
-  function newScene(n) { return { title: 'Scene ' + n, text: '', traps: [], map: '', monsters: [] }; }
+  function newScene(n) {
+    return { title: 'Scene ' + n, text: '', npcs: [], traps: [], treasure: '', map: '', monsters: [] };
+  }
   function newAdventure() {
     return { id: uid(), title: 'New adventure', levels: '1', summary: '', scenes: [newScene(1)] };
   }
@@ -128,13 +130,51 @@
       '<button class="btn-add-trap" data-add-trap="' + idx + '">+ Add trap</button></div>';
   }
 
+  function npcsHtml(scene, idx, editable) {
+    var npcs = scene.npcs || [];
+    if (!editable) {
+      if (!npcs.length) return '';
+      var items = npcs.map(function (n) {
+        return '<li><b>' + esc(n.name || 'NPC') + '</b>' +
+          (n.role ? ' <span class="npc-role">' + esc(n.role) + '</span>' : '') +
+          (n.line ? ' — “' + esc(n.line) + '”' : '') + '</li>';
+      }).join('');
+      return '<div class="scene__block"><span class="scene__lbl">NPCs</span>' +
+        '<ul class="npc-list">' + items + '</ul></div>';
+    }
+    var rows = npcs.map(function (n, i) {
+      return '<div class="npc-row" data-scene="' + idx + '" data-npc="' + i + '">' +
+        '<input type="text" class="npc-name" data-npc-field="name" placeholder="Name" value="' + esc(n.name) + '">' +
+        '<input type="text" class="npc-role" data-npc-field="role" placeholder="Role" value="' + esc(n.role) + '">' +
+        '<input type="text" class="npc-line" data-npc-field="line" placeholder="Quote / note" value="' + esc(n.line) + '">' +
+        '<button class="btn-npc-del" data-npc-remove data-scene="' + idx + '" data-npc="' + i + '" title="Remove">&times;</button>' +
+      '</div>';
+    }).join('');
+    return '<div class="scene__block"><span class="scene__lbl">NPCs</span>' +
+      '<div class="npc-rows">' + rows + '</div>' +
+      '<button class="btn-add-npc" data-add-npc="' + idx + '">+ Add NPC</button></div>';
+  }
+
+  function treasureHtml(scene, idx, editable) {
+    if (!editable) {
+      if (!scene.treasure) return '';
+      return '<div class="scene__block"><span class="scene__lbl">Treasure &amp; rewards</span>' +
+        '<p class="treasure">' + esc(scene.treasure) + '</p></div>';
+    }
+    return '<div class="scene__block"><span class="scene__lbl">Treasure &amp; rewards</span>' +
+      '<textarea class="treasure-ta" data-scene-field="treasure" data-scene="' + idx + '" rows="2" ' +
+      'placeholder="Loot, gold, rewards, story payoff…">' + esc(scene.treasure) + '</textarea></div>';
+  }
+
   function readerHtml(adv) {
     var scenes = adv.scenes.map(function (s, i) {
       return '<div class="scene scene--read">' +
         '<h3 class="scene__h">' + esc(s.title) + '</h3>' +
         '<p class="scene__text">' + esc(s.text) + '</p>' +
         mapHtml(s, i, false) +
+        npcsHtml(s, i, false) +
         trapsHtml(s, i, false) +
+        treasureHtml(s, i, false) +
         sceneMonsHtml(s, i, false) +
         '<div class="scene__actions">' +
           '<button class="btn-send" data-send="' + i + '">▶ Send encounter to planner</button>' +
@@ -155,7 +195,9 @@
         '<input class="scene__title" data-scene-field="title" data-scene="' + i + '" value="' + esc(s.title) + '" placeholder="Scene title">' +
         '<textarea class="scene__ta" data-scene-field="text" data-scene="' + i + '" rows="5" placeholder="Read-aloud text and DM notes…">' + esc(s.text) + '</textarea>' +
         mapHtml(s, i, true) +
+        npcsHtml(s, i, true) +
         trapsHtml(s, i, true) +
+        treasureHtml(s, i, true) +
         sceneMonsHtml(s, i, true) +
         '<div class="scene__add">' +
           '<input class="mon-input" list="mon-list" placeholder="monster name">' +
@@ -230,6 +272,10 @@
       var tr = t.closest('.trap-row');
       active.scenes[+tr.getAttribute('data-scene')].traps[+tr.getAttribute('data-trap')][t.getAttribute('data-trap-field')] = t.value;
       persist();
+    } else if (t.hasAttribute('data-npc-field')) {
+      var nr = t.closest('.npc-row');
+      active.scenes[+nr.getAttribute('data-scene')].npcs[+nr.getAttribute('data-npc')][t.getAttribute('data-npc-field')] = t.value;
+      persist();
     }
   }
 
@@ -272,6 +318,12 @@
     } else if (t.hasAttribute('data-trap-remove')) {
       active.scenes[+t.getAttribute('data-scene')].traps.splice(+t.getAttribute('data-trap'), 1);
       persist(); render();
+    } else if (t.hasAttribute('data-add-npc')) {
+      active.scenes[+t.getAttribute('data-add-npc')].npcs.push({ name: '', role: '', line: '' });
+      persist(); render();
+    } else if (t.hasAttribute('data-npc-remove')) {
+      active.scenes[+t.getAttribute('data-scene')].npcs.splice(+t.getAttribute('data-npc'), 1);
+      persist(); render();
     } else if (t.hasAttribute('data-map-url')) {
       var s2 = +t.getAttribute('data-map-url');
       var urlInput = t.closest('.map-edit').querySelector('.map-url');
@@ -311,6 +363,8 @@
     userAdvs.forEach(function (a) {
       (a.scenes || []).forEach(function (s) {
         if (!s.traps) s.traps = [];
+        if (!s.npcs) s.npcs = [];
+        if (s.treasure === undefined) s.treasure = '';
         if (s.map === undefined) s.map = '';
         if (!s.monsters) s.monsters = [];
       });

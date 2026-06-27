@@ -31,6 +31,7 @@
           traps: [
             { name: 'Submerged Pit', detect: '12', disarm: '—', effect: 'A flooded shaft hidden beneath the water. DC 12 Dexterity save or drop 10 ft into deeper water (1d6 and start drowning).' }
           ],
+          treasure: 'A silver holy symbol (25 gp) lies in the submerged alcove, still oddly warm.',
           monsters: [
             { slug: 'giant-rat', name: 'Giant Rat', count: 4 },
             { slug: 'swarm-of-rats', name: 'Swarm of Rats', count: 1 }
@@ -46,6 +47,9 @@
             'DM notes: a successful DC 12 Religion check finds the single plaque that was never defaced — ' +
             'the name "Brother Aldous." Speaking it aloud at the vault door in Scene 3 opens it peacefully ' +
             'and the ghoul does not attack until the party takes the treasure.',
+          npcs: [
+            { name: 'Brother Aldous', role: 'Restless spirit', line: 'Speak my name at the door, and it will know you as a friend.' }
+          ],
           monsters: [
             { slug: 'skeleton', name: 'Skeleton', count: 5 }
           ]
@@ -60,6 +64,7 @@
             'DM notes: speaking "Brother Aldous" (Scene 2) opens the door without a fight; otherwise it ' +
             'must be forced (DC 15 Strength) and the ghoul ambushes. Treasure: a +1 weapon of the old ' +
             'order, 120 gp in waterlogged coin, and Aldous\'s journal, which hooks your next adventure.',
+          treasure: 'A +1 weapon of the old order, 120 gp in waterlogged coin, and the journal of Brother Aldous (a hook for your next adventure).',
           monsters: [
             { slug: 'ghoul', name: 'Ghoul', count: 1 },
             { slug: 'specter', name: 'Specter', count: 1 }
@@ -86,6 +91,9 @@
             'DM notes: the goblins fight from cover (half cover among the trees). A wounded merchant ' +
             'hides beneath the wagon bed (DC 10 Perception); if rescued, he describes the warren and the ' +
             '"big shaggy one" giving the orders, granting the party advantage on the Scene 3 surprise.',
+          npcs: [
+            { name: 'Tobben Marsh', role: 'Wounded merchant', line: 'The big shaggy one gives the orders. Spare me and I will tell you where the warren is.' }
+          ],
           monsters: [
             { slug: 'goblin', name: 'Goblin', count: 4 }
           ]
@@ -120,6 +128,10 @@
             'DM notes: kill or drive off the bugbear and the surviving goblins scatter into the woods. ' +
             'Treasure: the guild\'s stolen strongbox (300 gp), a fine dagger, and a crude map marking ' +
             '"the deep place" — a hook for a longer campaign.',
+          npcs: [
+            { name: 'Grosh', role: 'Bugbear slaver', line: 'You came all this way. Good. Saves me the walk.' }
+          ],
+          treasure: 'The stolen guild strongbox (300 gp), a fine dagger, and a crude map marking the deep place.',
           monsters: [
             { slug: 'bugbear', name: 'Bugbear', count: 1 },
             { slug: 'goblin', name: 'Goblin', count: 3 }
@@ -148,6 +160,9 @@
           traps: [
             { name: 'Alarm Tripwire', detect: '12', disarm: '10', effect: 'A wire across the threshold rings bells deeper in the house. Missing it (DC 12) costs the party surprise in the next room.' }
           ],
+          npcs: [
+            { name: 'Calden Vey', role: 'Merchant-prince (patron)', line: 'Bring me proof of what happened. And if anyone in there still lives, bring them too.' }
+          ],
           monsters: [
             { slug: 'animated-armor', name: 'Animated Armor', count: 1 }
           ]
@@ -163,6 +178,7 @@
             'DM notes: the chest is the mimic (it grabs and grapples the first creature to touch it). The ' +
             'gray ooze drops from the ceiling at the start of round two. Inside the real cupboard (DC 13 ' +
             'Investigation) is a potion of healing and the cook\'s diary naming the cellar as the source.',
+          treasure: 'A potion of healing waits in the real cupboard, behind the false one.',
           monsters: [
             { slug: 'mimic', name: 'Mimic', count: 1 },
             { slug: 'gray-ooze', name: 'Gray Ooze', count: 1 }
@@ -178,6 +194,7 @@
             'DM notes: light matters — the shadows lurk just past the lantern\'s reach and gain surprise ' +
             'on anyone who advances without a light source. Chained in the back is the last surviving ' +
             'servant; freeing her completes Calden Vey\'s contract for 500 gp and his lasting favor.',
+          treasure: '500 gp from Calden Vey on completion, plus his lasting favor at court.',
           monsters: [
             { slug: 'ghoul', name: 'Ghoul', count: 1 },
             { slug: 'shadow', name: 'Shadow', count: 2 }
@@ -221,6 +238,7 @@
             'DM notes: the crocodile fights from the water (it has advantage while submerged and can drag ' +
             'a grappled victim under). A capsized barge here holds a waterproofed strongbox (DC 14 ' +
             'Strength to haul up) with 200 gp in smuggled salt-coin.',
+          treasure: 'A capsized barge hides a waterproofed strongbox: 200 gp in smuggled salt-coin.',
           monsters: [
             { slug: 'crocodile', name: 'Crocodile', count: 1 }
           ]
@@ -236,6 +254,10 @@
             'DM notes: the wererat leader and a second wererat fight alongside human muscle. Silvered or ' +
             'magic weapons matter here. The cages hold two kidnapped bargemen; their rescue, plus the ' +
             'ledger of buyers, earns the reeve\'s reward of 400 gp and reopens the river.',
+          npcs: [
+            { name: 'Reeve Halden', role: 'Town reeve (patron)', line: 'Open the river again and the gold is yours. No questions about the salt.' }
+          ],
+          treasure: 'The reeve reward of 400 gp, and the smuggler ledger naming every buyer.',
           monsters: [
             { slug: 'wererat', name: 'Wererat', count: 2 },
             { slug: 'thug', name: 'Thug', count: 2 }
