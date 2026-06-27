@@ -114,6 +114,58 @@
     return c;
   }
 
+  // ---- Importing from saved character sheets ----
+
+  function loadCharacters() {
+    try { return JSON.parse(window.localStorage.getItem('diceAndMonsters.characters')) || []; }
+    catch (e) { return []; }
+  }
+
+  function sheetInitMod(sheet) {
+    var dex = sheet.abilities ? sheet.abilities.dex : 10;
+    return abilityMod(dex) + (sheet.initBonus || 0);
+  }
+
+  // Best-effort parse of a freeform sheet attack into the combat model.
+  function parseSheetAttack(at) {
+    var toHit = parseInt(at.bonus, 10); if (isNaN(toHit)) toHit = 0;
+    var dmg = String(at.damage || '');
+    var count = 0, sides = 0, bonus = 0, type = '';
+    var m = /(\d+)\s*d\s*(\d+)\s*([+\-]\s*\d+)?/i.exec(dmg);
+    if (m) {
+      count = +m[1]; sides = +m[2];
+      if (m[3]) bonus = parseInt(m[3].replace(/\s+/g, ''), 10) || 0;
+    } else {
+      var f = /([+\-]?\d+)/.exec(dmg);
+      if (f) bonus = parseInt(f[1], 10) || 0;
+    }
+    var tm = /([a-zA-Z]+)\s*$/.exec(dmg.trim());
+    if (tm && tm[1].toLowerCase() !== 'd') type = tm[1].toLowerCase();
+    var ranged = /(bow|ranged|thrown|sling|dart|javelin|crossbow)/i.test(at.name || '');
+    return {
+      name: at.name || 'Attack', toHit: toHit,
+      count: count, sides: sides, bonus: bonus, type: type, ranged: ranged
+    };
+  }
+
+  // PC sheet -> player combatant (AC + initiative only; no HP).
+  function createPlayerFromSheet(sheet) {
+    return createPlayer(sheet.name || 'Player', sheetInitMod(sheet),
+      (sheet.ac != null && sheet.ac !== '' ? sheet.ac : null));
+  }
+
+  // NPC sheet -> DM-controlled combatant with HP, AC and attacks.
+  function createNpcFromSheet(sheet) {
+    var c = baseCombatant('npc', sheet.name || 'NPC');
+    var maxHp = (sheet.hp && sheet.hp.max) ? sheet.hp.max : 0;
+    c.maxHp = maxHp > 0 ? maxHp : 1;
+    c.hp = c.maxHp;
+    c.ac = (sheet.ac != null && sheet.ac !== '') ? sheet.ac : 10;
+    c.initMod = sheetInitMod(sheet);
+    c.attacks = (sheet.attacks || []).map(parseSheetAttack);
+    return c;
+  }
+
   function findCombatant(id) {
     for (var i = 0; i < state.combatants.length; i++) {
       if (state.combatants[i].id === id) return state.combatants[i];
@@ -476,6 +528,10 @@
       return '<span class="item__meta"><span class="badge badge--player">Player</span>' +
         ac + init + '</span>';
     }
+    if (c.kind === 'npc') {
+      return '<span class="item__meta"><span class="badge badge--npc">NPC</span>' +
+        '<span class="badge badge--ac">AC ' + c.ac + '</span>' + init + '</span>';
+    }
     var t = c.template;
     return '<span class="item__meta">' + t.size + ' ' + t.type +
       ' &middot; CR ' + t.crLabel + ' &middot; AC ' + c.ac +
@@ -718,6 +774,42 @@
       (extra.length ? ' (' + extra.join(', ') + ')' : '') + '.', 'spawn');
   }
 
+  // Bring a saved character sheet into the encounter.
+  function addCharacterFromSheet(id) {
+    var sheets = loadCharacters(), sheet = null;
+    for (var i = 0; i < sheets.length; i++) if (sheets[i].id === id) sheet = sheets[i];
+    if (!sheet) return;
+    var isNpc = sheet.category === 'npc';
+    var c = isNpc ? createNpcFromSheet(sheet) : createPlayerFromSheet(sheet);
+    state.combatants.push(c);
+    rollInitiativeIfActive(c);
+    renderAll();
+    renderTurnOrder();
+    var note = isNpc
+      ? ' (NPC, ' + c.maxHp + ' HP, AC ' + c.ac + ')'
+      : ' (player, AC ' + (c.ac != null ? c.ac : '–') + ')';
+    logLine(combatantLabel(c) + ' added from sheet' + note + '.', 'spawn');
+  }
+
+  // Fill the import dropdown from saved sheets, grouped by category.
+  function populateCharImport() {
+    if (!el.charImport) return;
+    var sheets = loadCharacters();
+    if (!sheets.length) {
+      el.charImport.innerHTML = '<option value="">No saved characters</option>';
+      el.importBtn.disabled = true;
+      return;
+    }
+    el.importBtn.disabled = false;
+    function opt(s) { return '<option value="' + s.id + '">' + esc(s.name || 'Unnamed') + '</option>'; }
+    var pcs = sheets.filter(function (s) { return (s.category || 'pc') === 'pc'; });
+    var npcs = sheets.filter(function (s) { return s.category === 'npc'; });
+    var html = '';
+    if (pcs.length) html += '<optgroup label="My characters">' + pcs.map(opt).join('') + '</optgroup>';
+    if (npcs.length) html += '<optgroup label="NPCs">' + npcs.map(opt).join('') + '</optgroup>';
+    el.charImport.innerHTML = html;
+  }
+
   function removeCombatant(id) {
     var c = findCombatant(id);
     state.combatants = state.combatants.filter(function (x) { return x.id !== id; });
@@ -760,6 +852,8 @@
       initMod: c.initMod, conditions: c.conditions.slice()
     };
     if (c.kind === 'monster' && c.template) o.templateSlug = c.template.slug;
+    // NPCs have no library template, so keep their attacks inline.
+    if (c.kind === 'npc') o.attacks = c.attacks;
     return o;
   }
 
@@ -776,6 +870,8 @@
     if (o.kind === 'monster') {
       var t = templateBySlug(o.templateSlug);
       if (t) { c.template = t; c.attacks = t.attacks || []; }
+    } else if (o.kind === 'npc') {
+      c.attacks = o.attacks || [];
     }
     return c;
   }
@@ -1032,6 +1128,8 @@
     el.playerInit = document.querySelector('#player-init');
     el.playerAc   = document.querySelector('#player-ac');
     el.addPlayer  = document.querySelector('.btn-add-player');
+    el.charImport = document.querySelector('#char-import');
+    el.importBtn  = document.querySelector('.btn-import-char');
     el.initBtn    = document.querySelector('.btn-init');
     el.nextBtn    = document.querySelector('.btn-next');
     el.turnOrder  = document.querySelector('#turn-order');
@@ -1090,6 +1188,15 @@
     el.playerName.addEventListener('keydown', function (e) {
       if (e.key === 'Enter') submitPlayer();
     });
+
+    if (el.charImport) {
+      populateCharImport();
+      // Refresh the list in case sheets were edited on the other page.
+      el.charImport.addEventListener('focus', populateCharImport);
+      el.importBtn.addEventListener('click', function () {
+        if (el.charImport.value) addCharacterFromSheet(el.charImport.value);
+      });
+    }
 
     el.initBtn.addEventListener('click', rollInitiative);
     el.nextBtn.addEventListener('click', nextTurn);
