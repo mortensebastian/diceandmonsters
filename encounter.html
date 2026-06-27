@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <link href="https://fonts.googleapis.com/css?family=Open+Sans:100,300,400,600,700" rel="stylesheet" type="text/css">
+        <link type="text/css" rel="stylesheet" href="style.css">
+        <title>Encounter Planner — Dice &amp; Monsters</title>
+    </head>
+
+    <body>
+        <header class="topbar">
+            <nav class="nav"><a href="index.html" class="nav__home">← Home</a></nav>
+            <h1>Encounter Planner</h1>
+            <p class="tagline">Build a D&amp;D encounter, attack, and watch the monsters die.</p>
+        </header>
+
+        <!-- Monster picker: all monsters from the file -->
+        <section class="picker">
+            <div class="picker__row">
+                <input type="text" id="search" class="picker__search" placeholder="Search monster…">
+            </div>
+            <div class="picker__row picker__row--filters">
+                <select id="cr-filter" class="picker__cr"></select>
+                <select id="type-filter" class="picker__cr"></select>
+                <select id="size-filter" class="picker__cr"></select>
+            </div>
+            <div class="picker__row">
+                <select id="monster-select" class="picker__select" size="6"></select>
+            </div>
+            <div class="picker__row picker__row--actions">
+                <span id="match-count" class="picker__count"></span>
+                <div class="picker__buttons">
+                    <button class="btn-random">Random</button>
+                    <button class="btn-add">Add to encounter</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Players (name only for now) -->
+        <section class="players">
+            <h2 class="players__title">Players</h2>
+            <div class="players__row">
+                <input type="text" id="player-name" class="players__name" placeholder="Player name…">
+                <input type="number" id="player-init" class="players__init" placeholder="init +" title="Optional initiative modifier">
+                <input type="number" id="player-ac" class="players__init" placeholder="AC" title="Optional AC (can be set later)">
+                <button class="btn-add-player">Add player</button>
+            </div>
+        </section>
+
+        <!-- Turn order / initiative -->
+        <section class="tracker">
+            <div class="tracker__head">
+                <h2 class="tracker__title">Turn order</h2>
+                <div class="tracker__buttons">
+                    <button class="btn-init">Roll initiative</button>
+                    <button class="btn-next" disabled>Next turn</button>
+                </div>
+            </div>
+            <div id="turn-order" class="turn"></div>
+        </section>
+
+        <!-- Saved encounters (prep ahead of time) -->
+        <section class="saved">
+            <h2 class="saved__title">Saved encounters</h2>
+            <div class="saved__row">
+                <input type="text" id="encounter-name" class="saved__name-input" placeholder="Encounter name…">
+                <button class="btn-save-encounter">Save current</button>
+            </div>
+            <div id="saved-list" class="saved__list"></div>
+        </section>
+
+        <!-- The encounter -->
+        <section class="encounter">
+            <div class="encounter__head">
+                <h2 class="encounter__title">Encounter</h2>
+                <span id="encounter-meta" class="encounter__meta"></span>
+                <button class="btn-clear">Clear encounter</button>
+            </div>
+            <div class="monster__list"></div>
+        </section>
+
+        <!-- Combat log -->
+        <section class="logwrap">
+            <h2 class="logwrap__title">Combat log</h2>
+            <div id="log" class="log"></div>
+        </section>
+
+        <!-- Standard 5e conditions as suggestions (free text is also allowed) -->
+        <datalist id="conditions-list">
+            <option value="Blinded"></option>
+            <option value="Charmed"></option>
+            <option value="Concentration"></option>
+            <option value="Deafened"></option>
+            <option value="Frightened"></option>
+            <option value="Grappled"></option>
+            <option value="Incapacitated"></option>
+            <option value="Invisible"></option>
+            <option value="Paralyzed"></option>
+            <option value="Petrified"></option>
+            <option value="Poisoned"></option>
+            <option value="Prone"></option>
+            <option value="Restrained"></option>
+            <option value="Stunned"></option>
+            <option value="Unconscious"></option>
+        </datalist>
+
+        <script src="monsters-data.js"></script>
+        <script src="Dice&Monsters.js"></script>
+    </body>
+</html>

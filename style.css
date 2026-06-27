@@ -553,3 +553,221 @@ button:disabled { opacity: .4; cursor: not-allowed; box-shadow: none; }
     .picker__row { flex-wrap: wrap; }
     .picker__cr { width: 100%; }
 }
+
+/**********************************************
+*** NAV (sub-pages)
+**********************************************/
+
+.nav { margin-bottom: 10px; }
+.nav__home {
+    color: #9aa3b2;
+    text-decoration: none;
+    font-size: 14px;
+    border: 1px solid #2c3140;
+    padding: 6px 12px;
+    border-radius: 6px;
+    background: #1d2029;
+}
+.nav__home:hover { color: #fff; border-color: #3b4150; }
+
+/**********************************************
+*** HOME / LANDING
+**********************************************/
+
+.home__cards {
+    display: flex;
+    gap: 18px;
+    flex-wrap: wrap;
+}
+.home-card {
+    flex: 1;
+    min-width: 240px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    text-decoration: none;
+    background: #1d2029;
+    border: 1px solid #2c3140;
+    border-radius: 12px;
+    padding: 26px 22px;
+    transition: transform .08s, border-color .15s, box-shadow .15s;
+}
+.home-card:hover {
+    transform: translateY(-2px);
+    border-color: #c0392b;
+    box-shadow: 0 10px 30px rgba(0,0,0,.4);
+}
+.home-card__icon { font-size: 38px; }
+.home-card__title { font-size: 20px; font-weight: 700; color: #fff; }
+.home-card__desc { color: #9aa3b2; font-size: 14px; }
+.home__note { color: #6c7589; font-size: 13px; margin-top: 18px; text-align: center; }
+
+/**********************************************
+*** CHARACTER SHEET
+**********************************************/
+
+.charbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    background: #1d2029;
+    border: 1px solid #2c3140;
+    border-radius: 10px;
+    padding: 14px 18px;
+}
+.charbar__pick { color: #9aa3b2; font-size: 14px; }
+.charbar__pick select {
+    background: #12141a;
+    border: 1px solid #2c3140;
+    color: #e6e6e6;
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-family: inherit;
+    font-size: 14px;
+    margin-left: 6px;
+    min-width: 180px;
+}
+.charbar__buttons { display: flex; gap: 8px; }
+.btn-new-char { background: #27ae60; }
+.btn-dup-char { background: #2980b9; }
+.btn-del-char { background: #3b4150; }
+.save-status {
+    margin-left: auto;
+    color: #2ecc71;
+    font-size: 13px;
+    opacity: 0;
+    transition: opacity .2s;
+}
+.save-status--show { opacity: 1; }
+
+.sheet { display: flex; flex-direction: column; gap: 16px; }
+.sheet .cols { display: flex; gap: 16px; flex-wrap: wrap; }
+.sheet .cols > .card { flex: 1; min-width: 280px; }
+
+.card {
+    background: #1d2029;
+    border: 1px solid #2c3140;
+    border-radius: 10px;
+    padding: 16px 18px;
+}
+.card h2 {
+    font-size: 15px;
+    color: #e1b12c;
+    margin-bottom: 14px;
+    border-bottom: 1px solid #2c3140;
+    padding-bottom: 8px;
+}
+
+/* Generic inputs inside the sheet */
+.sheet label { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: #9aa3b2; text-transform: uppercase; letter-spacing: .4px; }
+.sheet input[type="text"],
+.sheet input[type="number"],
+.sheet textarea {
+    background: #12141a;
+    border: 1px solid #2c3140;
+    color: #e6e6e6;
+    border-radius: 6px;
+    padding: 9px 11px;
+    font-family: inherit;
+    font-size: 15px;
+    width: 100%;
+}
+.sheet textarea { resize: vertical; line-height: 1.5; }
+
+.grid { display: grid; gap: 14px; }
+.grid--identity { grid-template-columns: repeat(3, 1fr); }
+.grid--combat { grid-template-columns: repeat(3, 1fr); align-items: end; }
+.grid--hp { grid-template-columns: repeat(3, 1fr); margin-top: 14px; }
+
+/* Abilities */
+.abilities { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; }
+.ability {
+    background: #12141a;
+    border: 1px solid #2c3140;
+    border-radius: 10px;
+    padding: 12px 8px;
+    text-align: center;
+}
+.ability__label { font-size: 11px; color: #8a93a6; text-transform: uppercase; letter-spacing: .4px; }
+.ability__score {
+    width: 100% !important;
+    text-align: center;
+    font-size: 20px !important;
+    font-weight: 700;
+    margin: 8px 0;
+}
+.ability__mod {
+    font-size: 18px;
+    font-weight: 700;
+    color: #e1b12c;
+    background: #1d2029;
+    border-radius: 6px;
+    padding: 3px 0;
+}
+
+/* Derived combat boxes */
+.derived {
+    background: #12141a;
+    border: 1px solid #2c3140;
+    border-radius: 8px;
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+.derived__label { font-size: 11px; color: #8a93a6; text-transform: uppercase; letter-spacing: .4px; }
+.derived__val { font-size: 20px; font-weight: 700; color: #fff; }
+.derived__sub { font-size: 11px; color: #8a93a6; display: flex; align-items: center; gap: 6px; text-transform: none; }
+.mini { width: 56px !important; padding: 4px 6px !important; font-size: 13px !important; text-align: center; }
+
+/* Saves / skills checklists */
+.checklist { display: flex; flex-direction: column; gap: 4px; }
+.check {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 5px 8px;
+    border-radius: 6px;
+    flex-direction: row !important;
+    text-transform: none !important;
+    letter-spacing: 0 !important;
+    font-size: 14px !important;
+    color: #e6e6e6 !important;
+    cursor: pointer;
+}
+.check:hover { background: #12141a; }
+.check input { width: auto; cursor: pointer; }
+.check__val {
+    min-width: 34px;
+    text-align: center;
+    font-weight: 700;
+    color: #e1b12c;
+    background: #12141a;
+    border: 1px solid #2c3140;
+    border-radius: 5px;
+    padding: 2px 0;
+}
+.check__name { flex: 1; }
+.check__name em { color: #6c7589; font-style: normal; font-size: 12px; }
+
+/* Attacks */
+.attacks-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+.attack-row { display: flex; gap: 8px; align-items: center; }
+.attack-row input[data-attack-field="name"] { flex: 2; }
+.attack-row input[data-attack-field="bonus"] { flex: 1; }
+.attack-row input[data-attack-field="damage"] { flex: 2; }
+.btn-del-attack {
+    background: #3b4150;
+    width: 34px; height: 34px;
+    padding: 0;
+    flex: none;
+    border-radius: 6px;
+}
+.btn-add-attack { background: #2980b9; }
+.muted { color: #6c7589; font-style: italic; font-size: 13px; }
+
+@media (max-width: 640px) {
+    .grid--identity, .grid--combat, .grid--hp { grid-template-columns: 1fr 1fr; }
+    .abilities { grid-template-columns: repeat(3, 1fr); }
+}

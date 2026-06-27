@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <link href="https://fonts.googleapis.com/css?family=Open+Sans:100,300,400,600,700" rel="stylesheet" type="text/css">
+        <link type="text/css" rel="stylesheet" href="style.css">
+        <title>Character Sheet — Dice &amp; Monsters</title>
+    </head>
+
+    <body>
+        <header class="topbar">
+            <nav class="nav"><a href="index.html" class="nav__home">← Home</a></nav>
+            <h1>Character Sheet</h1>
+            <p class="tagline">Create and keep your characters. Saved in your browser.</p>
+        </header>
+
+        <!-- Character manager -->
+        <section class="charbar">
+            <label class="charbar__pick">Character:
+                <select id="char-select"></select>
+            </label>
+            <div class="charbar__buttons">
+                <button class="btn-new-char">New</button>
+                <button class="btn-dup-char">Duplicate</button>
+                <button class="btn-del-char">Delete</button>
+            </div>
+            <span id="save-status" class="save-status"></span>
+        </section>
+
+        <form id="sheet" class="sheet">
+            <section class="card">
+                <h2>Identity</h2>
+                <div class="grid grid--identity">
+                    <label>Name <input type="text" data-field="name"></label>
+                    <label>Class <input type="text" data-field="cls"></label>
+                    <label>Level <input type="number" min="1" max="20" data-field="level"></label>
+                    <label>Race <input type="text" data-field="race"></label>
+                    <label>Background <input type="text" data-field="background"></label>
+                    <label>Alignment <input type="text" data-field="alignment"></label>
+                </div>
+            </section>
+
+            <section class="card">
+                <h2>Abilities</h2>
+                <div id="abilities" class="abilities"></div>
+            </section>
+
+            <section class="card">
+                <h2>Combat</h2>
+                <div class="grid grid--combat">
+                    <label>Armor Class <input type="number" data-field="ac"></label>
+                    <label>Speed <input type="number" data-field="speed"></label>
+                    <label>Hit Dice <input type="text" data-field="hitDice" placeholder="e.g. 3d8"></label>
+                    <div class="derived">
+                        <span class="derived__label">Initiative</span>
+                        <span class="derived__val" id="init-total">+0</span>
+                        <span class="derived__sub">bonus <input type="number" class="mini" data-field="initBonus"></span>
+                    </div>
+                    <div class="derived">
+                        <span class="derived__label">Proficiency</span>
+                        <span class="derived__val" id="prof-bonus">+2</span>
+                    </div>
+                    <div class="derived">
+                        <span class="derived__label">Passive Perception</span>
+                        <span class="derived__val" id="passive">10</span>
+                    </div>
+                </div>
+                <div class="grid grid--hp">
+                    <label>Max HP <input type="number" data-field="hp.max"></label>
+                    <label>Current HP <input type="number" data-field="hp.current"></label>
+                    <label>Temp HP <input type="number" data-field="hp.temp"></label>
+                </div>
+            </section>
+
+            <div class="cols">
+                <section class="card">
+                    <h2>Saving throws</h2>
+                    <div id="saves" class="checklist"></div>
+                </section>
+                <section class="card">
+                    <h2>Skills</h2>
+                    <div id="skills" class="checklist"></div>
+                </section>
+            </div>
+
+            <section class="card">
+                <h2>Attacks</h2>
+                <div id="attacks" class="attacks-list"></div>
+                <button type="button" class="btn-add-attack">+ Add attack</button>
+            </section>
+
+            <div class="cols">
+                <section class="card">
+                    <h2>Features &amp; traits</h2>
+                    <textarea data-field="features" rows="8" placeholder="Class features, racial traits, feats…"></textarea>
+                </section>
+                <section class="card">
+                    <h2>Equipment</h2>
+                    <textarea data-field="equipment" rows="8" placeholder="Weapons, armor, items, coin…"></textarea>
+                </section>
+            </div>
+        </form>
+
+        <script src="character.js"></script>
+    </body>
+</html>
