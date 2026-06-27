@@ -1217,6 +1217,24 @@
     el.turnOrder.addEventListener('keydown', onTrackKeydown);
 
     logLine('Ready! ' + library.length + ' monsters loaded. Add monsters and players.', 'spawn');
+
+    importPendingEncounter();
+  }
+
+  // If an adventure scene was sent here, spawn its monsters.
+  function importPendingEncounter() {
+    var raw;
+    try { raw = window.localStorage.getItem('diceAndMonsters.pendingEncounter'); } catch (e) { return; }
+    if (!raw) return;
+    try { window.localStorage.removeItem('diceAndMonsters.pendingEncounter'); } catch (e) { /* ignore */ }
+    var data;
+    try { data = JSON.parse(raw); } catch (e) { return; }
+    if (!data || !data.monsters) return;
+    data.monsters.forEach(function (m) {
+      var n = m.count || 1;
+      for (var i = 0; i < n; i++) addMonster(m.slug);
+    });
+    if (data.name) logLine('Loaded "' + data.name + '" from an adventure.', 'turn');
   }
 
   document.addEventListener('DOMContentLoaded', init);

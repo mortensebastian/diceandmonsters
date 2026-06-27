@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <link href="https://fonts.googleapis.com/css?family=Open+Sans:100,300,400,600,700" rel="stylesheet" type="text/css">
+        <link type="text/css" rel="stylesheet" href="style.css">
+        <title>Adventure — Dice &amp; Monsters</title>
+    </head>
+
+    <body>
+        <header class="topbar">
+            <nav class="nav"><a href="index.html" class="nav__home">← Home</a></nav>
+            <h1>Adventure</h1>
+            <p class="tagline">Run a ready-made one-shot, or write your own.</p>
+        </header>
+
+        <section class="adv-bar">
+            <label class="adv-bar__pick">Adventure:
+                <select id="adv-select"></select>
+            </label>
+            <div class="adv-bar__buttons">
+                <button class="btn-new-adv">Write your own</button>
+                <button class="btn-dup-adv">Duplicate to edit</button>
+                <button class="btn-del-adv">Delete</button>
+            </div>
+            <span id="adv-status" class="save-status"></span>
+        </section>
+
+        <section id="adv-main" class="adv-main">
+            <div id="adventure-view"></div>
+        </section>
+
+        <datalist id="mon-list"></datalist>
+
+        <script src="monsters-data.js"></script>
+        <script src="adventures-data.js"></script>
+        <script src="adventure.js"></script>
+    </body>
+</html>
