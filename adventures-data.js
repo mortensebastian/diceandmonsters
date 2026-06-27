@@ -2,9 +2,9 @@
    Dice & Monsters — built-in adventures
    ------------------------------------------------------------
    Original short one-shots (not reproductions of any published
-   adventure). Each scene has read-aloud narration + DM notes and a
-   monster list, so it can be sent straight to the Encounter Planner
-   and read aloud by the narrator. Monster slugs match monsters-data.js.
+   adventure). Each scene has story text + DM notes, optional traps
+   and a monster list that can be sent straight to the Encounter
+   Planner. Monster slugs match monsters-data.js.
    ============================================================ */
 (function () {
   'use strict';
@@ -28,6 +28,9 @@
             'DM notes: the flooded steps are difficult terrain (waist-deep). The rats nest in a ' +
             'submerged alcove and burst out when the party reaches the halfway landing. A character who ' +
             'searches the alcove (DC 12 Investigation) finds a silver holy symbol worth 25 gp, still warm.',
+          traps: [
+            { name: 'Submerged Pit', detect: '12', disarm: '—', effect: 'A flooded shaft hidden beneath the water. DC 12 Dexterity save or drop 10 ft into deeper water (1d6 and start drowning).' }
+          ],
           monsters: [
             { slug: 'giant-rat', name: 'Giant Rat', count: 4 },
             { slug: 'swarm-of-rats', name: 'Swarm of Rats', count: 1 }
@@ -98,6 +101,9 @@
             'DM notes: cutting the rigged ropes (DC 13) drops a rockfall — anyone in the marked squares ' +
             'makes a DC 13 Dexterity save or takes 2d6 and is knocked prone. If the worg is dropped from ' +
             'the bridge, its goblin rider falls with it.',
+          traps: [
+            { name: 'Rigged Rockfall', detect: '13', disarm: '13', effect: 'Tripwires release stacked boulders at each end. DC 13 Dexterity save or 2d6 bludgeoning and knocked prone.' }
+          ],
           monsters: [
             { slug: 'goblin', name: 'Goblin', count: 3 },
             { slug: 'worg', name: 'Worg', count: 1 }
@@ -139,6 +145,9 @@
             'DM notes: the armor animates if anyone climbs the stairs, touches the silver candlesticks ' +
             '(worth 40 gp), or lingers more than a minute. A torn letter in the hall (DC 10 ' +
             'Investigation) warns: "Do not eat anything here. The house is hungry, and patient."',
+          traps: [
+            { name: 'Alarm Tripwire', detect: '12', disarm: '10', effect: 'A wire across the threshold rings bells deeper in the house. Missing it (DC 12) costs the party surprise in the next room.' }
+          ],
           monsters: [
             { slug: 'animated-armor', name: 'Animated Armor', count: 1 }
           ]
@@ -195,6 +204,9 @@
             'DM notes: the stirges attack and try to attach (latch on and drain blood each round). The ' +
             'planks are difficult terrain; a creature reduced to dragging a latched stirge may fall ' +
             'prone in the muck (DC 11 Dexterity save).',
+          traps: [
+            { name: 'Hidden Sinkhole', detect: '12', disarm: '—', effect: 'Soft muck under the rotted planks. DC 12 Survival to spot; otherwise DC 13 Strength or be restrained until pulled free.' }
+          ],
           monsters: [
             { slug: 'stirge', name: 'Stirge', count: 5 }
           ]
