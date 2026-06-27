@@ -996,3 +996,21 @@ button:disabled { opacity: .4; cursor: not-allowed; box-shadow: none; }
 .btn-send { background: #c0392b; }
 .btn-del-scene { background: #3b4150; font-size: 13px; }
 .btn-add-scene { background: #27ae60; }
+
+/* Narrator bar */
+.narrate-bar {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    background: #1d2029; border: 1px solid #2c3140; border-radius: 10px; padding: 12px 18px;
+}
+.narrate-bar__label { font-size: 14px; color: #e1b12c; font-weight: 600; }
+.narrate-bar select {
+    flex: 1; min-width: 200px;
+    background: #12141a; border: 1px solid #2c3140; color: #e6e6e6;
+    border-radius: 6px; padding: 8px 10px; font-family: inherit; font-size: 14px;
+}
+.narrate-bar__rate { font-size: 13px; color: #9aa3b2; display: flex; align-items: center; gap: 8px; }
+.btn-stop-voice { background: #3b4150; }
+
+.scene__actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.btn-read { background: #8e44ad; }
+.btn-read:hover { background: #9b59b6; }

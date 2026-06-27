@@ -18,6 +18,11 @@
   var STORAGE = 'diceAndMonsters.adventures';
   var ACTIVE = 'diceAndMonsters.activeAdventure';
   var PENDING = 'diceAndMonsters.pendingEncounter';
+  var VOICE_KEY = 'diceAndMonsters.voice';
+  var RATE_KEY = 'diceAndMonsters.voiceRate';
+
+  var voices = [];
+  var rate = 0.95;
 
   var builtins = (window.ADVENTURES || []).map(function (a) { a.builtin = true; return a; });
   var userAdvs = [];
@@ -59,6 +64,63 @@
     };
   }
 
+  /* ---- Narration (Web Speech API) ---- */
+
+  // Rank likely-better voices first: cloud/natural/English bubble up.
+  function voiceScore(v) {
+    var s = 0, n = (v.name || '').toLowerCase();
+    if (!v.localService) s += 4; // online voices are usually higher quality
+    if (/natural|neural|enhanced|premium|siri|google|wavenet/.test(n)) s += 4;
+    if (/^en/i.test(v.lang)) s += 2;
+    return s;
+  }
+
+  function populateVoices() {
+    voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+    if (!el.voiceSelect) return;
+    if (!voices.length) {
+      el.voiceSelect.innerHTML = '<option value="">(no voices available)</option>';
+      return;
+    }
+    var ranked = voices.slice().sort(function (a, b) { return voiceScore(b) - voiceScore(a); });
+    el.voiceSelect.innerHTML = ranked.map(function (v) {
+      return '<option value="' + esc(v.voiceURI) + '">' + esc(v.name) +
+        ' (' + esc(v.lang) + ')' + (v.localService ? '' : ' ★') + '</option>';
+    }).join('');
+    var saved = null;
+    try { saved = window.localStorage.getItem(VOICE_KEY); } catch (e) { /* ignore */ }
+    var pick = saved || (ranked[0] && ranked[0].voiceURI);
+    if (pick) el.voiceSelect.value = pick;
+  }
+
+  function chosenVoice() {
+    var uri = el.voiceSelect && el.voiceSelect.value;
+    for (var i = 0; i < voices.length; i++) if (voices[i].voiceURI === uri) return voices[i];
+    return null;
+  }
+
+  function stopSpeaking() {
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
+  }
+
+  // Speak in sentence-sized chunks (avoids the long-utterance cutoff
+  // some browsers have, and keeps the cadence natural).
+  function speak(text) {
+    if (!window.speechSynthesis) { window.alert('This browser has no speech support.'); return; }
+    stopSpeaking();
+    var v = chosenVoice();
+    var clean = String(text || '').replace(/\s+/g, ' ').trim();
+    if (!clean) return;
+    var chunks = clean.match(/[^.!?]+[.!?]*(\s|$)/g) || [clean];
+    chunks.forEach(function (c) {
+      var u = new SpeechSynthesisUtterance(c.trim());
+      if (v) { try { u.voice = v; } catch (e) { /* voice no longer valid */ } }
+      u.rate = rate;
+      u.pitch = 1;
+      window.speechSynthesis.speak(u);
+    });
+  }
+
   /* ---- Rendering ---- */
   function renderSelector() {
     var bo = builtins.map(function (a) {
@@ -97,7 +159,10 @@
         '<h3 class="scene__h">' + esc(s.title) + '</h3>' +
         '<p class="scene__text">' + esc(s.text) + '</p>' +
         sceneMonsHtml(s, i, false) +
-        '<button class="btn-send" data-send="' + i + '">▶ Send encounter to planner</button>' +
+        '<div class="scene__actions">' +
+          '<button class="btn-read" data-read="' + i + '">🔊 Read aloud</button>' +
+          '<button class="btn-send" data-send="' + i + '">▶ Send encounter to planner</button>' +
+        '</div>' +
       '</div>';
     }).join('');
     return '<div class="adv-head">' +
@@ -120,6 +185,7 @@
           '<input class="mon-input" list="mon-list" placeholder="monster name">' +
           '<input class="mon-count" type="number" min="1" value="1">' +
           '<button class="btn-add-mon" data-add-mon="' + i + '">+ Monster</button>' +
+          '<button class="btn-read" data-read="' + i + '">🔊 Read</button>' +
           '<button class="btn-send" data-send="' + i + '">▶ Send to planner</button>' +
           '<button class="btn-del-scene" data-del-scene="' + i + '">Delete scene</button>' +
         '</div>' +
@@ -134,6 +200,7 @@
   }
 
   function render() {
+    stopSpeaking();
     renderSelector();
     el.view.innerHTML = isBuiltin(active) ? readerHtml(active) : editorHtml(active);
   }
@@ -200,6 +267,10 @@
   function onMainClick(e) {
     var t = e.target;
 
+    if (t.hasAttribute('data-read')) {
+      speak(active.scenes[parseInt(t.getAttribute('data-read'), 10)].text);
+      return;
+    }
     if (t.hasAttribute('data-send')) {
       sendScene(parseInt(t.getAttribute('data-send'), 10));
       return;
@@ -245,6 +316,8 @@
     el.status = document.querySelector('#adv-status');
     el.delBtn = document.querySelector('.btn-del-adv');
     el.main = document.querySelector('#adv-main');
+    el.voiceSelect = document.querySelector('#voice-select');
+    el.voiceRate = document.querySelector('#voice-rate');
 
     // monster name suggestions for the editor
     var dl = document.querySelector('#mon-list');
@@ -272,6 +345,27 @@
 
     el.main.addEventListener('input', onMainInput);
     el.main.addEventListener('click', onMainClick);
+
+    // Narration setup
+    try {
+      var savedRate = parseFloat(window.localStorage.getItem(RATE_KEY));
+      if (!isNaN(savedRate)) rate = savedRate;
+    } catch (e) { /* ignore */ }
+    el.voiceRate.value = rate;
+    if (window.speechSynthesis) {
+      populateVoices();
+      window.speechSynthesis.onvoiceschanged = populateVoices;
+    } else {
+      el.voiceSelect.innerHTML = '<option value="">(speech not supported)</option>';
+    }
+    el.voiceSelect.addEventListener('change', function () {
+      try { window.localStorage.setItem(VOICE_KEY, el.voiceSelect.value); } catch (e) { /* ignore */ }
+    });
+    el.voiceRate.addEventListener('input', function () {
+      rate = parseFloat(el.voiceRate.value) || 0.95;
+      try { window.localStorage.setItem(RATE_KEY, rate); } catch (e) { /* ignore */ }
+    });
+    document.querySelector('.btn-stop-voice').addEventListener('click', stopSpeaking);
   }
 
   document.addEventListener('DOMContentLoaded', init);
