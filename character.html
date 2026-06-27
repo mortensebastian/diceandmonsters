@@ -55,11 +55,14 @@
             <section class="card">
                 <h2>Abilities</h2>
                 <div id="abilities" class="abilities"></div>
+                <button type="button" class="btn-roll-abilities">🎲 Roll 4d6 (drop lowest)</button>
             </section>
 
             <section class="card">
                 <h2>Combat</h2>
                 <div class="grid grid--combat">
+                    <label>Armor <select data-field="armor"></select></label>
+                    <label class="check-inline">Shield <input type="checkbox" data-field="shield"></label>
                     <label>Armor Class <input type="number" data-field="ac"></label>
                     <label>Speed <input type="number" data-field="speed"></label>
                     <label>Hit Dice <input type="text" data-field="hitDice" placeholder="e.g. 3d8"></label>
@@ -97,8 +100,12 @@
 
             <section class="card">
                 <h2>Attacks</h2>
+                <div class="weapon-add">
+                    <select id="weapon-select"></select>
+                    <button type="button" class="btn-add-weapon">+ Add weapon</button>
+                </div>
                 <div id="attacks" class="attacks-list"></div>
-                <button type="button" class="btn-add-attack">+ Add attack</button>
+                <button type="button" class="btn-add-attack">+ Add custom attack</button>
             </section>
 
             <div class="cols">

@@ -884,3 +884,19 @@ button:disabled { opacity: .4; cursor: not-allowed; box-shadow: none; }
 }
 .identity-notes b { color: #e1b12c; }
 .identity-notes:empty { display: none; }
+
+/* Character: armor / weapon / roll controls */
+.check-inline { flex-direction: row !important; align-items: center; gap: 8px !important;
+    text-transform: none !important; letter-spacing: 0 !important; }
+.check-inline input { width: auto; }
+.btn-roll-abilities { background: #8e44ad; margin-top: 14px; }
+.btn-roll-abilities:hover { background: #9b59b6; }
+.weapon-add { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+.weapon-add select {
+    flex: 1; min-width: 180px;
+    background: #12141a; border: 1px solid #2c3140; color: #e6e6e6;
+    border-radius: 6px; padding: 9px 11px; font-family: inherit; font-size: 15px;
+}
+.btn-add-weapon { background: #2980b9; }
+.btn-add-attack { background: #3b4150; }
+.sheet input[readonly] { opacity: .7; cursor: not-allowed; }

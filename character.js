@@ -86,7 +86,7 @@
       cls: '', level: 1, race: '', background: '', alignment: '',
       abilities: { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 },
       saveProf: {}, skillProf: {},
-      ac: 10, initBonus: 0, speed: 30,
+      ac: 10, armor: '', shield: false, initBonus: 0, speed: 30,
       hp: { max: 0, current: 0, temp: 0 }, hitDice: '',
       attacks: [],
       features: '', equipment: '',
@@ -119,6 +119,32 @@
   /* ---- Derived values ---- */
   function profBonus() { return 2 + Math.floor(((active.level || 1) - 1) / 4); }
   function abilMod(key) { return mod(active.abilities[key]); }
+
+  function armorByName(name) {
+    for (var i = 0; i < SRD.armor.length; i++) if (SRD.armor[i].name === name) return SRD.armor[i];
+    return null;
+  }
+  function weaponByName(name) {
+    for (var i = 0; i < SRD.weapons.length; i++) if (SRD.weapons[i].name === name) return SRD.weapons[i];
+    return null;
+  }
+
+  // AC from armor + Dex + shield (5e rules). Unarmored = 10 + Dex.
+  function computeAC() {
+    var dex = abilMod('dex');
+    var shield = active.shield ? 2 : 0;
+    var a = armorByName(active.armor);
+    if (!a) return 10 + dex + shield;
+    if (a.type === 'light') return a.base + dex + shield;
+    if (a.type === 'medium') return a.base + Math.min(dex, 2) + shield;
+    return a.base + shield; // heavy
+  }
+
+  function d6() { return Math.floor(Math.random() * 6) + 1; }
+  function roll4d6DropLowest() {
+    var r = [d6(), d6(), d6(), d6()].sort(function (a, b) { return a - b; });
+    return r[1] + r[2] + r[3];
+  }
 
   /* ---- Rendering ---- */
   function charsInCategory(cat) {
@@ -189,7 +215,8 @@
     var nodes = el.sheet.querySelectorAll('[data-field]');
     Array.prototype.forEach.call(nodes, function (n) {
       var v = getByPath(active, n.getAttribute('data-field'));
-      n.value = (v == null ? '' : v);
+      if (n.type === 'checkbox') n.checked = !!v;
+      else n.value = (v == null ? '' : v);
     });
     Array.prototype.forEach.call(
       el.sheet.querySelectorAll('[data-saveprof]'), function (n) {
@@ -223,6 +250,18 @@
 
     el.initTotal.textContent = signed(abilMod('dex') + (active.initBonus || 0));
     el.passive.textContent = 10 + abilMod('wis') + (active.skillProf['perception'] ? pb : 0);
+
+    // AC: computed from armor unless set to manual.
+    var acInput = el.sheet.querySelector('input[data-field="ac"]');
+    if (acInput) {
+      if (active.armor === 'manual') {
+        acInput.readOnly = false;
+      } else {
+        active.ac = computeAC();
+        acInput.value = active.ac;
+        acInput.readOnly = true;
+      }
+    }
   }
 
   /* ---- Applying SRD choices (race / class / background) ---- */
@@ -264,6 +303,33 @@
     active.bgSkills = sk.slice();
   }
 
+  // Roll 4d6-drop-lowest into all six abilities (then re-add race ASI).
+  function rollAbilities() {
+    if (!window.confirm('Roll new ability scores? This replaces the current ones.')) return;
+    ABILITIES.forEach(function (a) {
+      active.abilities[a.key] = roll4d6DropLowest() + ((active.raceASI || {})[a.key] || 0);
+    });
+    persist();
+    fillFields();
+    updateDerived();
+  }
+
+  // Build an attack from a weapon (to-hit = ability mod + proficiency,
+  // damage = dice + ability mod). Finesse/ranged use Dex.
+  function addWeapon(name) {
+    var w = weaponByName(name);
+    if (!w) return;
+    var finesse = w.props.indexOf('finesse') !== -1;
+    var ranged = w.props.indexOf('ranged') !== -1;
+    var useDex = ranged || (finesse && abilMod('dex') >= abilMod('str'));
+    var m = abilMod(useDex ? 'dex' : 'str');
+    var bonus = m + profBonus();
+    var dmg = w.dice + (m > 0 ? '+' + m : (m < 0 ? '' + m : '')) + ' ' + w.type;
+    active.attacks.push({ name: w.name, bonus: signed(bonus), damage: dmg });
+    persist();
+    renderAttacks();
+  }
+
   function fillSelect(sel, keys, blank) {
     var html = blank ? '<option value="">—</option>' : '';
     html += keys.map(function (k) {
@@ -277,6 +343,24 @@
     fillSelect(el.sheet.querySelector('select[data-field="race"]'), Object.keys(SRD.races), true);
     fillSelect(el.sheet.querySelector('select[data-field="background"]'), Object.keys(SRD.backgrounds), true);
     fillSelect(el.sheet.querySelector('select[data-field="alignment"]'), SRD.alignments, true);
+
+    // Armor dropdown: Unarmored / each armor / Manual.
+    var armorSel = el.sheet.querySelector('select[data-field="armor"]');
+    armorSel.innerHTML = '<option value="">Unarmored</option>' +
+      SRD.armor.map(function (a) {
+        return '<option value="' + esc(a.name) + '">' + esc(a.name) +
+          ' (' + a.base + ', ' + a.type + ')</option>';
+      }).join('') +
+      '<option value="manual">Manual</option>';
+
+    // Weapon dropdown for the attacks section.
+    var wsel = document.querySelector('#weapon-select');
+    if (wsel) {
+      wsel.innerHTML = SRD.weapons.map(function (w) {
+        return '<option value="' + esc(w.name) + '">' + esc(w.name) +
+          ' (' + w.dice + ' ' + w.type + ')</option>';
+      }).join('');
+    }
   }
 
   // Summary of what the chosen race/class/background grant.
@@ -379,8 +463,8 @@
     var t = e.target;
     if (t.hasAttribute('data-field')) {
       var path = t.getAttribute('data-field');
-      var val = t.type === 'number'
-        ? (t.value === '' ? 0 : (parseInt(t.value, 10) || 0))
+      var val = t.type === 'checkbox' ? t.checked
+        : t.type === 'number' ? (t.value === '' ? 0 : (parseInt(t.value, 10) || 0))
         : t.value;
       setByPath(active, path, val);
       if (path === 'category') {
@@ -438,7 +522,14 @@
   }
 
   function onClick(e) {
-    if (e.target.closest('.btn-add-attack')) {
+    if (e.target.closest('.btn-roll-abilities')) {
+      e.preventDefault();
+      rollAbilities();
+    } else if (e.target.closest('.btn-add-weapon')) {
+      e.preventDefault();
+      var ws = document.querySelector('#weapon-select');
+      if (ws && ws.value) addWeapon(ws.value);
+    } else if (e.target.closest('.btn-add-attack')) {
       e.preventDefault();
       active.attacks.push({ name: '', bonus: '', damage: '' });
       persist();
@@ -473,6 +564,9 @@
       if (!c.raceASI) c.raceASI = {};
       if (!c.classSaves) c.classSaves = [];
       if (!c.bgSkills) c.bgSkills = [];
+      // Old sheets had a hand-typed AC: keep it by defaulting to manual.
+      if (c.armor === undefined) c.armor = 'manual';
+      if (c.shield === undefined) c.shield = false;
     });
     if (!chars.length) chars = [newCharacter('pc')];
 
