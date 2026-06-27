@@ -17,6 +17,10 @@
 
         <!-- Character manager -->
         <section class="charbar">
+            <div id="cat-tabs" class="tabs">
+                <button class="tab" data-cat="pc">My characters</button>
+                <button class="tab" data-cat="npc">NPCs</button>
+            </div>
             <label class="charbar__pick">Character:
                 <select id="char-select"></select>
             </label>
@@ -38,6 +42,12 @@
                     <label>Race <input type="text" data-field="race"></label>
                     <label>Background <input type="text" data-field="background"></label>
                     <label>Alignment <input type="text" data-field="alignment"></label>
+                    <label>Type
+                        <select data-field="category">
+                            <option value="pc">My character</option>
+                            <option value="npc">NPC</option>
+                        </select>
+                    </label>
                 </div>
             </section>
 

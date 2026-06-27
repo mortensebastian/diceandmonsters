@@ -68,12 +68,16 @@
 
   var chars = [];
   var active = null;
+  var category = 'pc';   // active tab: 'pc' (My characters) or 'npc'
   var el = {};
   var statusTimer = null;
 
-  function newCharacter() {
+  var CATEGORIES = { pc: 'My characters', npc: 'NPCs' };
+
+  function newCharacter(cat) {
     return {
       id: uid(),
+      category: cat || 'pc',
       name: 'New character',
       cls: '', level: 1, race: '', background: '', alignment: '',
       abilities: { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 },
@@ -110,8 +114,18 @@
   function abilMod(key) { return mod(active.abilities[key]); }
 
   /* ---- Rendering ---- */
+  function charsInCategory(cat) {
+    return chars.filter(function (c) { return (c.category || 'pc') === cat; });
+  }
+
+  function renderTabs() {
+    Array.prototype.forEach.call(el.tabs.querySelectorAll('.tab'), function (b) {
+      b.classList.toggle('active', b.getAttribute('data-cat') === category);
+    });
+  }
+
   function renderSelector() {
-    el.select.innerHTML = chars.map(function (c) {
+    el.select.innerHTML = charsInCategory(category).map(function (c) {
       var label = (c.name || 'Unnamed') +
         (c.cls || c.level ? '  (' + (c.cls || 'class') + ' ' + (c.level || 1) + ')' : '');
       return '<option value="' + c.id + '"' + (c.id === active.id ? ' selected' : '') + '>' +
@@ -215,11 +229,30 @@
   }
 
   /* ---- Character management ---- */
+
+  // Switch to a category tab. Picks the first character there, or
+  // creates a blank one if the category is empty.
+  function setCategory(cat) {
+    category = cat;
+    var list = charsInCategory(cat);
+    if (list.length) {
+      active = list[0];
+      setActiveId(active.id);
+      renderTabs();
+      renderSelector();
+      renderSheet();
+    } else {
+      addCharacter(newCharacter(cat));
+    }
+  }
+
   function switchTo(id) {
     var found = null;
     for (var i = 0; i < chars.length; i++) if (chars[i].id === id) found = chars[i];
-    active = found || chars[0];
+    active = found || charsInCategory(category)[0] || chars[0];
+    category = active.category || 'pc';
     setActiveId(active.id);
+    renderTabs();
     renderSelector();
     renderSheet();
   }
@@ -227,21 +260,31 @@
   function addCharacter(c) {
     chars.push(c);
     active = c;
+    category = c.category || 'pc';
     setActiveId(c.id);
     persist();
+    renderTabs();
     renderSelector();
     renderSheet();
   }
 
   function deleteActive() {
     if (!window.confirm('Delete "' + (active.name || 'this character') + '"?')) return;
+    var cat = active.category || 'pc';
     chars = chars.filter(function (c) { return c.id !== active.id; });
-    if (!chars.length) chars.push(newCharacter());
-    active = chars[0];
-    setActiveId(active.id);
-    persist();
-    renderSelector();
-    renderSheet();
+    var list = charsInCategory(cat);
+    if (list.length) {
+      active = list[0];
+      category = cat;
+      setActiveId(active.id);
+      persist();
+      renderTabs();
+      renderSelector();
+      renderSheet();
+    } else {
+      // No more characters in this category - make a fresh blank one.
+      addCharacter(newCharacter(cat));
+    }
   }
 
   /* ---- Input handling ---- */
@@ -253,6 +296,14 @@
         ? (t.value === '' ? 0 : (parseInt(t.value, 10) || 0))
         : t.value;
       setByPath(active, path, val);
+      if (path === 'category') {
+        // Reclassified: follow the character to its new tab.
+        category = val;
+        persist();
+        renderTabs();
+        renderSelector();
+        return;
+      }
       if (path === 'name' || path === 'cls' || path === 'level') renderSelector();
     } else if (t.hasAttribute('data-saveprof')) {
       active.saveProf[t.getAttribute('data-saveprof')] = t.checked;
@@ -286,6 +337,7 @@
 
   /* ---- Init ---- */
   function init() {
+    el.tabs = document.querySelector('#cat-tabs');
     el.select = document.querySelector('#char-select');
     el.sheet = document.querySelector('#sheet');
     el.abilities = document.querySelector('#abilities');
@@ -298,21 +350,28 @@
     el.status = document.querySelector('#save-status');
 
     chars = loadAll();
-    if (!chars.length) chars = [newCharacter()];
+    chars.forEach(function (c) { if (!c.category) c.category = 'pc'; }); // migrate old saves
+    if (!chars.length) chars = [newCharacter('pc')];
 
     var startId = getActiveId();
     active = null;
     for (var i = 0; i < chars.length; i++) if (chars[i].id === startId) active = chars[i];
     if (!active) active = chars[0];
+    category = active.category || 'pc';
 
     setActiveId(active.id);
     persist();           // ensure the default character is stored
+    renderTabs();
     renderSelector();
     renderSheet();
 
+    el.tabs.addEventListener('click', function (e) {
+      var b = e.target.closest('.tab');
+      if (b) setCategory(b.getAttribute('data-cat'));
+    });
     el.select.addEventListener('change', function () { switchTo(el.select.value); });
     document.querySelector('.btn-new-char').addEventListener('click', function () {
-      addCharacter(newCharacter());
+      addCharacter(newCharacter(category));
     });
     document.querySelector('.btn-dup-char').addEventListener('click', function () {
       var copy = JSON.parse(JSON.stringify(active));

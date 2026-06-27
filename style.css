@@ -771,3 +771,34 @@ button:disabled { opacity: .4; cursor: not-allowed; box-shadow: none; }
     .grid--identity, .grid--combat, .grid--hp { grid-template-columns: 1fr 1fr; }
     .abilities { grid-template-columns: repeat(3, 1fr); }
 }
+
+/**********************************************
+*** CHARACTER CATEGORY TABS + SHEET SELECT
+**********************************************/
+
+.tabs {
+    display: inline-flex;
+    border: 1px solid #2c3140;
+    border-radius: 8px;
+    overflow: hidden;
+}
+.tabs .tab {
+    background: #12141a;
+    color: #9aa3b2;
+    padding: 9px 16px;
+    font-size: 14px;
+    border-radius: 0;
+}
+.tabs .tab:hover { background: #2c3140; box-shadow: none; }
+.tabs .tab.active { background: #c0392b; color: #fff; }
+
+.sheet select {
+    background: #12141a;
+    border: 1px solid #2c3140;
+    color: #e6e6e6;
+    border-radius: 6px;
+    padding: 9px 11px;
+    font-family: inherit;
+    font-size: 15px;
+    width: 100%;
+}
