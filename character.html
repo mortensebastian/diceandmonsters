@@ -42,6 +42,21 @@
             <div id="char-gallery-cards" class="adv-gallery__cards"></div>
         </section>
 
+        <div id="sheet-toolbar" class="sheet-toolbar">
+            <div class="sheet-toolbar__title">
+                <span id="st-name"></span>
+                <span id="st-sub" class="badge badge--player"></span>
+            </div>
+            <div class="sheet-toolbar__btns">
+                <button type="button" class="btn-levelup" hidden>⬆️ Level up</button>
+                <button type="button" class="btn-edit">✏️ Edit</button>
+                <button type="button" class="btn-view" hidden>✓ Done</button>
+            </div>
+        </div>
+
+        <div id="levelup-panel" class="levelup-panel" hidden></div>
+        <div id="read" class="read"></div>
+
         <form id="sheet" class="sheet">
             <section class="card">
                 <h2>Identity</h2>
@@ -223,6 +238,7 @@
 
         <script src="srd-data.js"></script>
         <script src="srd-spells.js"></script>
+        <script src="srd-leveling.js"></script>
         <script src="character.js"></script>
     </body>
 </html>

@@ -75,6 +75,7 @@
   var category = 'pc';   // active tab: 'pc' (My characters) or 'npc'
   var el = {};
   var statusTimer = null;
+  var mode = 'view';     // 'view' (read-only sheet) or 'edit' (builder)
 
   var CATEGORIES = { pc: 'My characters', npc: 'NPCs' };
 
@@ -520,6 +521,168 @@
     }).join('') : '<p class="muted">No characters in this category yet.</p>';
   }
 
+  /* ---- Read-only view + view/edit mode ---- */
+
+  function updateToolbar() {
+    if (!el.stName) return;
+    el.stName.textContent = active.name || 'Unnamed';
+    el.stSub.textContent = (active.category === 'npc' ? 'NPC' : 'PC');
+  }
+
+  function applyMode(m) {
+    mode = m;
+    if (m === 'view') { renderRead(); updateToolbar(); } // reflect latest edits
+    if (el.sheet) el.sheet.hidden = (m !== 'edit');
+    if (el.read) el.read.hidden = (m !== 'view');
+    if (el.btnEdit) el.btnEdit.hidden = (m === 'edit');
+    if (el.btnView) el.btnView.hidden = (m === 'view');
+    if (el.btnLevelup) el.btnLevelup.hidden = (m !== 'edit');
+    if (el.levelupPanel) { el.levelupPanel.hidden = true; el.levelupPanel.innerHTML = ''; }
+  }
+
+  function renderRead() {
+    if (!el.read) return;
+    var c = active, pb = profBonus();
+    var acVal = (c.armor === 'manual') ? c.ac : computeAC();
+    var initVal = abilMod('dex') + (c.initBonus || 0);
+    var passive = 10 + abilMod('wis') + (c.skillProf['perception'] ? pb : 0);
+
+    var abil = ABILITIES.map(function (a) {
+      var sc = c.abilities[a.key];
+      return '<div class="rd-abil"><div class="rd-abil__lbl">' + a.key.toUpperCase() + '</div>' +
+        '<div class="rd-abil__score">' + sc + '</div>' +
+        '<div class="rd-abil__mod">' + signed(mod(sc)) + '</div></div>';
+    }).join('');
+
+    var saves = SAVE_KEYS.map(function (k) {
+      var prof = !!c.saveProf[k];
+      return '<span class="rd-chip' + (prof ? ' rd-chip--on' : '') + '">' +
+        ABIL_LABEL[k].slice(0, 3) + ' ' + signed(mod(c.abilities[k]) + (prof ? pb : 0)) + '</span>';
+    }).join(' ');
+
+    var skills = SKILLS.map(function (s) {
+      var prof = !!c.skillProf[s.key];
+      return '<span class="rd-chip' + (prof ? ' rd-chip--on' : '') + '">' +
+        s.label + ' ' + signed(abilMod(s.ability) + (prof ? pb : 0)) + '</span>';
+    }).join(' ');
+
+    var attacks = c.attacks.length
+      ? '<ul class="rd-list">' + c.attacks.map(function (a) {
+          return '<li><b>' + esc(a.name || 'Attack') + '</b> ' + esc(a.bonus || '') +
+            ' &middot; ' + esc(a.damage || '') + '</li>';
+        }).join('') + '</ul>'
+      : '<p class="muted">No attacks.</p>';
+
+    var spellsHtml = '';
+    if (c.spellAbility || c.spells.length) {
+      var sm = c.spellAbility ? abilMod(c.spellAbility) : 0;
+      var dc = c.spellAbility ? (8 + pb + sm) : '—';
+      var atk = c.spellAbility ? signed(pb + sm) : '—';
+      var slotLine = [];
+      for (var L = 1; L <= 9; L++) {
+        var sl = c.spellSlots[L];
+        if (sl && sl.total) slotLine.push('L' + L + ' ' + (sl.total - (sl.used || 0)) + '/' + sl.total);
+      }
+      var byLvl = {};
+      c.spells.forEach(function (sp) { (byLvl[sp.level || '?'] = byLvl[sp.level || '?'] || []).push(sp); });
+      var spLines = Object.keys(byLvl).sort().map(function (k) {
+        var lab = (k === '0') ? 'Cantrips' : (k === '?' ? 'Other' : 'Level ' + k);
+        return '<div class="rd-spelllvl"><b>' + lab + ':</b> ' +
+          byLvl[k].map(function (sp) { return esc(sp.name || '?'); }).join(', ') + '</div>';
+      }).join('');
+      spellsHtml = '<div class="rd-block"><h3>Spells</h3>' +
+        '<p class="rd-line">Save DC ' + dc + ' &middot; Spell attack ' + atk +
+        (slotLine.length ? ' &middot; Slots ' + slotLine.join('  ') : '') + '</p>' +
+        (spLines || '<p class="muted">No spells listed.</p>') + '</div>';
+    }
+
+    function blockIf(title, text) {
+      return text ? '<div class="rd-block"><h3>' + title + '</h3><p class="rd-pre">' + esc(text) + '</p></div>' : '';
+    }
+    var coin = ['cp', 'sp', 'ep', 'gp', 'pp'].filter(function (k) { return c.currency[k]; })
+      .map(function (k) { return c.currency[k] + ' ' + k; }).join('  ') || '—';
+    var sub = [c.race, (c.cls ? (c.cls + (c.subclass ? ' (' + c.subclass + ')' : '')) : ''),
+      (c.level ? 'Level ' + c.level : ''), c.background, c.alignment].filter(Boolean).join(' · ');
+
+    el.read.innerHTML =
+      (sub ? '<p class="rd-sub">' + esc(sub) + '</p>' : '') +
+      '<div class="rd-abils">' + abil + '</div>' +
+      '<div class="rd-stats">' +
+        '<span><b>AC</b> ' + acVal + '</span>' +
+        '<span><b>Init</b> ' + signed(initVal) + '</span>' +
+        '<span><b>Speed</b> ' + (c.speed || '—') + '</span>' +
+        '<span><b>Prof</b> ' + signed(pb) + '</span>' +
+        '<span><b>Passive</b> ' + passive + '</span>' +
+        '<span><b>HP</b> ' + (c.hp.current || 0) + '/' + (c.hp.max || 0) +
+          (c.hp.temp ? (' +' + c.hp.temp) : '') + '</span>' +
+        '<span><b>Hit Dice</b> ' + (esc(c.hitDice) || '—') + '</span>' +
+        (c.xp ? '<span><b>XP</b> ' + c.xp + '</span>' : '') +
+      '</div>' +
+      '<div class="rd-block"><h3>Saving throws</h3><div class="rd-chips">' + saves + '</div></div>' +
+      '<div class="rd-block"><h3>Skills</h3><div class="rd-chips">' + skills + '</div></div>' +
+      '<div class="rd-block"><h3>Attacks</h3>' + attacks + '</div>' +
+      spellsHtml +
+      blockIf('Resistances', c.resistances) +
+      blockIf('Immunities', c.immunities) +
+      blockIf('Languages', c.languages) +
+      blockIf('Other proficiencies', c.otherProf) +
+      blockIf('Features &amp; traits', c.features) +
+      blockIf('Equipment', c.equipment) +
+      '<div class="rd-block"><h3>Currency</h3><p class="rd-line">' + coin + '</p></div>';
+  }
+
+  /* ---- Level up ---- */
+  function showLevelUp() {
+    var cd = SRD.classes[active.cls];
+    var cur = active.level || 1;
+    if (cur >= 20) {
+      el.levelupPanel.innerHTML = '<p>Already at level 20.</p>' +
+        '<div class="levelup-btns"><button type="button" class="btn-levelup-cancel">Close</button></div>';
+      el.levelupPanel.hidden = false;
+      return;
+    }
+    var target = cur + 1;
+    var feats = ((window.SRD_LEVELING || {})[active.cls] || {})[target] || [];
+    var avg = cd ? (cd.hitDie / 2 + 1) : 0;
+    var con = abilMod('con');
+    var hpGain = cd ? Math.max(1, avg + con) : 0;
+    var newPb = 2 + Math.floor((target - 1) / 4);
+
+    var html = '<h3>Level ' + cur + ' → ' + target + (active.cls ? ' · ' + esc(active.cls) : '') + '</h3>';
+    if (!cd) {
+      html += '<p class="muted">Pick a class to get level-up details.</p>';
+    } else {
+      html += '<p class="rd-line">+' + hpGain + ' HP (average ' + avg + ' + Con ' + signed(con) +
+        ') &middot; Proficiency bonus ' + signed(newPb) + '</p>';
+      html += feats.length
+        ? '<p class="rd-line">You gain:</p><ul class="rd-list">' +
+            feats.map(function (f) { return '<li>' + esc(f) + '</li>'; }).join('') + '</ul>'
+        : '<p class="muted">No new class feature at this level beyond any proficiency increase.</p>';
+      html += '<p class="muted">Apply adds the HP and bumps level &amp; proficiency. Add the listed features to your sheet as you choose them.</p>';
+    }
+    html += '<div class="levelup-btns">' +
+      '<button type="button" class="btn-levelup-apply"' + (cd ? '' : ' disabled') + '>Apply level up</button>' +
+      '<button type="button" class="btn-levelup-cancel">Cancel</button></div>';
+    el.levelupPanel.innerHTML = html;
+    el.levelupPanel.hidden = false;
+  }
+
+  function applyLevelUp() {
+    var cd = SRD.classes[active.cls];
+    var cur = active.level || 1;
+    if (!cd || cur >= 20) return;
+    var target = cur + 1;
+    var hpGain = Math.max(1, (cd.hitDie / 2 + 1) + abilMod('con'));
+    active.level = target;
+    active.hp.max = (active.hp.max || 0) + hpGain;
+    active.hp.current = (active.hp.current || 0) + hpGain;
+    active.hitDice = target + 'd' + cd.hitDie;
+    persist();
+    renderSheet();
+    status('Leveled up to ' + target);
+    if (el.levelupPanel) el.levelupPanel.hidden = true;
+  }
+
   // Full render when switching characters.
   function renderSheet() {
     renderAbilities();
@@ -532,6 +695,8 @@
     fillFields();
     updateNotes();
     updateDerived();
+    renderRead();
+    updateToolbar();
   }
 
   /* ---- Character management ---- */
@@ -547,6 +712,7 @@
       renderTabs();
       renderSelector();
       renderSheet();
+      applyMode('view');
     } else {
       addCharacter(newCharacter(cat));
     }
@@ -561,6 +727,7 @@
     renderTabs();
     renderSelector();
     renderSheet();
+    applyMode('view');     // clicking a character opens the clean read view
   }
 
   function addCharacter(c) {
@@ -572,6 +739,7 @@
     renderTabs();
     renderSelector();
     renderSheet();
+    applyMode('edit');     // a new/duplicated character opens the builder
   }
 
   function deleteActive() {
@@ -587,6 +755,7 @@
       renderTabs();
       renderSelector();
       renderSheet();
+      applyMode('view');
     } else {
       // No more characters in this category - make a fresh blank one.
       addCharacter(newCharacter(cat));
@@ -723,6 +892,13 @@
     el.passive = document.querySelector('#passive');
     el.notes = document.querySelector('#identity-notes');
     el.status = document.querySelector('#save-status');
+    el.read = document.querySelector('#read');
+    el.stName = document.querySelector('#st-name');
+    el.stSub = document.querySelector('#st-sub');
+    el.btnEdit = document.querySelector('.btn-edit');
+    el.btnView = document.querySelector('.btn-view');
+    el.btnLevelup = document.querySelector('.btn-levelup');
+    el.levelupPanel = document.querySelector('#levelup-panel');
 
     chars = loadAll();
     chars.forEach(function (c) {
@@ -761,6 +937,15 @@
     renderTabs();
     renderSelector();
     renderSheet();
+    applyMode('view');     // open on the clean read view
+
+    if (el.btnEdit) el.btnEdit.addEventListener('click', function () { applyMode('edit'); });
+    if (el.btnView) el.btnView.addEventListener('click', function () { applyMode('view'); });
+    if (el.btnLevelup) el.btnLevelup.addEventListener('click', showLevelUp);
+    if (el.levelupPanel) el.levelupPanel.addEventListener('click', function (e) {
+      if (e.target.closest('.btn-levelup-apply')) applyLevelUp();
+      else if (e.target.closest('.btn-levelup-cancel')) { el.levelupPanel.hidden = true; }
+    });
 
     el.tabs.addEventListener('click', function (e) {
       var b = e.target.closest('.tab');
