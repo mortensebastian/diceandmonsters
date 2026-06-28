@@ -1107,3 +1107,13 @@ button:disabled { opacity: .4; cursor: not-allowed; box-shadow: none; }
 .slot__lvl { font-size: 12px; font-weight: 700; color: #e1b12c; min-width: 22px; }
 .slot__in { width: 40px; background: #1d2029; border: 1px solid #2c3140; color: #e6e6e6; border-radius: 4px; padding: 4px; text-align: center; font-family: inherit; font-size: 13px; }
 .slot__sep { color: #6c7589; }
+
+/* Spell picker + roll HP */
+.spell-pick-row { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+.spell-pick-row select {
+    flex: 1; min-width: 200px;
+    background: #12141a; border: 1px solid #2c3140; color: #e6e6e6;
+    border-radius: 6px; padding: 9px 11px; font-family: inherit; font-size: 14px;
+}
+.btn-roll-hp { background: #8e44ad; margin-top: 12px; }
+.btn-roll-hp:hover { background: #9b59b6; }

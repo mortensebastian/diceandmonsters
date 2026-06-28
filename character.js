@@ -83,7 +83,8 @@
       id: uid(),
       category: cat || 'pc',
       name: 'New character',
-      subclass: '',
+      subclass: '', xp: 0,
+      resistances: '', immunities: '',
       cls: '', level: 1, race: '', background: '', alignment: '',
       abilities: { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 },
       saveProf: {}, skillProf: {},
@@ -338,6 +339,64 @@
     updateDerived();
   }
 
+  // Roll max HP by the rules: max die at level 1 + Con mod, then a
+  // rolled die + Con mod each further level (minimum 1 per level).
+  function rollMaxHp() {
+    var cd = SRD.classes[active.cls];
+    if (!cd) { window.alert('Pick a class first.'); return; }
+    if (!window.confirm('Roll a new max HP from your class, level and Con? This replaces the current max.')) return;
+    var die = cd.hitDie, con = abilMod('con'), lvl = active.level || 1;
+    var total = die + con;
+    for (var i = 2; i <= lvl; i++) {
+      total += Math.max(1, (Math.floor(Math.random() * die) + 1) + con);
+    }
+    total = Math.max(1, total);
+    active.hp.max = total;
+    active.hp.current = total;
+    persist();
+    fillFields();
+    updateDerived();
+  }
+
+  function findSpell(name) {
+    var all = window.SRD_SPELLS || [];
+    for (var i = 0; i < all.length; i++) {
+      if (all[i].n.toLowerCase() === String(name).toLowerCase()) return all[i];
+    }
+    return null;
+  }
+
+  // Spell picker filtered to the character's class (if it casts).
+  function renderSpellPicker() {
+    if (!el.spellPick) return;
+    var cls = (active.cls || '').toLowerCase();
+    var all = window.SRD_SPELLS || [];
+    var isCaster = !!cls && all.some(function (s) { return s.c.indexOf(cls) !== -1; });
+    var list = isCaster ? all.filter(function (s) { return s.c.indexOf(cls) !== -1; }) : all;
+    var byLevel = {};
+    list.forEach(function (s) { (byLevel[s.l] = byLevel[s.l] || []).push(s); });
+    var html = '<option value="">— blank / custom —</option>';
+    Object.keys(byLevel).sort(function (a, b) { return a - b; }).forEach(function (L) {
+      var label = (+L === 0) ? 'Cantrips' : ('Level ' + L);
+      var opts = byLevel[L].sort(function (a, b) { return a.n.localeCompare(b.n); })
+        .map(function (s) { return '<option value="' + esc(s.n) + '">' + esc(s.n) + '</option>'; }).join('');
+      html += '<optgroup label="' + label + '">' + opts + '</optgroup>';
+    });
+    el.spellPick.innerHTML = html;
+  }
+
+  function addSpellFromPicker() {
+    var name = el.spellPick ? el.spellPick.value : '';
+    if (!name) {
+      active.spells.push({ level: '', name: '', notes: '' });
+    } else {
+      var sp = findSpell(name);
+      active.spells.push({ level: sp ? String(sp.l) : '', name: name, notes: '' });
+    }
+    persist();
+    renderSpells();
+  }
+
   // Build an attack from a weapon (to-hit = ability mod + proficiency,
   // damage = dice + ability mod). Finesse/ranged use Dex.
   function addWeapon(name, proficient, twoHanded) {
@@ -469,6 +528,7 @@
     renderAttacks();
     renderSpells();
     renderSpellSlots();
+    renderSpellPicker();
     fillFields();
     updateNotes();
     updateDerived();
@@ -559,7 +619,7 @@
       if (path === 'cls') {
         applyClass(val);
         persist();
-        fillFields(); updateNotes(); updateDerived(); renderSelector();
+        fillFields(); updateNotes(); updateDerived(); renderSelector(); renderSpellPicker();
         return;
       }
       if (path === 'background') {
@@ -611,6 +671,9 @@
     if (e.target.closest('.btn-roll-abilities')) {
       e.preventDefault();
       rollAbilities();
+    } else if (e.target.closest('.btn-roll-hp')) {
+      e.preventDefault();
+      rollMaxHp();
     } else if (e.target.closest('.btn-add-weapon')) {
       e.preventDefault();
       var ws = document.querySelector('#weapon-select');
@@ -630,9 +693,7 @@
       renderAttacks();
     } else if (e.target.closest('.btn-add-spell')) {
       e.preventDefault();
-      active.spells.push({ level: '', name: '', notes: '' });
-      persist();
-      renderSpells();
+      addSpellFromPicker();
     } else if (e.target.classList.contains('btn-del-spell')) {
       e.preventDefault();
       var sj = parseInt(e.target.closest('[data-spell-index]').getAttribute('data-spell-index'), 10);
@@ -655,6 +716,7 @@
     el.spellDc = document.querySelector('#spell-dc');
     el.spellAtk = document.querySelector('#spell-atk');
     el.spellSlots = document.querySelector('#spell-slots');
+    el.spellPick = document.querySelector('#spell-pick');
     el.gallery = document.querySelector('#char-gallery-cards');
     el.profBonus = document.querySelector('#prof-bonus');
     el.initTotal = document.querySelector('#init-total');
@@ -672,6 +734,9 @@
       if (c.armor === undefined) c.armor = 'manual';
       if (c.shield === undefined) c.shield = false;
       if (c.subclass === undefined) c.subclass = '';
+      if (c.xp === undefined) c.xp = 0;
+      if (c.resistances === undefined) c.resistances = '';
+      if (c.immunities === undefined) c.immunities = '';
       if (c.languages === undefined) c.languages = '';
       if (c.otherProf === undefined) c.otherProf = '';
       if (!c.spellSlots) c.spellSlots = {};

@@ -50,6 +50,7 @@
                     <label>Class <select data-field="cls"></select></label>
                     <label>Subclass <input type="text" data-field="subclass" placeholder="optional"></label>
                     <label>Level <input type="number" min="1" max="20" data-field="level"></label>
+                    <label>XP <input type="number" min="0" data-field="xp"></label>
                     <label>Race <select data-field="race"></select></label>
                     <label>Background <select data-field="background"></select></label>
                     <label>Alignment <select data-field="alignment"></select></label>
@@ -96,6 +97,7 @@
                     <label>Current HP <input type="number" data-field="hp.current"></label>
                     <label>Temp HP <input type="number" data-field="hp.temp"></label>
                 </div>
+                <button type="button" class="btn-roll-hp">🎲 Roll max HP (by class &amp; level)</button>
             </section>
 
             <div class="cols">
@@ -145,8 +147,11 @@
                     <span class="slots-lbl">Spell slots (total / used)</span>
                     <div id="spell-slots" class="spell-slots"></div>
                 </div>
+                <div class="spell-pick-row">
+                    <select id="spell-pick"></select>
+                    <button type="button" class="btn-add-spell">+ Add spell</button>
+                </div>
                 <div id="spells" class="attacks-list"></div>
-                <button type="button" class="btn-add-spell">+ Add spell</button>
             </section>
 
             <div class="cols">
@@ -184,6 +189,17 @@
 
             <div class="cols">
                 <section class="card">
+                    <h2>Resistances</h2>
+                    <textarea data-field="resistances" rows="2" placeholder="e.g. fire, cold, nonmagical bludgeoning…"></textarea>
+                </section>
+                <section class="card">
+                    <h2>Immunities</h2>
+                    <textarea data-field="immunities" rows="2" placeholder="Damage and condition immunities…"></textarea>
+                </section>
+            </div>
+
+            <div class="cols">
+                <section class="card">
                     <h2>Languages</h2>
                     <textarea data-field="languages" rows="3" placeholder="Common, Elvish, Thieves' Cant…"></textarea>
                 </section>
@@ -206,6 +222,7 @@
         </form>
 
         <script src="srd-data.js"></script>
+        <script src="srd-spells.js"></script>
         <script src="character.js"></script>
     </body>
 </html>
