@@ -946,8 +946,10 @@
         '<span class="saved__name">' + esc(s.name) + '</span>' +
         '<span class="saved__meta">' + plural(monsters, 'monster') + ', ' +
           plural(players, 'player') + '</span>' +
-        '<button class="btn-load" data-action="load" data-index="' + i + '">Load</button>' +
-        '<button class="btn-del" data-action="delete" data-index="' + i + '">Delete</button>' +
+        '<div class="saved__btns">' +
+          '<button class="btn-load" data-action="load" data-index="' + i + '">Load</button>' +
+          '<button class="btn-del" data-action="delete" data-index="' + i + '">Delete</button>' +
+        '</div>' +
       '</div>';
     }).join('');
   }

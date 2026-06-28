@@ -83,16 +83,18 @@
       id: uid(),
       category: cat || 'pc',
       name: 'New character',
+      subclass: '',
       cls: '', level: 1, race: '', background: '', alignment: '',
       abilities: { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 },
       saveProf: {}, skillProf: {},
       ac: 10, armor: '', shield: false, initBonus: 0, speed: 30,
       hp: { max: 0, current: 0, temp: 0 }, hitDice: '',
       attacks: [],
-      spellAbility: '', spells: [],
+      spellAbility: '', spells: [], spellSlots: {},
       deathSaves: { success: [false, false, false], failure: [false, false, false] },
       inspiration: false,
       currency: { cp: 0, sp: 0, ep: 0, gp: 0, pp: 0 },
+      languages: '', otherProf: '',
       features: '', equipment: '',
       // Bookkeeping of what race/class/background currently apply, so
       // a later change can be undone cleanly (no double-counting).
@@ -168,6 +170,7 @@
       return '<option value="' + c.id + '"' + (c.id === active.id ? ' selected' : '') + '>' +
         esc(label) + '</option>';
     }).join('');
+    renderCharGallery();
   }
 
   function renderAbilities() {
@@ -425,6 +428,39 @@
       : '<p class="muted">No spells yet.</p>';
   }
 
+  function renderSpellSlots() {
+    if (!el.spellSlots) return;
+    var slots = active.spellSlots || {};
+    var cells = '';
+    for (var L = 1; L <= 9; L++) {
+      var sl = slots[L] || {};
+      cells += '<div class="slot">' +
+        '<span class="slot__lvl">L' + L + '</span>' +
+        '<input type="number" min="0" class="slot__in" data-slot-level="' + L + '" ' +
+          'data-slot-field="total" value="' + (sl.total != null ? sl.total : '') + '" title="Total slots">' +
+        '<span class="slot__sep">/</span>' +
+        '<input type="number" min="0" class="slot__in" data-slot-level="' + L + '" ' +
+          'data-slot-field="used" value="' + (sl.used != null ? sl.used : '') + '" title="Used">' +
+      '</div>';
+    }
+    el.spellSlots.innerHTML = cells;
+  }
+
+  // Card gallery of the characters in the active category.
+  function renderCharGallery() {
+    if (!el.gallery) return;
+    var list = charsInCategory(category);
+    el.gallery.innerHTML = list.length ? list.map(function (c) {
+      var sub = (c.cls || '—') + (c.level ? ' ' + c.level : '') +
+        (c.race ? ' · ' + c.race : '');
+      return '<button class="adv-card' + (c.id === active.id ? ' adv-card--active' : '') +
+        '" data-load="' + c.id + '">' +
+        '<span class="adv-card__title">' + esc(c.name || 'Unnamed') + '</span>' +
+        '<span class="adv-card__levels">' + esc(sub) + '</span>' +
+      '</button>';
+    }).join('') : '<p class="muted">No characters in this category yet.</p>';
+  }
+
   // Full render when switching characters.
   function renderSheet() {
     renderAbilities();
@@ -432,6 +468,7 @@
     renderSkills();
     renderAttacks();
     renderSpells();
+    renderSpellSlots();
     fillFields();
     updateNotes();
     updateDerived();
@@ -548,6 +585,11 @@
       active.saveProf[t.getAttribute('data-saveprof')] = t.checked;
     } else if (t.hasAttribute('data-skillprof')) {
       active.skillProf[t.getAttribute('data-skillprof')] = t.checked;
+    } else if (t.hasAttribute('data-slot-level')) {
+      var lvl = t.getAttribute('data-slot-level');
+      if (!active.spellSlots[lvl]) active.spellSlots[lvl] = { total: 0, used: 0 };
+      active.spellSlots[lvl][t.getAttribute('data-slot-field')] =
+        (t.value === '' ? 0 : (parseInt(t.value, 10) || 0));
     } else if (t.hasAttribute('data-attack-field')) {
       var row = t.closest('[data-attack-index]');
       var i = parseInt(row.getAttribute('data-attack-index'), 10);
@@ -612,6 +654,8 @@
     el.spells = document.querySelector('#spells');
     el.spellDc = document.querySelector('#spell-dc');
     el.spellAtk = document.querySelector('#spell-atk');
+    el.spellSlots = document.querySelector('#spell-slots');
+    el.gallery = document.querySelector('#char-gallery-cards');
     el.profBonus = document.querySelector('#prof-bonus');
     el.initTotal = document.querySelector('#init-total');
     el.passive = document.querySelector('#passive');
@@ -627,6 +671,10 @@
       // Old sheets had a hand-typed AC: keep it by defaulting to manual.
       if (c.armor === undefined) c.armor = 'manual';
       if (c.shield === undefined) c.shield = false;
+      if (c.subclass === undefined) c.subclass = '';
+      if (c.languages === undefined) c.languages = '';
+      if (c.otherProf === undefined) c.otherProf = '';
+      if (!c.spellSlots) c.spellSlots = {};
       if (c.spellAbility === undefined) c.spellAbility = '';
       if (!c.spells) c.spells = [];
       if (!c.deathSaves) c.deathSaves = { success: [false, false, false], failure: [false, false, false] };
@@ -653,6 +701,12 @@
       var b = e.target.closest('.tab');
       if (b) setCategory(b.getAttribute('data-cat'));
     });
+    if (el.gallery) {
+      el.gallery.addEventListener('click', function (e) {
+        var card = e.target.closest('[data-load]');
+        if (card) switchTo(card.getAttribute('data-load'));
+      });
+    }
     el.select.addEventListener('change', function () { switchTo(el.select.value); });
     document.querySelector('.btn-new-char').addEventListener('click', function () {
       addCharacter(newCharacter(category));
