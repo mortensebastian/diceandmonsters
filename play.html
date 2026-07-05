@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <link href="https://fonts.googleapis.com/css?family=Open+Sans:100,300,400,600,700" rel="stylesheet" type="text/css">
+        <link type="text/css" rel="stylesheet" href="style.css">
+        <title>Play — Dice &amp; Monsters</title>
+    </head>
+
+    <body>
+        <nav class="nav">
+            <a href="index.html" class="nav__link">Home</a>
+            <a href="encounter.html" class="nav__link">Encounter</a>
+            <a href="play.html" class="nav__link nav__link--active">Play</a>
+            <a href="character.html" class="nav__link">Characters</a>
+            <a href="groups.html" class="nav__link">Groups</a>
+            <a href="adventure.html" class="nav__link">Adventure</a>
+        </nav>
+        <header class="topbar">
+            <h1>Play</h1>
+            <p class="tagline">Run the fight: initiative, turns, attacks and the log — live at the table.</p>
+        </header>
+
+        <!-- Start a session: from the planner handoff, or a saved encounter -->
+        <section class="play-bar">
+            <label class="play-bar__pick">Load saved encounter:
+                <select id="play-load"></select>
+            </label>
+            <div class="play-bar__buttons">
+                <button class="btn-play-load">Load</button>
+                <a class="btn-play-prep" href="encounter.html">Back to planner</a>
+                <button class="btn-play-clear">Clear table</button>
+            </div>
+            <span id="play-status" class="save-status"></span>
+        </section>
+
+        <!-- Turn order / initiative -->
+        <section class="tracker">
+            <div class="tracker__head">
+                <h2 class="tracker__title">Turn order</h2>
+                <div class="tracker__buttons">
+                    <button class="btn-init">Roll initiative</button>
+                    <button class="btn-next" disabled>Next turn</button>
+                </div>
+            </div>
+            <div id="turn-order" class="turn"></div>
+        </section>
+
+        <!-- The combatants in play -->
+        <section class="encounter">
+            <div class="encounter__head">
+                <h2 class="encounter__title">Combatants</h2>
+                <span id="encounter-meta" class="encounter__meta"></span>
+            </div>
+            <div class="monster__list"></div>
+        </section>
+
+        <!-- Combat log -->
+        <section class="logwrap">
+            <h2 class="logwrap__title">Combat log</h2>
+            <div id="log" class="log"></div>
+        </section>
+
+        <!-- Standard 5e conditions as suggestions (free text is also allowed) -->
+        <datalist id="conditions-list">
+            <option value="Blinded"></option>
+            <option value="Charmed"></option>
+            <option value="Concentration"></option>
+            <option value="Deafened"></option>
+            <option value="Frightened"></option>
+            <option value="Grappled"></option>
+            <option value="Incapacitated"></option>
+            <option value="Invisible"></option>
+            <option value="Paralyzed"></option>
+            <option value="Petrified"></option>
+            <option value="Poisoned"></option>
+            <option value="Prone"></option>
+            <option value="Restrained"></option>
+            <option value="Stunned"></option>
+            <option value="Unconscious"></option>
+        </datalist>
+
+        <script src="monsters-data.js"></script>
+        <script src="combat-engine.js"></script>
+        <script src="play.js"></script>
+    </body>
+</html>

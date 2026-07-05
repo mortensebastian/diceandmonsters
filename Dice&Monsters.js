@@ -831,6 +831,25 @@
     logLine('Encounter cleared.', 'spawn');
   }
 
+  // Hand the current encounter over to the Gameplay page and go there.
+  function startPlaySession() {
+    if (!state.combatants.length) {
+      logLine('Nothing to play - add monsters and players first.', 'spawn');
+      return;
+    }
+    var payload = {
+      name: (el.encName && el.encName.value.trim()) || '',
+      combatants: state.combatants.map(serializeCombatant)
+    };
+    try {
+      window.localStorage.setItem('diceAndMonsters.playSession', JSON.stringify(payload));
+    } catch (e) {
+      logLine('Could not start play session (storage blocked).', 'spawn');
+      return;
+    }
+    window.location.href = 'play.html';
+  }
+
   /* ---- Saving / loading encounters ---- */
 
   function loadSavedFromStorage() {
@@ -1139,6 +1158,7 @@
     el.saveBtn    = document.querySelector('.btn-save-encounter');
     el.savedList  = document.querySelector('#saved-list');
     el.clearBtn   = document.querySelector('.btn-clear');
+    el.startPlayBtn = document.querySelector('.btn-start-play');
     el.list       = document.querySelector('.monster__list');
     el.encMeta    = document.querySelector('#encounter-meta');
     el.log        = document.querySelector('#log');
@@ -1213,6 +1233,7 @@
     el.savedList.addEventListener('click', onSavedClick);
 
     el.clearBtn.addEventListener('click', clearEncounter);
+    if (el.startPlayBtn) el.startPlayBtn.addEventListener('click', startPlaySession);
     el.list.addEventListener('click', onListClick);
     el.list.addEventListener('keydown', onListKeydown);
     el.turnOrder.addEventListener('click', onTrackClick);
