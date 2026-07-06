@@ -83,6 +83,38 @@
             <div class="monster__list"></div>
         </section>
 
+        <!-- AI Dungeon Master -->
+        <section class="ai" id="ai-dm">
+            <div class="ai__head">
+                <h2 class="ai__title">AI Dungeon Master</h2>
+                <button class="btn-ai-settings" type="button" aria-expanded="false">Settings ⚙</button>
+            </div>
+
+            <div class="ai__settings" id="ai-settings" hidden>
+                <label class="ai__field">Anthropic API key
+                    <input type="password" id="ai-key" class="ai__input" placeholder="sk-ant-…" autocomplete="off">
+                </label>
+                <label class="ai__field">Model
+                    <input type="text" id="ai-model" class="ai__input" placeholder="claude-opus-4-8">
+                </label>
+                <button class="btn-ai-save" type="button">Save</button>
+                <p class="ai__hint">Your key is stored only in this browser (localStorage) and sent straight to Anthropic. Get one at console.anthropic.com.</p>
+            </div>
+
+            <label class="ai__field ai__field--wide">Scene (optional — grounds the DM; “DM notes:” stays private)
+                <textarea id="ai-scene" class="ai__textarea" rows="3" placeholder="Paste or write the current scene's read-aloud text (and DM notes: …)"></textarea>
+            </label>
+
+            <div class="ai__row">
+                <input type="text" id="ai-direction" class="ai__input ai__input--direction" placeholder="Optional direction for the DM (e.g. “make it tense”)">
+                <button class="btn-ai-scene" type="button">Describe scene</button>
+                <button class="btn-ai-round" type="button">Narrate the round</button>
+                <span id="ai-status" class="ai__status"></span>
+            </div>
+
+            <div id="ai-output" class="ai__output" aria-live="polite"></div>
+        </section>
+
         <!-- Combat log -->
         <section class="logwrap">
             <h2 class="logwrap__title">Combat log</h2>
@@ -110,6 +142,9 @@
 
         <script src="monsters-data.js"></script>
         <script src="combat-engine.js"></script>
+        <script src="ai-context.js"></script>
+        <script src="ai-client.js"></script>
+        <script src="ai-dm.js"></script>
         <script src="play.js"></script>
     </body>
 </html>

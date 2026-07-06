@@ -1174,3 +1174,60 @@ button:disabled { opacity: .4; cursor: not-allowed; box-shadow: none; }
 .rd-pre { color: #c2c9d6; white-space: pre-wrap; line-height: 1.5; }
 .rd-spelllvl { color: #c2c9d6; font-size: 14px; padding: 2px 0; }
 .rd-spelllvl b { color: #b89cd8; }
+
+/**********************************************
+*** AI DUNGEON MASTER (Play)
+**********************************************/
+
+.ai {
+    background: #1d2029;
+    border: 1px solid #2c3140;
+    border-radius: 10px;
+    padding: 18px;
+}
+.ai__head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 10px; }
+.ai__title { font-size: 16px; color: #9b59b6; }
+.btn-ai-settings {
+    background: #3b4150; color: #e6e6e6; border: none; border-radius: 6px;
+    padding: 6px 12px; font-family: inherit; font-size: 13px; cursor: pointer;
+}
+.btn-ai-settings:hover { background: #2c3140; }
+
+.ai__settings {
+    background: #12141a; border: 1px solid #2c3140; border-radius: 8px;
+    padding: 14px; margin-bottom: 12px;
+    display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end;
+}
+.ai__field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #9aa3b2; flex: 1; min-width: 180px; }
+.ai__field--wide { width: 100%; flex-basis: 100%; margin-bottom: 12px; }
+.ai__input, .ai__textarea {
+    background: #12141a; border: 1px solid #2c3140; color: #e6e6e6;
+    border-radius: 6px; padding: 10px 12px; font-family: inherit; font-size: 14px; width: 100%;
+}
+.ai__settings .ai__input { background: #1d2029; }
+.ai__textarea { resize: vertical; }
+.btn-ai-save {
+    background: #27ae60; color: #fff; border: none; border-radius: 6px;
+    padding: 10px 16px; font-family: inherit; font-size: 14px; cursor: pointer;
+}
+.btn-ai-save:hover { background: #2ecc71; }
+.ai__hint { flex-basis: 100%; font-size: 12px; color: #6b7280; margin: 0; }
+
+.ai__row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+.ai__input--direction { flex: 1; min-width: 180px; width: auto; }
+.btn-ai-scene, .btn-ai-round {
+    border: none; border-radius: 6px; padding: 10px 16px;
+    font-family: inherit; font-size: 14px; cursor: pointer;
+}
+.btn-ai-scene { background: #e1b12c; color: #1b1b1b; }
+.btn-ai-scene:hover { background: #f1c40f; }
+.btn-ai-round { background: #9b59b6; color: #fff; }
+.btn-ai-round:hover { background: #af6fca; }
+.btn-ai-scene:disabled, .btn-ai-round:disabled { opacity: .5; cursor: default; }
+.ai__status { font-size: 13px; color: #9aa3b2; }
+
+.ai__output { display: flex; flex-direction: column; gap: 10px; }
+.ai__msg {
+    background: #12141a; border-left: 3px solid #9b59b6; border-radius: 6px;
+    padding: 12px 14px; white-space: pre-wrap; line-height: 1.5; color: #d7dbe2;
+}

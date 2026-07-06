@@ -22,7 +22,9 @@
     combatants: [],
     activeId: null,
     editingInitId: null,
-    editInitMode: 'd20'
+    editInitMode: 'd20',
+    log: [],        // structured combat log ({text, cls, ts}) for the AI + persistence
+    scene: null     // optional { title, text } grounding for the AI DM
   };
 
   var el = {};
@@ -37,6 +39,8 @@
 
   /* ---- Combat log ---- */
   function logLine(text, cls) {
+    state.log.push({ text: text, cls: cls || '', ts: Date.now() });
+    if (state.log.length > 300) state.log.shift();
     var line = document.createElement('div');
     line.className = 'log__line' + (cls ? ' log__line--' + cls : '');
     line.textContent = text;
@@ -612,6 +616,95 @@
     addCombatant(c, note);
   }
 
+  /* ---- AI Dungeon Master (Phase 1: narration) ---- */
+  var aiBusy = false;
+
+  function aiStatus(text) { if (el.aiStatus) el.aiStatus.textContent = text || ''; }
+
+  function renderNarration(text) {
+    var block = document.createElement('div');
+    block.className = 'ai__msg';
+    block.textContent = text;
+    el.aiOutput.appendChild(block);
+    el.aiOutput.scrollTop = el.aiOutput.scrollHeight;
+  }
+
+  function setAiBusy(busy) {
+    aiBusy = busy;
+    if (el.aiSceneBtn) el.aiSceneBtn.disabled = busy;
+    if (el.aiRoundBtn) el.aiRoundBtn.disabled = busy;
+  }
+
+  function runNarration(mode) {
+    if (aiBusy) return;
+    if (!window.AIClient || !window.AIDM || !window.AIContext) {
+      aiStatus('AI scripts not loaded.'); return;
+    }
+    if (!window.AIClient.hasKey()) {
+      aiStatus('Add your Anthropic API key in Settings first.');
+      showAiSettings(true);
+      return;
+    }
+    // Pull the optional scene text straight from the field each run.
+    var sceneText = (el.aiScene && el.aiScene.value.trim()) || '';
+    state.scene = sceneText ? { text: sceneText } : null;
+
+    var direction = (el.aiDirection && el.aiDirection.value.trim()) || '';
+    var ctx = window.AIContext.build(state, { scene: state.scene });
+    var req = window.AIDM.buildNarration(ctx, mode, direction);
+
+    setAiBusy(true);
+    aiStatus('The DM is thinking…');
+    window.AIClient.complete(req).then(function (res) {
+      var text = window.AIClient.textOf(res);
+      if (text) renderNarration(text);
+      aiStatus('');
+    }).catch(function (err) {
+      aiStatus(err.message || 'Something went wrong.');
+    }).then(function () { setAiBusy(false); });
+  }
+
+  function showAiSettings(open) {
+    if (!el.aiSettings) return;
+    el.aiSettings.hidden = !open;
+    if (el.aiSettingsBtn) el.aiSettingsBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  }
+
+  function saveAiSettings() {
+    window.AIClient.setKey((el.aiKey.value || '').trim());
+    var model = (el.aiModel.value || '').trim();
+    window.AIClient.setModel(model || window.AIClient.DEFAULT_MODEL);
+    el.aiModel.value = window.AIClient.getModel();
+    aiStatus('Saved.');
+    setTimeout(function () { aiStatus(''); }, 1400);
+  }
+
+  function initAi() {
+    el.aiSettingsBtn = document.querySelector('.btn-ai-settings');
+    el.aiSettings    = document.querySelector('#ai-settings');
+    el.aiKey         = document.querySelector('#ai-key');
+    el.aiModel       = document.querySelector('#ai-model');
+    el.aiSaveBtn     = document.querySelector('.btn-ai-save');
+    el.aiScene       = document.querySelector('#ai-scene');
+    el.aiDirection   = document.querySelector('#ai-direction');
+    el.aiSceneBtn    = document.querySelector('.btn-ai-scene');
+    el.aiRoundBtn    = document.querySelector('.btn-ai-round');
+    el.aiStatus      = document.querySelector('#ai-status');
+    el.aiOutput      = document.querySelector('#ai-output');
+    if (!el.aiOutput || !window.AIClient) return;
+
+    // Prefill saved settings (key + model live in localStorage).
+    el.aiKey.value = window.AIClient.getKey();
+    el.aiModel.value = window.AIClient.getModel();
+
+    el.aiSettingsBtn.addEventListener('click', function () {
+      showAiSettings(el.aiSettings.hidden);
+    });
+    el.aiSaveBtn.addEventListener('click', saveAiSettings);
+    el.aiSceneBtn.addEventListener('click', function () { runNarration('scene'); });
+    el.aiRoundBtn.addEventListener('click', function () { runNarration('round'); });
+  }
+
   /* ---- Init ---- */
   function init() {
     el.loadSelect = document.querySelector('#play-load');
@@ -660,6 +753,8 @@
     el.list.addEventListener('keydown', onListKeydown);
     el.turnOrder.addEventListener('click', onTrackClick);
     el.turnOrder.addEventListener('keydown', onTrackKeydown);
+
+    initAi();
 
     // If the planner handed off an encounter, load it straight into play.
     var handoff = readSessionHandoff();
