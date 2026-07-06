@@ -35,6 +35,33 @@
             <span id="play-status" class="save-status"></span>
         </section>
 
+        <!-- Add combatants mid-session -->
+        <section class="picker">
+            <h2 class="players__title">Add to the fight</h2>
+            <div class="picker__row">
+                <input type="text" id="play-monster-search" class="picker__search" placeholder="Search monster…">
+            </div>
+            <div class="picker__row">
+                <select id="play-monster-select" class="picker__select" size="4"></select>
+            </div>
+            <div class="picker__row picker__row--actions">
+                <span id="play-monster-count" class="picker__count"></span>
+                <div class="picker__buttons">
+                    <button class="btn-play-add-monster">Add monster</button>
+                </div>
+            </div>
+            <div class="players__row">
+                <input type="text" id="play-player-name" class="players__name" placeholder="Player name…">
+                <input type="number" id="play-player-init" class="players__init" placeholder="init +" title="Optional initiative modifier">
+                <input type="number" id="play-player-ac" class="players__init" placeholder="AC" title="Optional AC">
+                <button class="btn-play-add-player">Add player</button>
+            </div>
+            <div class="import__row">
+                <select id="play-char-import" class="import__select"></select>
+                <button class="btn-play-import-char">Add from sheet</button>
+            </div>
+        </section>
+
         <!-- Turn order / initiative -->
         <section class="tracker">
             <div class="tracker__head">

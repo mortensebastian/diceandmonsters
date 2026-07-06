@@ -27,6 +27,7 @@
 
   var el = {};
   var statusTimer = null;
+  var library = (window.MONSTER_DATA || []).slice(); // for the live "add monster" picker
 
   var esc = DM.esc, signed = DM.signed;
 
@@ -524,6 +525,93 @@
     status('Loaded');
   }
 
+  /* ---- Add combatants mid-session ---- */
+  // If combat is already underway, give the newcomer an initiative now.
+  function rollInitiativeIfActive(c) {
+    var inProgress = state.combatants.some(function (x) {
+      return x.id !== c.id && x.initiative != null;
+    });
+    if (inProgress) {
+      DM.setInitiative(c, DM.rollDie(20));
+      logLine(label(c) + ' rolls initiative ' + c.initiative + DM.initLogBreak(c) + '.', 'turn');
+    }
+  }
+
+  function addCombatant(c, note) {
+    state.combatants.push(c);
+    rollInitiativeIfActive(c);
+    renderAll();
+    renderTurnOrder();
+    logLine(label(c) + ' joins the fight' + (note ? ' ' + note : '') + '.', 'spawn');
+  }
+
+  function populateMonsterSelect() {
+    var q = (el.monsterSearch.value || '').trim().toLowerCase();
+    var matches = library.filter(function (m) {
+      return !q || m.name.toLowerCase().indexOf(q) !== -1;
+    });
+    el.monsterSelect.innerHTML = matches.map(function (m) {
+      return '<option value="' + m.slug + '">' + esc(m.name) +
+        '  (CR ' + esc(m.crLabel) + ')</option>';
+    }).join('');
+    el.monsterCount.textContent = matches.length + ' of ' + library.length + ' monsters';
+    el.addMonsterBtn.disabled = matches.length === 0;
+  }
+
+  function addMonsterBySlug(slug) {
+    var tpl = DM.templateBySlug(slug);
+    if (!tpl) return;
+    var c = DM.createMonster(tpl);
+    addCombatant(c, '(' + c.maxHp + ' HP, AC ' + c.ac + ')');
+  }
+
+  function submitPlayer() {
+    var name = (el.playerName.value || '').trim();
+    if (!name) return;
+    var initMod = parseInt(el.playerInit.value, 10);
+    var ac = parseInt(el.playerAc.value, 10);
+    var c = DM.createPlayer(name, isNaN(initMod) ? 0 : initMod, isNaN(ac) ? null : ac);
+    var extra = [];
+    if (!isNaN(initMod) && initMod) extra.push('init ' + signed(initMod));
+    if (!isNaN(ac)) extra.push('AC ' + ac);
+    addCombatant(c, extra.length ? '(' + extra.join(', ') + ')' : '');
+    el.playerName.value = ''; el.playerInit.value = ''; el.playerAc.value = '';
+    el.playerName.focus();
+  }
+
+  function loadCharacters() {
+    try { return JSON.parse(window.localStorage.getItem('diceAndMonsters.characters')) || []; }
+    catch (e) { return []; }
+  }
+  function populateCharImport() {
+    if (!el.charImport) return;
+    var sheets = loadCharacters();
+    if (!sheets.length) {
+      el.charImport.innerHTML = '<option value="">No saved characters</option>';
+      el.importCharBtn.disabled = true;
+      return;
+    }
+    el.importCharBtn.disabled = false;
+    function opt(s) { return '<option value="' + s.id + '">' + esc(s.name || 'Unnamed') + '</option>'; }
+    var pcs = sheets.filter(function (s) { return (s.category || 'pc') === 'pc'; });
+    var npcs = sheets.filter(function (s) { return s.category === 'npc'; });
+    var html = '';
+    if (pcs.length) html += '<optgroup label="My characters">' + pcs.map(opt).join('') + '</optgroup>';
+    if (npcs.length) html += '<optgroup label="NPCs">' + npcs.map(opt).join('') + '</optgroup>';
+    el.charImport.innerHTML = html;
+  }
+  function addCharacterFromSheet(id) {
+    var sheets = loadCharacters(), sheet = null;
+    for (var i = 0; i < sheets.length; i++) if (sheets[i].id === id) sheet = sheets[i];
+    if (!sheet) return;
+    var isNpc = sheet.category === 'npc';
+    var c = isNpc ? DM.createNpcFromSheet(sheet) : DM.createPlayerFromSheet(sheet);
+    var note = isNpc
+      ? '(NPC, ' + c.maxHp + ' HP, AC ' + c.ac + ')'
+      : '(player, AC ' + (c.ac != null ? c.ac : '–') + ')';
+    addCombatant(c, note);
+  }
+
   /* ---- Init ---- */
   function init() {
     el.loadSelect = document.querySelector('#play-load');
@@ -536,8 +624,33 @@
     el.encMeta    = document.querySelector('#encounter-meta');
     el.log        = document.querySelector('#log');
     el.status     = document.querySelector('#play-status');
+    el.monsterSearch = document.querySelector('#play-monster-search');
+    el.monsterSelect = document.querySelector('#play-monster-select');
+    el.monsterCount  = document.querySelector('#play-monster-count');
+    el.addMonsterBtn = document.querySelector('.btn-play-add-monster');
+    el.playerName    = document.querySelector('#play-player-name');
+    el.playerInit    = document.querySelector('#play-player-init');
+    el.playerAc      = document.querySelector('#play-player-ac');
+    el.addPlayerBtn  = document.querySelector('.btn-play-add-player');
+    el.charImport    = document.querySelector('#play-char-import');
+    el.importCharBtn = document.querySelector('.btn-play-import-char');
 
     populateSavedSelect();
+
+    // Live "add to the fight" controls
+    populateMonsterSelect();
+    el.monsterSearch.addEventListener('input', populateMonsterSelect);
+    el.addMonsterBtn.addEventListener('click', function () {
+      if (el.monsterSelect.value) addMonsterBySlug(el.monsterSelect.value);
+    });
+    el.addPlayerBtn.addEventListener('click', submitPlayer);
+    el.playerName.addEventListener('keydown', function (e) { if (e.key === 'Enter') submitPlayer(); });
+    populateCharImport();
+    el.charImport.addEventListener('focus', populateCharImport);
+    el.importCharBtn.addEventListener('click', function () {
+      if (el.charImport.value) addCharacterFromSheet(el.charImport.value);
+    });
+
     el.loadSelect.addEventListener('focus', populateSavedSelect);
     el.loadBtn.addEventListener('click', loadSelectedEncounter);
     el.clearBtn.addEventListener('click', clearTable);
