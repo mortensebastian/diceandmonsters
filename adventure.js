@@ -177,6 +177,7 @@
         treasureHtml(s, i, false) +
         sceneMonsHtml(s, i, false) +
         '<div class="scene__actions">' +
+          '<button class="btn-play-scene" data-play="' + i + '">🎲 Play this scene</button>' +
           '<button class="btn-send" data-send="' + i + '">▶ Send encounter to planner</button>' +
         '</div>' +
       '</div>';
@@ -203,6 +204,7 @@
           '<input class="mon-input" list="mon-list" placeholder="monster name">' +
           '<input class="mon-count" type="number" min="1" value="1">' +
           '<button class="btn-add-mon" data-add-mon="' + i + '">+ Monster</button>' +
+          '<button class="btn-play-scene" data-play="' + i + '">🎲 Play scene</button>' +
           '<button class="btn-send" data-send="' + i + '">▶ Send to planner</button>' +
           '<button class="btn-del-scene" data-del-scene="' + i + '">Delete scene</button>' +
         '</div>' +
@@ -273,6 +275,22 @@
     window.location.href = 'encounter.html';
   }
 
+  // Send a scene straight to the Gameplay page: its monsters spawn on the
+  // table and its text (read-aloud + DM notes) grounds the AI DM.
+  function playScene(idx) {
+    var scene = active.scenes[idx];
+    var mons = (scene.monsters || []).filter(function (m) { return m.slug; })
+      .map(function (m) { return { slug: m.slug, count: m.count || 1 }; });
+    try {
+      window.localStorage.setItem('diceAndMonsters.playSession', JSON.stringify({
+        name: active.title + ' — ' + scene.title,
+        monsters: mons,
+        scene: { title: scene.title, text: scene.text || '' }
+      }));
+    } catch (e) { /* ignore */ }
+    window.location.href = 'play.html';
+  }
+
   /* ---- Editor input / change / click (delegated on #adv-main) ---- */
   function onMainInput(e) {
     if (isBuiltin(active)) return;
@@ -312,6 +330,7 @@
 
   function onMainClick(e) {
     var t = e.target;
+    if (t.hasAttribute('data-play')) { playScene(+t.getAttribute('data-play')); return; }
     if (t.hasAttribute('data-send')) { sendScene(+t.getAttribute('data-send')); return; }
     if (isBuiltin(active)) return; // editor-only below
 

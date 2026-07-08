@@ -504,6 +504,41 @@
       (sourceName ? ' from "' + sourceName + '"' : '') + '.', 'spawn');
   }
 
+  // Load a handoff from the planner (serialized combatants) OR from an
+  // adventure scene (monsters by slug + scene text for the AI DM).
+  function loadHandoff(data) {
+    var combatants = [];
+    if (data.combatants && data.combatants.length) {
+      combatants = data.combatants.map(DM.deserializeCombatant);
+    } else if (data.monsters && data.monsters.length) {
+      data.monsters.forEach(function (m) {
+        var tpl = DM.templateBySlug(m.slug);
+        if (!tpl) return;
+        var n = m.count || 1;
+        for (var i = 0; i < n; i++) combatants.push(DM.createMonster(tpl));
+      });
+    }
+    state.combatants = combatants;
+    combatants.forEach(function (c) { DM.bumpIdPast(c.id); });
+    state.activeId = null;
+    state.editingInitId = null;
+
+    if (data.scene) {
+      state.scene = { title: data.scene.title || '', text: data.scene.text || '' };
+      if (el.aiScene) el.aiScene.value = state.scene.text || '';
+    }
+
+    renderAll();
+    renderTurnOrder();
+    var src = data.name ? ' from "' + data.name + '"' : '';
+    logLine('Loaded ' + combatants.length + ' combatant' +
+      (combatants.length === 1 ? '' : 's') + src + '.', 'spawn');
+    if (data.scene) {
+      logLine('Scene "' + (data.scene.title || 'scene') + '" loaded into the AI DM. ' +
+        'Press “Describe scene” to begin.', 'turn');
+    }
+  }
+
   function readSessionHandoff() {
     var raw;
     try { raw = window.localStorage.getItem(SESSION_KEY); } catch (e) { return null; }
@@ -872,14 +907,18 @@
 
     initAi();
 
-    // If the planner handed off an encounter, load it straight into play.
+    // If the planner or an adventure scene handed off a session, load it.
     var handoff = readSessionHandoff();
-    if (handoff && handoff.combatants && handoff.combatants.length) {
-      loadCombatantList(handoff.combatants, handoff.name || null);
+    var hasHandoff = handoff && (
+      (handoff.combatants && handoff.combatants.length) ||
+      (handoff.monsters && handoff.monsters.length) ||
+      handoff.scene);
+    if (hasHandoff) {
+      loadHandoff(handoff);
     } else {
       renderAll();
       renderTurnOrder();
-      logLine('Ready. Load a saved encounter, or build one in the planner and press “Start play session”.', 'spawn');
+      logLine('Ready. Load a saved encounter, build one in the planner, or press “Play this scene” in an adventure.', 'spawn');
     }
   }
 

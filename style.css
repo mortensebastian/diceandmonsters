@@ -1013,6 +1013,8 @@ button:disabled { opacity: .4; cursor: not-allowed; box-shadow: none; }
     border-radius: 6px; padding: 8px 10px; font-family: inherit; font-size: 14px;
 }
 .btn-add-mon { background: #5b3a86; }
+.btn-play-scene { background: #9b59b6; }
+.btn-play-scene:hover { background: #af6fca; }
 .btn-send { background: #c0392b; }
 .btn-del-scene { background: #3b4150; font-size: 13px; }
 .btn-add-scene { background: #27ae60; }
