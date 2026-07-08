@@ -105,14 +105,19 @@
                 <textarea id="ai-scene" class="ai__textarea" rows="3" placeholder="Paste or write the current scene's read-aloud text (and DM notes: …)"></textarea>
             </label>
 
-            <div class="ai__row">
-                <input type="text" id="ai-direction" class="ai__input ai__input--direction" placeholder="Optional direction for the DM (e.g. “make it tense”)">
+            <div id="ai-output" class="ai__output" aria-live="polite"></div>
+
+            <div class="ai__row ai__row--quick">
                 <button class="btn-ai-scene" type="button">Describe scene</button>
-                <button class="btn-ai-round" type="button">Narrate the round</button>
+                <button class="btn-ai-round" type="button">Run monsters’ turn</button>
+                <button class="btn-ai-reset" type="button" title="Start a fresh conversation">Reset chat</button>
                 <span id="ai-status" class="ai__status"></span>
             </div>
 
-            <div id="ai-output" class="ai__output" aria-live="polite"></div>
+            <div class="ai__row ai__composer">
+                <input type="text" id="ai-input" class="ai__input ai__input--chat" placeholder="Talk to the DM… (e.g. “the goblins attack the fighter”)">
+                <button class="btn-ai-send" type="button">Send</button>
+            </div>
         </section>
 
         <!-- Combat log -->

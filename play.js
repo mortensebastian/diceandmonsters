@@ -279,19 +279,24 @@
   }
 
   /* ---- Combat actions (log lines built here from engine results) ---- */
+  // Resolve an attack, write the combat log, and RETURN a summary string
+  // (used both by the human attack buttons and the AI DM's monster_action tool).
   function performAttack(attacker, attack, target) {
     var r = DM.resolveAttack(attacker, attack, target);
     var who = label(attacker) + ' uses ' + attack.name;
     var vs = target ? (' on ' + label(target)) : '';
+    var summary, cls;
 
     if (r.alreadyDead) {
-      logLine(label(attacker) + ' attacks ' + label(target) + ', but it is already dead.', 'miss');
-      return;
+      summary = label(attacker) + ' attacks ' + label(target) + ', but it is already dead.';
+      logLine(summary, 'miss');
+      return summary;
     }
     if (!r.hit) {
       var why = r.fumble ? 'Critical miss!' : ('rolled ' + r.toHit + ' vs AC ' + target.ac + ' - miss.');
-      logLine(who + vs + ': ' + why, 'miss');
-      return;
+      summary = who + vs + ': ' + why;
+      logLine(summary, 'miss');
+      return summary;
     }
     var hitTxt = r.crit ? 'CRITICAL HIT!' :
       ('rolled ' + r.toHit + (target ? ' vs AC ' + target.ac : '') + ' - hit.');
@@ -299,13 +304,18 @@
 
     if (r.appliedDamage) {
       var st = r.killed ? (' ' + label(target) + ' DIES!') : (' (' + target.hp + '/' + target.maxHp + ' HP left)');
-      logLine(who + vs + ': ' + hitTxt + ' ' + dmgTxt + '.' + st, r.killed ? 'kill' : 'hit');
+      summary = who + vs + ': ' + hitTxt + ' ' + dmgTxt + '.' + st;
+      cls = r.killed ? 'kill' : 'hit';
       refreshCard(target);
     } else if (target) {
-      logLine(who + vs + ': ' + hitTxt + ' ' + dmgTxt + ' - ' + label(target) + ' tracks the damage themselves.', 'hit');
+      summary = who + vs + ': ' + hitTxt + ' ' + dmgTxt + ' - ' + label(target) + ' tracks the damage themselves.';
+      cls = 'hit';
     } else {
-      logLine(who + ': ' + hitTxt + ' ' + dmgTxt + '.', 'hit');
+      summary = who + ': ' + hitTxt + ' ' + dmgTxt + '.';
+      cls = 'hit';
     }
+    logLine(summary, cls);
+    return summary;
   }
 
   function rollInitiative() {
@@ -616,14 +626,17 @@
     addCombatant(c, note);
   }
 
-  /* ---- AI Dungeon Master (Phase 1: narration) ---- */
+  /* ---- AI Dungeon Master (Phase 2: conversation + tool use) ---- */
   var aiBusy = false;
+  var aiMessages = [];           // the ongoing Anthropic conversation
+  var MAX_TOOL_ITERS = 8;
 
   function aiStatus(text) { if (el.aiStatus) el.aiStatus.textContent = text || ''; }
 
-  function renderNarration(text) {
+  function renderChat(role, text) {
+    if (!text) return;
     var block = document.createElement('div');
-    block.className = 'ai__msg';
+    block.className = 'ai__msg ai__msg--' + role;
     block.textContent = text;
     el.aiOutput.appendChild(block);
     el.aiOutput.scrollTop = el.aiOutput.scrollHeight;
@@ -631,37 +644,130 @@
 
   function setAiBusy(busy) {
     aiBusy = busy;
-    if (el.aiSceneBtn) el.aiSceneBtn.disabled = busy;
-    if (el.aiRoundBtn) el.aiRoundBtn.disabled = busy;
+    [el.aiSceneBtn, el.aiRoundBtn, el.aiSendBtn].forEach(function (b) { if (b) b.disabled = busy; });
+    if (el.aiInput) el.aiInput.disabled = busy;
   }
 
-  function runNarration(mode) {
+  function toolResult(id, text, isError) {
+    return { type: 'tool_result', tool_use_id: id, content: String(text), is_error: !!isError };
+  }
+
+  // Execute one Claude tool call against the real engine. Validates first,
+  // returns a tool_result the model reads back (errors included, so it retries).
+  function executeToolCall(block) {
+    var input = block.input || {};
+    var id = block.id;
+    try {
+      if (block.name === 'monster_action') {
+        var attacker = findCombatant(input.combatantId);
+        if (!attacker) return toolResult(id, 'No combatant with id ' + input.combatantId + '.', true);
+        if (attacker.kind === 'player') return toolResult(id, label(attacker) + ' is a player character — you cannot act for it.', true);
+        var attack = attacker.attacks && attacker.attacks[input.attackIndex];
+        if (!attack) return toolResult(id, label(attacker) + ' has no attack at index ' + input.attackIndex + '.', true);
+        var target = (input.targetId != null) ? findCombatant(input.targetId) : null;
+        if (input.targetId != null && !target) return toolResult(id, 'No target with id ' + input.targetId + '.', true);
+        if (input.say) renderChat('dm', input.say);
+        var summary = performAttack(attacker, attack, target);
+        renderAll();
+        return toolResult(id, summary);
+      }
+      if (block.name === 'set_condition') {
+        var c = findCombatant(input.combatantId);
+        if (!c) return toolResult(id, 'No combatant with id ' + input.combatantId + '.', true);
+        if (input.mode === 'remove') {
+          DM.removeCondition(c, input.condition);
+          logLine(label(c) + ' is no longer ' + input.condition + '.', 'spawn');
+        } else {
+          DM.addCondition(c, input.condition);
+          logLine(label(c) + ' is now ' + input.condition + '.', 'spawn');
+        }
+        rerenderCard(c); renderTurnOrder();
+        return toolResult(id, label(c) + ' conditions: ' + (c.conditions.join(', ') || 'none') + '.');
+      }
+      if (block.name === 'apply_damage') {
+        var t = findCombatant(input.combatantId);
+        if (!t) return toolResult(id, 'No combatant with id ' + input.combatantId + '.', true);
+        if (!DM.hasHp(t)) return toolResult(id, label(t) + ' has no HP counter (a player tracks their own HP).', true);
+        DM.applyDamage(t, input.amount);
+        var sd = label(t) + ' takes ' + input.amount + ' damage' + (input.note ? ' (' + input.note + ')' : '') + '. ' +
+          (t.dead ? 'It DIES!' : '(' + t.hp + '/' + t.maxHp + ' HP)');
+        logLine(sd, t.dead ? 'kill' : 'hit'); refreshCard(t);
+        return toolResult(id, sd);
+      }
+      if (block.name === 'apply_heal') {
+        var h = findCombatant(input.combatantId);
+        if (!h) return toolResult(id, 'No combatant with id ' + input.combatantId + '.', true);
+        if (!DM.hasHp(h)) return toolResult(id, label(h) + ' has no HP counter.', true);
+        DM.applyHeal(h, input.amount);
+        var sh = label(h) + ' heals ' + input.amount + (input.note ? ' (' + input.note + ')' : '') + '. (' + h.hp + '/' + h.maxHp + ' HP)';
+        logLine(sh, 'heal'); refreshCard(h);
+        return toolResult(id, sh);
+      }
+      if (block.name === 'advance_turn') {
+        nextTurn();
+        var act = state.activeId != null ? findCombatant(state.activeId) : null;
+        return toolResult(id, act ? ('Now ' + label(act) + "'s turn.") : 'No living combatants in the order.');
+      }
+      return toolResult(id, 'Unknown tool: ' + block.name, true);
+    } catch (e) {
+      return toolResult(id, 'Tool error: ' + ((e && e.message) || e), true);
+    }
+  }
+
+  function finishChat() {
+    renderAll();
+    renderTurnOrder();
+    aiStatus('');
+    setAiBusy(false);
+  }
+
+  function runLoop(iter) {
+    var noTools = iter > MAX_TOOL_ITERS;   // hard stop: last call is text-only
+    var req = { system: window.AIDM.CHAT_SYSTEM, messages: aiMessages, max_tokens: 1024 };
+    if (!noTools) req.tools = window.AIDM.TOOLS;
+
+    window.AIClient.complete(req).then(function (res) {
+      aiMessages.push({ role: 'assistant', content: res.content });
+      renderChat('dm', window.AIClient.textOf(res));
+
+      var toolCalls = window.AIClient.toolCallsOf(res);
+      if (!noTools && res.stop_reason === 'tool_use' && toolCalls.length) {
+        var results = toolCalls.map(executeToolCall);
+        aiMessages.push({ role: 'user', content: results });
+        runLoop(iter + 1);
+      } else {
+        finishChat();
+      }
+    }).catch(function (err) {
+      aiStatus((err && err.message) || 'Something went wrong.');
+      setAiBusy(false);
+    });
+  }
+
+  function sendChat(userText, displayLabel) {
     if (aiBusy) return;
-    if (!window.AIClient || !window.AIDM || !window.AIContext) {
-      aiStatus('AI scripts not loaded.'); return;
-    }
-    if (!window.AIClient.hasKey()) {
-      aiStatus('Add your Anthropic API key in Settings first.');
-      showAiSettings(true);
-      return;
-    }
-    // Pull the optional scene text straight from the field each run.
+    userText = (userText || '').trim();
+    if (!userText) return;
+    if (!window.AIClient || !window.AIDM || !window.AIContext) { aiStatus('AI scripts not loaded.'); return; }
+    if (!window.AIClient.hasKey()) { aiStatus('Add your Anthropic API key in Settings first.'); showAiSettings(true); return; }
+
     var sceneText = (el.aiScene && el.aiScene.value.trim()) || '';
     state.scene = sceneText ? { text: sceneText } : null;
-
-    var direction = (el.aiDirection && el.aiDirection.value.trim()) || '';
     var ctx = window.AIContext.build(state, { scene: state.scene });
-    var req = window.AIDM.buildNarration(ctx, mode, direction);
+
+    renderChat('user', displayLabel || userText);
+    aiMessages.push({ role: 'user', content: window.AIDM.stateBlock(ctx) + '\n\n' + userText });
 
     setAiBusy(true);
     aiStatus('The DM is thinking…');
-    window.AIClient.complete(req).then(function (res) {
-      var text = window.AIClient.textOf(res);
-      if (text) renderNarration(text);
-      aiStatus('');
-    }).catch(function (err) {
-      aiStatus(err.message || 'Something went wrong.');
-    }).then(function () { setAiBusy(false); });
+    runLoop(0);
+  }
+
+  function resetChat() {
+    aiMessages = [];
+    if (el.aiOutput) el.aiOutput.innerHTML = '';
+    aiStatus('Chat reset.');
+    setTimeout(function () { aiStatus(''); }, 1400);
   }
 
   function showAiSettings(open) {
@@ -686,23 +792,33 @@
     el.aiModel       = document.querySelector('#ai-model');
     el.aiSaveBtn     = document.querySelector('.btn-ai-save');
     el.aiScene       = document.querySelector('#ai-scene');
-    el.aiDirection   = document.querySelector('#ai-direction');
     el.aiSceneBtn    = document.querySelector('.btn-ai-scene');
     el.aiRoundBtn    = document.querySelector('.btn-ai-round');
+    el.aiResetBtn    = document.querySelector('.btn-ai-reset');
+    el.aiInput       = document.querySelector('#ai-input');
+    el.aiSendBtn     = document.querySelector('.btn-ai-send');
     el.aiStatus      = document.querySelector('#ai-status');
     el.aiOutput      = document.querySelector('#ai-output');
     if (!el.aiOutput || !window.AIClient) return;
 
-    // Prefill saved settings (key + model live in localStorage).
     el.aiKey.value = window.AIClient.getKey();
     el.aiModel.value = window.AIClient.getModel();
 
-    el.aiSettingsBtn.addEventListener('click', function () {
-      showAiSettings(el.aiSettings.hidden);
-    });
+    el.aiSettingsBtn.addEventListener('click', function () { showAiSettings(el.aiSettings.hidden); });
     el.aiSaveBtn.addEventListener('click', saveAiSettings);
-    el.aiSceneBtn.addEventListener('click', function () { runNarration('scene'); });
-    el.aiRoundBtn.addEventListener('click', function () { runNarration('round'); });
+    el.aiSceneBtn.addEventListener('click', function () {
+      sendChat('Set the scene for the players, based on the scene text and the current situation.', '▶ Describe scene');
+    });
+    el.aiRoundBtn.addEventListener('click', function () {
+      sendChat("It's the monsters' and NPCs' turn — run their actions against the party now, one creature at a time, then stop.", "▶ Run monsters’ turn");
+    });
+    el.aiResetBtn.addEventListener('click', resetChat);
+    el.aiSendBtn.addEventListener('click', function () {
+      var v = el.aiInput.value; el.aiInput.value = ''; sendChat(v);
+    });
+    el.aiInput.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); var v = el.aiInput.value; el.aiInput.value = ''; sendChat(v); }
+    });
   }
 
   /* ---- Init ---- */
