@@ -193,3 +193,53 @@ create policy sheets_update on character_sheets
 drop policy if exists sheets_delete on character_sheets;
 create policy sheets_delete on character_sheets
   for delete to authenticated using (owner = auth.uid());
+
+-- ============================================================
+-- Play sessions — live game state you can save and share
+-- ------------------------------------------------------------
+-- One row per running/saved game. `state` is the serialized Play
+-- page (combatants, HP, log, scene, AI-DM chat) — the same shape
+-- the browser already autosaves locally. The DM owns and writes it;
+-- when marked shared + attached to a group, group members can read
+-- it live via Realtime (single-writer, so there are no conflicts).
+-- ============================================================
+
+create table if not exists play_sessions (
+  id          uuid primary key default gen_random_uuid(),
+  owner       uuid not null references auth.users(id) on delete cascade,
+  group_id    uuid references groups(id) on delete set null,
+  title       text not null,
+  state       jsonb not null default '{}'::jsonb,
+  shared      boolean not null default false,
+  updated_at  timestamptz not null default now()
+);
+
+create index if not exists play_sessions_owner_idx on play_sessions(owner);
+create index if not exists play_sessions_group_idx on play_sessions(group_id);
+
+alter table play_sessions enable row level security;
+
+-- Read your own sessions, plus shared sessions in groups you belong to.
+drop policy if exists play_select on play_sessions;
+create policy play_select on play_sessions
+  for select to authenticated using (
+    owner = auth.uid()
+    or (shared = true and group_id is not null and is_group_member(group_id))
+  );
+
+-- Only the owner (the DM) creates / edits / deletes a session.
+drop policy if exists play_insert on play_sessions;
+create policy play_insert on play_sessions
+  for insert to authenticated with check (owner = auth.uid());
+
+drop policy if exists play_update on play_sessions;
+create policy play_update on play_sessions
+  for update to authenticated using (owner = auth.uid());
+
+drop policy if exists play_delete on play_sessions;
+create policy play_delete on play_sessions
+  for delete to authenticated using (owner = auth.uid());
+
+-- Realtime: let players watch the DM's session update live.
+-- (Safe to run once; if it says the table is already a member, ignore it.)
+alter publication supabase_realtime add table play_sessions;
