@@ -35,6 +35,37 @@
             <span id="play-status" class="save-status"></span>
         </section>
 
+        <!-- Cloud saves (Supabase) — hidden unless configured -->
+        <section class="cloud" id="cloud" hidden>
+            <div class="cloud__head">
+                <h2 class="cloud__title">☁ Cloud saves</h2>
+                <span id="cloud-user" class="cloud__user"></span>
+            </div>
+
+            <div class="cloud__auth" id="cloud-auth">
+                <input type="email" id="cloud-email" class="cloud__input" placeholder="email" autocomplete="username">
+                <input type="password" id="cloud-pw" class="cloud__input" placeholder="password" autocomplete="current-password">
+                <button class="btn-cloud-signin" type="button">Sign in</button>
+                <button class="btn-cloud-signup" type="button">Sign up</button>
+            </div>
+
+            <div class="cloud__panel" id="cloud-panel" hidden>
+                <div class="cloud__row">
+                    <input type="text" id="cloud-title" class="cloud__input" placeholder="Campaign / session name…">
+                    <button class="btn-cloud-save" type="button">Save to cloud</button>
+                </div>
+                <div class="cloud__row">
+                    <select id="cloud-list" class="cloud__select"></select>
+                    <button class="btn-cloud-open" type="button">Open</button>
+                    <button class="btn-cloud-delete" type="button">Delete</button>
+                    <button class="btn-cloud-signout" type="button">Sign out</button>
+                </div>
+                <span id="cloud-active" class="cloud__active"></span>
+            </div>
+
+            <span id="cloud-status" class="cloud__status"></span>
+        </section>
+
         <!-- Add combatants mid-session -->
         <section class="picker">
             <h2 class="players__title">Add to the fight</h2>
@@ -150,6 +181,9 @@
         <script src="ai-context.js"></script>
         <script src="ai-client.js"></script>
         <script src="ai-dm.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+        <script src="supabase-config.js"></script>
+        <script src="cloud.js"></script>
         <script src="play.js"></script>
     </body>
 </html>

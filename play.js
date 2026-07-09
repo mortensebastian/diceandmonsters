@@ -30,6 +30,9 @@
 
   var AUTOSAVE_KEY = 'diceAndMonsters.playAutosave';
   var saveTimer = null;
+  var cloudSessionId = null;     // id of the active cloud session, if any
+  var cloudSessionTitle = '';
+  var cloudTimer = null;
 
   var el = {};
   var statusTimer = null;
@@ -62,32 +65,28 @@
     clearTimeout(saveTimer);
     saveTimer = setTimeout(persistState, 400);
   }
+  // The full serialized session — used for local autosave AND cloud saves.
+  function snapshot() {
+    return {
+      v: 1,
+      combatants: state.combatants.map(DM.serializeCombatant),
+      activeId: state.activeId,
+      log: state.log,
+      scene: state.scene,
+      chatLog: state.chatLog,
+      aiMessages: aiMessages
+    };
+  }
   function persistState() {
-    try {
-      window.localStorage.setItem(AUTOSAVE_KEY, JSON.stringify({
-        v: 1,
-        combatants: state.combatants.map(DM.serializeCombatant),
-        activeId: state.activeId,
-        log: state.log,
-        scene: state.scene,
-        chatLog: state.chatLog,
-        aiMessages: aiMessages
-      }));
-    } catch (e) { /* storage full / blocked — stays in memory */ }
+    try { window.localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(snapshot())); }
+    catch (e) { /* storage full / blocked — stays in memory */ }
+    cloudAutosave();
   }
   function clearAutosave() {
     try { window.localStorage.removeItem(AUTOSAVE_KEY); } catch (e) { /* ignore */ }
   }
-  function restoreState() {
-    var raw;
-    try { raw = window.localStorage.getItem(AUTOSAVE_KEY); } catch (e) { return false; }
-    if (!raw) return false;
-    var data;
-    try { data = JSON.parse(raw); } catch (e) { return false; }
-    if (!data) return false;
+  function applySnapshot(data) {
     var combatants = (data.combatants || []).map(DM.deserializeCombatant);
-    if (!combatants.length && !(data.chatLog && data.chatLog.length)) return false;
-
     state.combatants = combatants;
     combatants.forEach(function (c) { DM.bumpIdPast(c.id); });
     state.activeId = (data.activeId != null) ? data.activeId : null;
@@ -106,7 +105,17 @@
       el.aiOutput.innerHTML = '';
       state.chatLog.forEach(function (m) { appendChatBubble(m.role, m.text); });
     }
-    if (el.aiScene && state.scene) el.aiScene.value = state.scene.text || '';
+    if (el.aiScene) el.aiScene.value = (state.scene && state.scene.text) || '';
+  }
+  function restoreState() {
+    var raw;
+    try { raw = window.localStorage.getItem(AUTOSAVE_KEY); } catch (e) { return false; }
+    if (!raw) return false;
+    var data;
+    try { data = JSON.parse(raw); } catch (e) { return false; }
+    if (!data) return false;
+    if (!(data.combatants && data.combatants.length) && !(data.chatLog && data.chatLog.length)) return false;
+    applySnapshot(data);
     return true;
   }
 
@@ -933,6 +942,150 @@
     });
   }
 
+  /* ---- Cloud sync (Supabase; optional — degrades to local only) ---- */
+  function cloudStatus(text) { if (el.cloudStatus) el.cloudStatus.textContent = text || ''; }
+  function cloudActiveLabel() {
+    if (el.cloudActive) {
+      el.cloudActive.textContent = cloudSessionId
+        ? ('Active cloud session: “' + cloudSessionTitle + '” — changes autosave to the cloud.')
+        : '';
+    }
+  }
+
+  // Debounced push of the current session to its cloud row (if one is active).
+  function cloudAutosave() {
+    if (!window.Cloud || !Cloud.available() || !Cloud.user() || !cloudSessionId) return;
+    clearTimeout(cloudTimer);
+    cloudTimer = setTimeout(function () {
+      Cloud.saveSession({ id: cloudSessionId, title: cloudSessionTitle, state: snapshot() })
+        .then(function (res) { if (res && res.error) cloudStatus('Cloud save failed: ' + res.error.message); })
+        .catch(function (e) { cloudStatus('Cloud save failed.'); });
+    }, 2000);
+  }
+
+  function refreshCloudList() {
+    if (!Cloud.user()) return;
+    Cloud.listSessions().then(function (res) {
+      if (res.error) { cloudStatus(res.error.message); return; }
+      var rows = res.data || [];
+      el.cloudList.innerHTML = rows.length
+        ? rows.map(function (r) {
+            return '<option value="' + r.id + '">' + esc(r.title) +
+              (r.owner !== (Cloud.user() && Cloud.user().id) ? ' (shared)' : '') + '</option>';
+          }).join('')
+        : '<option value="">No cloud saves yet</option>';
+      el.cloudList.disabled = !rows.length;
+    });
+  }
+
+  function updateCloudUI(user) {
+    if (!el.cloud) return;
+    var signedIn = !!user;
+    el.cloudAuth.hidden = signedIn;
+    el.cloudPanel.hidden = !signedIn;
+    el.cloudUser.textContent = signedIn ? (user.email || 'signed in') : '';
+    if (signedIn) { refreshCloudList(); cloudActiveLabel(); }
+    else { cloudSessionId = null; cloudSessionTitle = ''; }
+  }
+
+  function doSignIn() {
+    var email = (el.cloudEmail.value || '').trim();
+    var pw = el.cloudPw.value || '';
+    if (!email || !pw) { cloudStatus('Enter email and password.'); return; }
+    cloudStatus('Signing in…');
+    Cloud.signIn(email, pw).then(function (res) {
+      cloudStatus(res.error ? res.error.message : '');
+    });
+  }
+  function doSignUp() {
+    var email = (el.cloudEmail.value || '').trim();
+    var pw = el.cloudPw.value || '';
+    if (!email || !pw) { cloudStatus('Enter email and password.'); return; }
+    cloudStatus('Creating account…');
+    Cloud.signUp(email, pw).then(function (res) {
+      if (res.error) { cloudStatus(res.error.message); return; }
+      cloudStatus(res.data && res.data.session ? '' : 'Check your email to confirm, then sign in.');
+    });
+  }
+  function doSignOut() {
+    Cloud.signOut().then(function () { cloudStatus('Signed out.'); });
+  }
+
+  function doSaveToCloud() {
+    var title = (el.cloudTitle.value || '').trim() || cloudSessionTitle;
+    if (!title) { cloudStatus('Give the session a name first.'); return; }
+    cloudStatus('Saving…');
+    Cloud.saveSession({ id: cloudSessionId || undefined, title: title, state: snapshot() })
+      .then(function (res) {
+        if (res.error) { cloudStatus('Save failed: ' + res.error.message); return; }
+        cloudSessionId = res.data.id;
+        cloudSessionTitle = res.data.title;
+        el.cloudTitle.value = '';
+        cloudStatus('Saved to cloud.');
+        cloudActiveLabel();
+        refreshCloudList();
+        setTimeout(function () { cloudStatus(''); }, 1600);
+      });
+  }
+
+  function doOpenFromCloud() {
+    var id = el.cloudList.value;
+    if (!id) return;
+    if (state.combatants.length &&
+        !window.confirm('Open this cloud session? It replaces what is on the table.')) return;
+    cloudStatus('Loading…');
+    Cloud.loadSession(id).then(function (res) {
+      if (res.error) { cloudStatus('Load failed: ' + res.error.message); return; }
+      var row = res.data;
+      applySnapshot(row.state || {});
+      cloudSessionId = row.id;
+      cloudSessionTitle = row.title;
+      persistState();
+      cloudStatus('Opened “' + row.title + '”.');
+      cloudActiveLabel();
+      logLine('Opened cloud session “' + row.title + '”.', 'spawn');
+      setTimeout(function () { cloudStatus(''); }, 1600);
+    });
+  }
+
+  function doDeleteFromCloud() {
+    var id = el.cloudList.value;
+    if (!id) return;
+    if (!window.confirm('Delete this cloud session permanently?')) return;
+    Cloud.deleteSession(id).then(function (res) {
+      if (res.error) { cloudStatus('Delete failed: ' + res.error.message); return; }
+      if (id === cloudSessionId) { cloudSessionId = null; cloudSessionTitle = ''; cloudActiveLabel(); }
+      cloudStatus('Deleted.');
+      refreshCloudList();
+    });
+  }
+
+  function initCloud() {
+    el.cloud       = document.querySelector('#cloud');
+    if (!el.cloud || !window.Cloud || !Cloud.available()) return;   // no config / script → stay local
+    el.cloudAuth   = document.querySelector('#cloud-auth');
+    el.cloudPanel  = document.querySelector('#cloud-panel');
+    el.cloudUser   = document.querySelector('#cloud-user');
+    el.cloudEmail  = document.querySelector('#cloud-email');
+    el.cloudPw     = document.querySelector('#cloud-pw');
+    el.cloudTitle  = document.querySelector('#cloud-title');
+    el.cloudList   = document.querySelector('#cloud-list');
+    el.cloudActive = document.querySelector('#cloud-active');
+    el.cloudStatus = document.querySelector('#cloud-status');
+
+    el.cloud.hidden = false;
+    Cloud.init();
+    Cloud.onAuth(updateCloudUI);
+
+    document.querySelector('.btn-cloud-signin').addEventListener('click', doSignIn);
+    document.querySelector('.btn-cloud-signup').addEventListener('click', doSignUp);
+    document.querySelector('.btn-cloud-signout').addEventListener('click', doSignOut);
+    document.querySelector('.btn-cloud-save').addEventListener('click', doSaveToCloud);
+    document.querySelector('.btn-cloud-open').addEventListener('click', doOpenFromCloud);
+    document.querySelector('.btn-cloud-delete').addEventListener('click', doDeleteFromCloud);
+    el.cloudPw.addEventListener('keydown', function (e) { if (e.key === 'Enter') doSignIn(); });
+  }
+
   /* ---- Init ---- */
   function init() {
     el.loadSelect = document.querySelector('#play-load');
@@ -983,6 +1136,7 @@
     el.turnOrder.addEventListener('keydown', onTrackKeydown);
 
     initAi();
+    initCloud();
 
     // If the planner or an adventure scene handed off a session, load it.
     var handoff = readSessionHandoff();

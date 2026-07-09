@@ -1255,3 +1255,33 @@ button:disabled { opacity: .4; cursor: not-allowed; box-shadow: none; }
 }
 .btn-ai-send:hover { background: #62b4ea; }
 .btn-ai-send:disabled, .ai__input--chat:disabled { opacity: .5; cursor: default; }
+
+/**********************************************
+*** CLOUD (Supabase saves)
+**********************************************/
+
+.cloud { background: #1d2029; border: 1px solid #2c3140; border-radius: 10px; padding: 18px; }
+.cloud__head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 10px; }
+.cloud__title { font-size: 16px; color: #4aa3df; }
+.cloud__user { font-size: 13px; color: #9aa3b2; }
+.cloud__auth, .cloud__row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.cloud__row { margin-bottom: 8px; }
+.cloud__input {
+    background: #12141a; border: 1px solid #2c3140; color: #e6e6e6;
+    border-radius: 6px; padding: 10px 12px; font-family: inherit; font-size: 14px;
+}
+#cloud-title { flex: 1; min-width: 180px; }
+.cloud__select {
+    flex: 1; min-width: 160px; background: #12141a; border: 1px solid #2c3140;
+    color: #e6e6e6; border-radius: 6px; padding: 9px 10px; font-family: inherit; font-size: 14px;
+}
+.cloud button {
+    border: none; border-radius: 6px; padding: 10px 14px;
+    font-family: inherit; font-size: 14px; cursor: pointer; color: #fff;
+}
+.btn-cloud-signin, .btn-cloud-open { background: #4aa3df; }
+.btn-cloud-signup, .btn-cloud-save { background: #27ae60; }
+.btn-cloud-signout { background: #3b4150; }
+.btn-cloud-delete { background: #7a3b3b; }
+.cloud__status { font-size: 13px; color: #9aa3b2; }
+.cloud__active { font-size: 12px; color: #e1b12c; display: block; margin-top: 4px; }
