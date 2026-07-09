@@ -24,8 +24,12 @@
     editingInitId: null,
     editInitMode: 'd20',
     log: [],        // structured combat log ({text, cls, ts}) for the AI + persistence
-    scene: null     // optional { title, text } grounding for the AI DM
+    scene: null,    // optional { title, text } grounding for the AI DM
+    chatLog: []     // AI DM chat bubbles ({role, text}) for display + persistence
   };
+
+  var AUTOSAVE_KEY = 'diceAndMonsters.playAutosave';
+  var saveTimer = null;
 
   var el = {};
   var statusTimer = null;
@@ -41,10 +45,69 @@
   function logLine(text, cls) {
     state.log.push({ text: text, cls: cls || '', ts: Date.now() });
     if (state.log.length > 300) state.log.shift();
+    appendLogLine(text, cls);
+    scheduleSave();
+  }
+
+  // DOM-only: insert a log line (newest on top). Used by logLine and on restore.
+  function appendLogLine(text, cls) {
     var line = document.createElement('div');
     line.className = 'log__line' + (cls ? ' log__line--' + cls : '');
     line.textContent = text;
     el.log.insertBefore(line, el.log.firstChild);
+  }
+
+  /* ---- Autosave / restore (local; the same shape we'll sync to Supabase) ---- */
+  function scheduleSave() {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(persistState, 400);
+  }
+  function persistState() {
+    try {
+      window.localStorage.setItem(AUTOSAVE_KEY, JSON.stringify({
+        v: 1,
+        combatants: state.combatants.map(DM.serializeCombatant),
+        activeId: state.activeId,
+        log: state.log,
+        scene: state.scene,
+        chatLog: state.chatLog,
+        aiMessages: aiMessages
+      }));
+    } catch (e) { /* storage full / blocked — stays in memory */ }
+  }
+  function clearAutosave() {
+    try { window.localStorage.removeItem(AUTOSAVE_KEY); } catch (e) { /* ignore */ }
+  }
+  function restoreState() {
+    var raw;
+    try { raw = window.localStorage.getItem(AUTOSAVE_KEY); } catch (e) { return false; }
+    if (!raw) return false;
+    var data;
+    try { data = JSON.parse(raw); } catch (e) { return false; }
+    if (!data) return false;
+    var combatants = (data.combatants || []).map(DM.deserializeCombatant);
+    if (!combatants.length && !(data.chatLog && data.chatLog.length)) return false;
+
+    state.combatants = combatants;
+    combatants.forEach(function (c) { DM.bumpIdPast(c.id); });
+    state.activeId = (data.activeId != null) ? data.activeId : null;
+    state.log = data.log || [];
+    state.scene = data.scene || null;
+    state.chatLog = data.chatLog || [];
+    aiMessages = data.aiMessages || [];
+
+    renderAll();
+    renderTurnOrder();
+    // Rebuild the combat log (state.log is oldest-first; insert keeps newest on top).
+    el.log.innerHTML = '';
+    state.log.forEach(function (e) { appendLogLine(e.text, e.cls); });
+    // Rebuild the AI chat + scene field.
+    if (el.aiOutput) {
+      el.aiOutput.innerHTML = '';
+      state.chatLog.forEach(function (m) { appendChatBubble(m.role, m.text); });
+    }
+    if (el.aiScene && state.scene) el.aiScene.value = state.scene.text || '';
+    return true;
   }
 
   function status(text) {
@@ -668,13 +731,19 @@
 
   function aiStatus(text) { if (el.aiStatus) el.aiStatus.textContent = text || ''; }
 
-  function renderChat(role, text) {
+  function appendChatBubble(role, text) {
     if (!text) return;
     var block = document.createElement('div');
     block.className = 'ai__msg ai__msg--' + role;
     block.textContent = text;
     el.aiOutput.appendChild(block);
     el.aiOutput.scrollTop = el.aiOutput.scrollHeight;
+  }
+  function renderChat(role, text) {
+    if (!text) return;
+    appendChatBubble(role, text);
+    state.chatLog.push({ role: role, text: text });
+    scheduleSave();
   }
 
   function setAiBusy(busy) {
@@ -754,6 +823,7 @@
     renderTurnOrder();
     aiStatus('');
     setAiBusy(false);
+    scheduleSave();
   }
 
   function runLoop(iter) {
@@ -800,7 +870,9 @@
 
   function resetChat() {
     aiMessages = [];
+    state.chatLog = [];
     if (el.aiOutput) el.aiOutput.innerHTML = '';
+    scheduleSave();
     aiStatus('Chat reset.');
     setTimeout(function () { aiStatus(''); }, 1400);
   }
@@ -839,6 +911,11 @@
     el.aiKey.value = window.AIClient.getKey();
     el.aiModel.value = window.AIClient.getModel();
 
+    el.aiScene.addEventListener('input', function () {
+      var v = el.aiScene.value.trim();
+      state.scene = v ? { text: v, title: (state.scene && state.scene.title) || '' } : null;
+      scheduleSave();
+    });
     el.aiSettingsBtn.addEventListener('click', function () { showAiSettings(el.aiSettings.hidden); });
     el.aiSaveBtn.addEventListener('click', saveAiSettings);
     el.aiSceneBtn.addEventListener('click', function () {
@@ -914,7 +991,11 @@
       (handoff.monsters && handoff.monsters.length) ||
       handoff.scene);
     if (hasHandoff) {
+      clearAutosave();          // a fresh session replaces any prior autosave
       loadHandoff(handoff);
+    } else if (restoreState()) {
+      aiStatus('Restored your last session.');
+      setTimeout(function () { aiStatus(''); }, 2000);
     } else {
       renderAll();
       renderTurnOrder();
