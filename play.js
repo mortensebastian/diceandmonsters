@@ -1004,6 +1004,14 @@
     el.voicePreset.value = known ? id : '';
   }
 
+  // Keep the model dropdown matched to the current Voice model id (or "Custom").
+  function syncModelPreset() {
+    if (!el.voiceModelPreset || !el.voiceModel) return;
+    var id = (el.voiceModel.value || '').trim();
+    var known = (Voice.MODELS || []).some(function (m) { return m.id === id; });
+    el.voiceModelPreset.value = known ? id : '';
+  }
+
   function toggleVoice() {
     if (!window.Voice) return;
     if (!Voice.hasKey()) { aiStatus('Add your ElevenLabs key in Settings first.'); showAiSettings(true); return; }
@@ -1052,6 +1060,7 @@
     el.voiceKey      = document.querySelector('#voice-key');
     el.voicePreset   = document.querySelector('#voice-preset');
     el.voiceId       = document.querySelector('#voice-id');
+    el.voiceModelPreset = document.querySelector('#voice-model-preset');
     el.voiceModel    = document.querySelector('#voice-model');
     el.aiSpeakBtn    = document.querySelector('.btn-ai-speak');
     el.aiMicBtn      = document.querySelector('.btn-ai-mic');
@@ -1079,6 +1088,22 @@
           if (el.voicePreset.value && el.voiceId) el.voiceId.value = el.voicePreset.value;
         });
         if (el.voiceId) el.voiceId.addEventListener('input', syncVoicePreset);
+      }
+      if (el.voiceModelPreset) {
+        // Build the TTS-model menu + a "Custom" fallback.
+        (Voice.MODELS || []).forEach(function (m) {
+          var o = document.createElement('option');
+          o.value = m.id; o.textContent = m.name;
+          el.voiceModelPreset.appendChild(o);
+        });
+        var mcustom = document.createElement('option');
+        mcustom.value = ''; mcustom.textContent = 'Custom (use Voice model ID below)';
+        el.voiceModelPreset.appendChild(mcustom);
+        syncModelPreset();
+        el.voiceModelPreset.addEventListener('change', function () {
+          if (el.voiceModelPreset.value && el.voiceModel) el.voiceModel.value = el.voiceModelPreset.value;
+        });
+        if (el.voiceModel) el.voiceModel.addEventListener('input', syncModelPreset);
       }
       if (el.aiSpeakBtn) el.aiSpeakBtn.addEventListener('click', toggleVoice);
       if (el.aiMicBtn) {

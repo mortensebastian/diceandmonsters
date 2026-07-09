@@ -47,6 +47,15 @@
     { id: '21m00Tcm4TlvDq8ikWAM', name: 'Rachel — calm American (default female)' }
   ];
 
+  // TTS models. Flash/Turbo v2.5 cost ~half the credits of v2/v3 (0.5 vs 1
+  // credit per character) and are much lower latency — best for live play.
+  var MODELS = [
+    { id: 'eleven_flash_v2_5', name: 'Flash v2.5 — fastest & cheapest (½ credits/char)' },
+    { id: 'eleven_turbo_v2_5', name: 'Turbo v2.5 — fast & cheap (½ credits/char)' },
+    { id: 'eleven_multilingual_v2', name: 'Multilingual v2 — highest quality (1 credit/char)' },
+    { id: 'eleven_v3', name: 'v3 — most expressive (1 credit/char, may need account access)' }
+  ];
+
   var TTS_URL = 'https://api.elevenlabs.io/v1/text-to-speech/';
   var STT_URL = 'https://api.elevenlabs.io/v1/speech-to-text';
 
@@ -232,7 +241,8 @@
     getVoice: getVoice, setVoice: setVoice,
     getTtsModel: getTtsModel, setTtsModel: setTtsModel, getSttModel: getSttModel,
     isAuto: isAuto, setAuto: setAuto,
-    DEFAULT_VOICE: DEFAULT_VOICE, DEFAULT_TTS_MODEL: DEFAULT_TTS_MODEL, PRESETS: PRESETS,
+    DEFAULT_VOICE: DEFAULT_VOICE, DEFAULT_TTS_MODEL: DEFAULT_TTS_MODEL,
+    PRESETS: PRESETS, MODELS: MODELS,
     // capability
     canRecord: canRecord, isRecording: isRecording,
     // TTS
