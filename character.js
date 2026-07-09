@@ -533,8 +533,19 @@
 
   function updateToolbar() {
     if (!el.stName) return;
-    el.stName.textContent = active.name || 'Unnamed';
+    // Don't clobber what the user is typing in the name field.
+    if (document.activeElement !== el.stName) el.stName.value = active.name || '';
     el.stSub.textContent = (active.category === 'npc' ? 'NPC' : 'PC');
+  }
+
+  // Rename from the always-visible title field (works in both view and edit).
+  function onNameInput() {
+    if (!active) return;
+    active.name = el.stName.value;
+    var f = el.sheet && el.sheet.querySelector('input[data-field="name"]');
+    if (f) f.value = el.stName.value;
+    persist();
+    renderSelector();
   }
 
   function applyMode(m) {
@@ -949,6 +960,7 @@
 
     if (el.btnEdit) el.btnEdit.addEventListener('click', function () { applyMode('edit'); });
     if (el.btnView) el.btnView.addEventListener('click', function () { applyMode('view'); });
+    if (el.stName) el.stName.addEventListener('input', onNameInput);
     if (el.btnLevelup) el.btnLevelup.addEventListener('click', showLevelUp);
     if (el.levelupPanel) el.levelupPanel.addEventListener('click', function (e) {
       if (e.target.closest('.btn-levelup-apply')) applyLevelUp();

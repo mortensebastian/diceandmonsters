@@ -989,34 +989,10 @@
   function updateCloudUI(user) {
     if (!el.cloud) return;
     var signedIn = !!user;
-    el.cloudAuth.hidden = signedIn;
     el.cloudPanel.hidden = !signedIn;
-    el.cloudUser.textContent = signedIn ? (user.email || 'signed in') : '';
+    if (el.cloudSigninHint) el.cloudSigninHint.hidden = signedIn;
     if (signedIn) { refreshCloudList(); refreshGroups(); cloudActiveLabel(); }
     else { cloudSessionId = null; cloudSessionTitle = ''; leaveViewerMode(); }
-  }
-
-  function doSignIn() {
-    var email = (el.cloudEmail.value || '').trim();
-    var pw = el.cloudPw.value || '';
-    if (!email || !pw) { cloudStatus('Enter email and password.'); return; }
-    cloudStatus('Signing in…');
-    Cloud.signIn(email, pw).then(function (res) {
-      cloudStatus(res.error ? res.error.message : '');
-    });
-  }
-  function doSignUp() {
-    var email = (el.cloudEmail.value || '').trim();
-    var pw = el.cloudPw.value || '';
-    if (!email || !pw) { cloudStatus('Enter email and password.'); return; }
-    cloudStatus('Creating account…');
-    Cloud.signUp(email, pw).then(function (res) {
-      if (res.error) { cloudStatus(res.error.message); return; }
-      cloudStatus(res.data && res.data.session ? '' : 'Check your email to confirm, then sign in.');
-    });
-  }
-  function doSignOut() {
-    Cloud.signOut().then(function () { cloudStatus('Signed out.'); });
   }
 
   function doSaveToCloud() {
@@ -1172,11 +1148,8 @@
   function initCloud() {
     el.cloud       = document.querySelector('#cloud');
     if (!el.cloud || !window.Cloud || !Cloud.available()) return;   // no config / script → stay local
-    el.cloudAuth   = document.querySelector('#cloud-auth');
     el.cloudPanel  = document.querySelector('#cloud-panel');
-    el.cloudUser   = document.querySelector('#cloud-user');
-    el.cloudEmail  = document.querySelector('#cloud-email');
-    el.cloudPw     = document.querySelector('#cloud-pw');
+    el.cloudSigninHint = document.querySelector('#cloud-signin-hint');
     el.cloudTitle  = document.querySelector('#cloud-title');
     el.cloudList   = document.querySelector('#cloud-list');
     el.cloudActive = document.querySelector('#cloud-active');
@@ -1192,9 +1165,6 @@
     Cloud.init();
     Cloud.onAuth(updateCloudUI);
 
-    document.querySelector('.btn-cloud-signin').addEventListener('click', doSignIn);
-    document.querySelector('.btn-cloud-signup').addEventListener('click', doSignUp);
-    document.querySelector('.btn-cloud-signout').addEventListener('click', doSignOut);
     document.querySelector('.btn-cloud-save').addEventListener('click', doSaveToCloud);
     document.querySelector('.btn-cloud-open').addEventListener('click', doOpenFromCloud);
     document.querySelector('.btn-cloud-delete').addEventListener('click', doDeleteFromCloud);
@@ -1203,7 +1173,6 @@
     document.querySelector('.btn-viewer-leave').addEventListener('click', doLeaveViewer);
     el.cloudShared.addEventListener('change', doToggleShare);
     el.cloudGroups.addEventListener('change', updateInviteDisplay);
-    el.cloudPw.addEventListener('keydown', function (e) { if (e.key === 'Enter') doSignIn(); });
   }
 
   /* ---- Init ---- */

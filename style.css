@@ -1130,7 +1130,14 @@ button:disabled { opacity: .4; cursor: not-allowed; box-shadow: none; }
     padding: 12px 18px; margin-top: 0;
 }
 .sheet-toolbar__title { display: flex; align-items: center; gap: 10px; }
-#st-name { font-size: 20px; font-weight: 700; color: #fff; }
+.st-name-input {
+    font-size: 20px; font-weight: 700; color: #fff; font-family: inherit;
+    background: transparent; border: 1px solid transparent; border-radius: 6px;
+    padding: 4px 8px; min-width: 220px;
+}
+.st-name-input:hover { border-color: #2c3140; }
+.st-name-input:focus { outline: none; background: #12141a; border-color: #4aa3df; }
+.st-name-input::placeholder { color: #6b7280; font-weight: 400; }
 .sheet-toolbar__btns { display: flex; gap: 8px; }
 .btn-edit { background: #2980b9; }
 .btn-view { background: #27ae60; }
@@ -1331,3 +1338,35 @@ button:disabled { opacity: .4; cursor: not-allowed; box-shadow: none; }
 .btn-cs-signout { background: #3b4150; }
 #cs-user { font-size: 13px; color: #9aa3b2; }
 .csbar__status { font-size: 12px; color: #9aa3b2; margin-left: auto; }
+
+/* Global auth widget (top-right, every page) */
+.authwidget { position: fixed; top: 8px; right: 10px; z-index: 60; font-size: 13px; }
+.authwidget__signed {
+    background: #1d2029; border: 1px solid #2c3140; border-radius: 8px;
+    padding: 6px 12px; color: #9aa3b2;
+}
+.authwidget__signed b { color: #e6e6e6; font-weight: 600; }
+.btn-aw-signout, .btn-aw-toggle {
+    border: none; border-radius: 6px; padding: 5px 11px; font-family: inherit;
+    font-size: 12px; cursor: pointer; color: #fff;
+}
+.btn-aw-signout { background: #3b4150; margin-left: 8px; }
+.btn-aw-toggle { background: #4aa3df; }
+.authwidget__form {
+    position: absolute; right: 0; margin-top: 6px; width: 220px;
+    background: #1d2029; border: 1px solid #2c3140; border-radius: 8px; padding: 12px;
+    display: flex; flex-direction: column; gap: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.45);
+}
+.authwidget__form input {
+    background: #12141a; border: 1px solid #2c3140; color: #e6e6e6;
+    border-radius: 6px; padding: 8px 10px; font-family: inherit; font-size: 13px;
+}
+.authwidget__btns { display: flex; gap: 8px; }
+.authwidget__btns button {
+    flex: 1; border: none; border-radius: 6px; padding: 8px; font-family: inherit;
+    font-size: 13px; cursor: pointer; color: #fff;
+}
+.btn-aw-signin { background: #4aa3df; }
+.btn-aw-signup { background: #27ae60; }
+.authwidget__status { font-size: 12px; color: #9aa3b2; }
+.cloud__signin-hint { color: #9aa3b2; font-size: 14px; }
