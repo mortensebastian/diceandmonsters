@@ -22,6 +22,8 @@
             <p class="tagline">Build a D&amp;D encounter, attack, and watch the monsters die.</p>
         </header>
 
+        <div id="cloud-bar" class="cloud-bar-wrap"></div>
+
         <!-- Monster picker: all monsters from the file -->
         <section class="picker">
             <div class="picker__row">
@@ -124,6 +126,10 @@
         </datalist>
 
         <script src="monsters-data.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+        <script src="supabase-config.js"></script>
+        <script src="cloud.js"></script>
+        <script src="cloud-sync.js"></script>
         <script src="Dice&Monsters.js"></script>
     </body>
 </html>

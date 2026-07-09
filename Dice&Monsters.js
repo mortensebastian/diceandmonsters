@@ -860,6 +860,12 @@
   function persistSaved() {
     try { window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state.saved)); }
     catch (e) { /* storage blocked (e.g. on file://) - stays in memory only */ }
+    if (window.CloudSync) window.CloudSync.push('encounters');
+  }
+  // Re-read the (cloud-merged) saved encounters and re-render the list.
+  function syncReloadEncounters() {
+    state.saved = loadSavedFromStorage();
+    renderSavedList();
   }
 
   // Plain-object snapshot of a combatant. Monsters keep only their
@@ -1240,6 +1246,13 @@
     el.turnOrder.addEventListener('keydown', onTrackKeydown);
 
     logLine('Ready! ' + library.length + ' monsters loaded. Add monsters and players.', 'spawn');
+
+    if (window.CloudSync) {
+      window.CloudSync.attach({
+        kind: 'encounters', lsKey: STORAGE_KEY, idKey: 'name',
+        mount: '#cloud-bar', onRemoteChange: syncReloadEncounters
+      });
+    }
 
     importPendingEncounter();
   }

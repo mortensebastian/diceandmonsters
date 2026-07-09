@@ -37,6 +37,12 @@
     try { window.localStorage.setItem(STORAGE, JSON.stringify(userAdvs)); }
     catch (e) { status('Could not save (storage full?)'); return; }
     status('Saved');
+    if (window.CloudSync) window.CloudSync.push('adventures');
+  }
+  // Re-read the (cloud-merged) user adventures and re-render.
+  function syncReload() {
+    userAdvs = loadUser();
+    switchTo((active && active.id) || (builtins[0] && builtins[0].id));
   }
   function status(text) {
     el.status.textContent = text;
@@ -412,6 +418,13 @@
     if (!active) { active = newAdventure(); userAdvs.push(active); persist(); }
 
     render();
+
+    if (window.CloudSync) {
+      window.CloudSync.attach({
+        kind: 'adventures', lsKey: STORAGE, idKey: 'id',
+        mount: '#cloud-bar', onRemoteChange: syncReload
+      });
+    }
 
     el.select.addEventListener('change', function () { switchTo(el.select.value); });
     el.gallery.addEventListener('click', function (e) {

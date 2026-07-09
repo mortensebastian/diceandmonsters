@@ -1308,3 +1308,26 @@ button:disabled { opacity: .4; cursor: not-allowed; box-shadow: none; }
 .play-viewer .ai__row--quick,
 .play-viewer .ai__composer,
 .play-viewer #ai-scene { display: none; }
+
+/* Compact cloud-sync bar (Character / Adventure / Encounter pages) */
+.cloud-bar-wrap { max-width: 880px; margin: 12px auto 0; padding: 0 18px; }
+.cloud-bar-wrap:empty { display: none; }
+.csbar {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+    background: #1d2029; border: 1px solid #2c3140; border-radius: 8px; padding: 10px 14px;
+}
+.csbar__label { font-size: 13px; color: #4aa3df; font-weight: 600; }
+.csbar__auth, .csbar__me { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.csbar__input {
+    background: #12141a; border: 1px solid #2c3140; color: #e6e6e6;
+    border-radius: 6px; padding: 7px 10px; font-family: inherit; font-size: 13px; width: 150px;
+}
+.csbar button {
+    border: none; border-radius: 6px; padding: 7px 12px;
+    font-family: inherit; font-size: 13px; cursor: pointer; color: #fff;
+}
+.btn-cs-signin { background: #4aa3df; }
+.btn-cs-signup { background: #27ae60; }
+.btn-cs-signout { background: #3b4150; }
+#cs-user { font-size: 13px; color: #9aa3b2; }
+.csbar__status { font-size: 12px; color: #9aa3b2; margin-left: auto; }

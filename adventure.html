@@ -22,6 +22,8 @@
             <p class="tagline">Run a ready-made one-shot, or write your own.</p>
         </header>
 
+        <div id="cloud-bar" class="cloud-bar-wrap"></div>
+
         <section class="adv-bar">
             <label class="adv-bar__pick">Adventure:
                 <select id="adv-select"></select>
@@ -48,6 +50,10 @@
 
         <script src="monsters-data.js"></script>
         <script src="adventures-data.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+        <script src="supabase-config.js"></script>
+        <script src="cloud.js"></script>
+        <script src="cloud-sync.js"></script>
         <script src="adventure.js"></script>
     </body>
 </html>

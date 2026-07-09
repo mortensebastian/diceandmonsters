@@ -83,6 +83,18 @@
     return client.from('play_sessions').delete().eq('id', id);
   }
 
+  /* ---- User collections (characters / adventures / encounters) ---- */
+  function getCollection(kind) {
+    return client.from('user_collections').select('data')
+      .eq('owner', currentUser && currentUser.id).eq('kind', kind).maybeSingle();
+  }
+  function saveCollection(kind, data) {
+    return client.from('user_collections')
+      .upsert({ owner: currentUser && currentUser.id, kind: kind, data: data, updated_at: new Date().toISOString() },
+        { onConflict: 'owner,kind' })
+      .select().single();
+  }
+
   /* ---- Groups (for sharing) ---- */
   function listGroups() {
     return client.from('groups').select('id,name,invite_code,owner').order('created_at', { ascending: true });
@@ -118,6 +130,7 @@
     signIn: signIn, signUp: signUp, signOut: signOut,
     listSessions: listSessions, saveSession: saveSession,
     loadSession: loadSession, deleteSession: deleteSession,
+    getCollection: getCollection, saveCollection: saveCollection,
     listGroups: listGroups, createGroup: createGroup,
     joinGroup: joinGroup, setSessionShare: setSessionShare,
     subscribe: subscribe, unsubscribe: unsubscribe,

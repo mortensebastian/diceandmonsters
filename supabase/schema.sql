@@ -243,3 +243,28 @@ create policy play_delete on play_sessions
 -- Realtime: let players watch the DM's session update live.
 -- (Safe to run once; if it says the table is already a member, ignore it.)
 alter publication supabase_realtime add table play_sessions;
+
+-- ============================================================
+-- User collections — your characters / adventures / encounters
+-- ------------------------------------------------------------
+-- One row per user per collection kind. `data` is the whole
+-- localStorage array as JSON, so every page can sync its list to
+-- the cloud without a bespoke table each. Owner-only (private).
+-- Kinds: 'characters', 'adventures', 'encounters'.
+-- ============================================================
+
+create table if not exists user_collections (
+  owner       uuid not null references auth.users(id) on delete cascade,
+  kind        text not null,
+  data        jsonb not null default '[]'::jsonb,
+  updated_at  timestamptz not null default now(),
+  primary key (owner, kind)
+);
+
+alter table user_collections enable row level security;
+
+drop policy if exists collections_all on user_collections;
+create policy collections_all on user_collections
+  for all to authenticated
+  using (owner = auth.uid())
+  with check (owner = auth.uid());

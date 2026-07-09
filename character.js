@@ -111,6 +111,14 @@
   function persist() {
     try { window.localStorage.setItem(STORAGE, JSON.stringify(chars)); } catch (e) { /* ignore */ }
     status('Saved');
+    if (window.CloudSync) window.CloudSync.push('characters');
+  }
+  // Re-read the (cloud-merged) list from storage and re-render.
+  function syncReload() {
+    chars = loadAll();
+    if (!chars.length) return;
+    var id = (active && active.id) || getActiveId() || chars[0].id;
+    switchTo(id);
   }
   function setActiveId(id) { try { window.localStorage.setItem(ACTIVE, id); } catch (e) { /* ignore */ } }
   function getActiveId() { try { return window.localStorage.getItem(ACTIVE); } catch (e) { return null; } }
@@ -973,6 +981,13 @@
     el.sheet.addEventListener('change', onInput);
     el.sheet.addEventListener('click', onClick);
     el.sheet.addEventListener('submit', function (e) { e.preventDefault(); });
+
+    if (window.CloudSync) {
+      window.CloudSync.attach({
+        kind: 'characters', lsKey: STORAGE, idKey: 'id',
+        mount: '#cloud-bar', onRemoteChange: syncReload
+      });
+    }
   }
 
   document.addEventListener('DOMContentLoaded', init);
