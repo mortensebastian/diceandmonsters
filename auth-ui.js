@@ -34,7 +34,11 @@
           '<div class="authwidget__status" id="aw-status"></div>' +
         '</div>' +
       '</div>';
-    document.body.appendChild(wrap);
+    // Sit inside the nav bar (in normal flow, so it never covers page
+    // buttons). Pages without a nav (the home page) get a top-right pin.
+    var nav = document.querySelector('.nav');
+    if (nav) { wrap.className += ' authwidget--nav'; nav.appendChild(wrap); }
+    else { wrap.className += ' authwidget--fixed'; document.body.appendChild(wrap); }
 
     el.signed = wrap.querySelector('.authwidget__signed');
     el.out = wrap.querySelector('.authwidget__out');

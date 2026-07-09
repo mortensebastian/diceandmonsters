@@ -1339,8 +1339,13 @@ button:disabled { opacity: .4; cursor: not-allowed; box-shadow: none; }
 #cs-user { font-size: 13px; color: #9aa3b2; }
 .csbar__status { font-size: 12px; color: #9aa3b2; margin-left: auto; }
 
-/* Global auth widget (top-right, every page) */
-.authwidget { position: fixed; top: 8px; right: 10px; z-index: 60; font-size: 13px; }
+/* Global auth widget */
+.authwidget { font-size: 13px; }
+/* In the nav bar: normal flow (never covers page buttons). */
+.authwidget--nav { position: relative; display: inline-flex; align-items: center; }
+/* Home page (no nav): pinned top-right. */
+.authwidget--fixed { position: fixed; top: 8px; right: 10px; z-index: 60; }
+.authwidget__form { z-index: 70; }
 .authwidget__signed {
     background: #1d2029; border: 1px solid #2c3140; border-radius: 8px;
     padding: 6px 12px; color: #9aa3b2;
