@@ -996,6 +996,14 @@
     if (el.aiMicBtn) el.aiMicBtn.hidden = !(has && Voice.canRecord());
   }
 
+  // Keep the preset dropdown matched to the current Voice ID (or "Custom").
+  function syncVoicePreset() {
+    if (!el.voicePreset || !el.voiceId) return;
+    var id = (el.voiceId.value || '').trim();
+    var known = (Voice.PRESETS || []).some(function (p) { return p.id === id; });
+    el.voicePreset.value = known ? id : '';
+  }
+
   function toggleVoice() {
     if (!window.Voice) return;
     if (!Voice.hasKey()) { aiStatus('Add your ElevenLabs key in Settings first.'); showAiSettings(true); return; }
@@ -1042,6 +1050,7 @@
     el.aiStatus      = document.querySelector('#ai-status');
     el.aiOutput      = document.querySelector('#ai-output');
     el.voiceKey      = document.querySelector('#voice-key');
+    el.voicePreset   = document.querySelector('#voice-preset');
     el.voiceId       = document.querySelector('#voice-id');
     el.voiceModel    = document.querySelector('#voice-model');
     el.aiSpeakBtn    = document.querySelector('.btn-ai-speak');
@@ -1054,6 +1063,23 @@
       if (el.voiceKey) el.voiceKey.value = Voice.getKey();
       if (el.voiceId) el.voiceId.value = Voice.getVoice();
       if (el.voiceModel) el.voiceModel.value = Voice.getTtsModel();
+      if (el.voicePreset) {
+        // Build the preset menu (curated narrator voices) + a "Custom" fallback.
+        (Voice.PRESETS || []).forEach(function (p) {
+          var o = document.createElement('option');
+          o.value = p.id; o.textContent = p.name;
+          el.voicePreset.appendChild(o);
+        });
+        var custom = document.createElement('option');
+        custom.value = ''; custom.textContent = 'Custom (use Voice ID below)';
+        el.voicePreset.appendChild(custom);
+        syncVoicePreset();
+        // Picking a preset fills the Voice ID field; "Custom" leaves it editable.
+        el.voicePreset.addEventListener('change', function () {
+          if (el.voicePreset.value && el.voiceId) el.voiceId.value = el.voicePreset.value;
+        });
+        if (el.voiceId) el.voiceId.addEventListener('input', syncVoicePreset);
+      }
       if (el.aiSpeakBtn) el.aiSpeakBtn.addEventListener('click', toggleVoice);
       if (el.aiMicBtn) {
         // Push-to-talk: hold the mic (mouse or touch) to record, release to send.

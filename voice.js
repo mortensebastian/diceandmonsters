@@ -25,11 +25,27 @@
 
   // Rachel — a premade voice available on every account. Users can paste
   // any voice id from their ElevenLabs library.
-  var DEFAULT_VOICE     = '21m00Tcm4TlvDq8ikWAM';
+  // George — a warm, mature British narrator: the closest premade voice to the
+  // "wise documentary narrator" feel (think Freeman × Attenborough). Available
+  // on every account. Users can override with any voice id from their library.
+  var DEFAULT_VOICE     = 'JBFqnCBsd6RMkjVDRZzb';
   // Multilingual v2 handles English *and* Norwegian, so the DM speaks
   // whatever language it narrates in.
   var DEFAULT_TTS_MODEL = 'eleven_multilingual_v2';
   var DEFAULT_STT_MODEL = 'scribe_v1';
+
+  // A short curated list of premade voices that suit a Dungeon Master narrator,
+  // so users can pick one without hunting for ids. All are default/shared voices
+  // available to every account. Warm narrators first.
+  var PRESETS = [
+    { id: 'JBFqnCBsd6RMkjVDRZzb', name: 'George — warm British narrator (Freeman × Attenborough vibe)' },
+    { id: 'onwK4e9ZLuTAKqWW03F9', name: 'Daniel — deep, authoritative British' },
+    { id: 'nPczCjzI2devNBz1zQrb', name: 'Brian — deep American narrator' },
+    { id: 'pqHfZKP75CvOlQylNhV4', name: 'Bill — older American, documentary' },
+    { id: 'pNInz6obpgDQGcFmaJgB', name: 'Adam — deep American' },
+    { id: 'VR6AewLTigWG4xSOukaG', name: 'Arnold — gravelly, intense' },
+    { id: '21m00Tcm4TlvDq8ikWAM', name: 'Rachel — calm American (default female)' }
+  ];
 
   var TTS_URL = 'https://api.elevenlabs.io/v1/text-to-speech/';
   var STT_URL = 'https://api.elevenlabs.io/v1/speech-to-text';
@@ -216,7 +232,7 @@
     getVoice: getVoice, setVoice: setVoice,
     getTtsModel: getTtsModel, setTtsModel: setTtsModel, getSttModel: getSttModel,
     isAuto: isAuto, setAuto: setAuto,
-    DEFAULT_VOICE: DEFAULT_VOICE, DEFAULT_TTS_MODEL: DEFAULT_TTS_MODEL,
+    DEFAULT_VOICE: DEFAULT_VOICE, DEFAULT_TTS_MODEL: DEFAULT_TTS_MODEL, PRESETS: PRESETS,
     // capability
     canRecord: canRecord, isRecording: isRecording,
     // TTS
