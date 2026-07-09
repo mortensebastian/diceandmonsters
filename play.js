@@ -779,6 +779,49 @@
     var input = block.input || {};
     var id = block.id;
     try {
+      if (block.name === 'add_combatants') {
+        var specs = input.creatures;
+        if (!Array.isArray(specs) || !specs.length) {
+          return toolResult(id, 'Provide a non-empty "creatures" array.', true);
+        }
+        var added = [], notes = [];
+        specs.forEach(function (spec) {
+          if (!spec || !spec.name) { notes.push('Skipped a creature with no name.'); return; }
+          var n = Math.max(1, Math.min(20, parseInt(spec.count, 10) || 1));
+          var tpl = spec.fromLibrary ? DM.templateByName(spec.name) : null;
+          if (spec.fromLibrary && !tpl) {
+            notes.push('No library monster matched "' + spec.name +
+              '"; used the custom stats you gave (or defaults — hp 1, ac 10, no attacks).');
+          }
+          for (var i = 0; i < n; i++) {
+            var c = tpl ? DM.createMonster(tpl) : DM.createCustomCreature(spec);
+            addCombatant(c, '(' + c.maxHp + ' HP, AC ' + c.ac + ')');
+            added.push(c);
+          }
+        });
+        if (!added.length) return toolResult(id, notes.join(' ') || 'Nothing was added.', true);
+        renderAll();
+        var lines = added.map(function (c) {
+          return label(c) + ' — ' + c.maxHp + ' HP, AC ' + c.ac +
+            (c.attacks && c.attacks.length
+              ? ', attacks: ' + c.attacks.map(function (a) { return a.name; }).join(', ')
+              : ', no attacks');
+        });
+        return toolResult(id, 'Added to the table:\n' + lines.join('\n') +
+          (notes.length ? '\n\n' + notes.join(' ') : ''));
+      }
+      if (block.name === 'roll_initiative') {
+        if (!state.combatants.length) {
+          return toolResult(id, 'No combatants on the table yet — add some first with add_combatants.', true);
+        }
+        rollInitiative();
+        var ord = DM.orderedAlive(state.combatants).map(function (c) {
+          return label(c) + ' (init ' + c.initiative + ')';
+        });
+        var first = state.activeId != null ? findCombatant(state.activeId) : null;
+        return toolResult(id, 'Initiative rolled. Order: ' + (ord.join(', ') || '(nobody)') + '.' +
+          (first ? ' First turn: ' + label(first) + '.' : ''));
+      }
       if (block.name === 'monster_action') {
         var attacker = findCombatant(input.combatantId);
         if (!attacker) return toolResult(id, 'No combatant with id ' + input.combatantId + '.', true);

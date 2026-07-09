@@ -36,6 +36,22 @@
     }
     return _slugMap[slug] || null;
   }
+  // Fuzzy library lookup by display name (for the AI DM's add_combatants tool,
+  // which knows creatures by name, not slug). Exact match wins, then substring.
+  function templateByName(name) {
+    if (!name) return null;
+    var want = String(name).toLowerCase().trim();
+    if (!want) return null;
+    var list = window.MONSTER_DATA || [];
+    var i;
+    for (i = 0; i < list.length; i++) {
+      if (String(list[i].name).toLowerCase() === want) return list[i];
+    }
+    for (i = 0; i < list.length; i++) {
+      if (String(list[i].name).toLowerCase().indexOf(want) !== -1) return list[i];
+    }
+    return null;
+  }
 
   /* ---- 2. IDs ---- */
   // A single shared counter so ids stay unique within a page's session.
@@ -127,6 +143,34 @@
     c.ac = (sheet.ac != null && sheet.ac !== '') ? sheet.ac : 10;
     c.initMod = sheetInitMod(sheet);
     c.attacks = (sheet.attacks || []).map(parseSheetAttack);
+    return c;
+  }
+
+  // Build a combatant from an ad-hoc stat block (used by the AI DM to bring
+  // creatures it invents into the fight). The engine still owns all HP; here
+  // we only set the max, never roll or narrate results.
+  function intOr(v, dflt) { var n = parseInt(v, 10); return isNaN(n) ? dflt : n; }
+  function createCustomCreature(spec) {
+    spec = spec || {};
+    var kind = spec.kind === 'npc' ? 'npc' : 'monster';
+    var c = baseCombatant(kind, spec.name || (kind === 'npc' ? 'NPC' : 'Monster'));
+    var hp = intOr(spec.hp, 0);
+    c.maxHp = hp > 0 ? hp : 1;
+    c.hp = c.maxHp;
+    c.ac = intOr(spec.ac, 10);
+    c.initMod = intOr(spec.initMod, 0);
+    c.attacks = (spec.attacks || []).map(function (a) {
+      a = a || {};
+      return {
+        name: a.name || 'Attack',
+        toHit: intOr(a.toHit, 0),
+        count: intOr(a.count, 0),
+        sides: intOr(a.sides, 0),
+        bonus: intOr(a.bonus, 0),
+        type: a.type || '',
+        ranged: !!a.ranged
+      };
+    });
     return c;
   }
 
@@ -277,6 +321,7 @@
       initMod: c.initMod, conditions: c.conditions.slice()
     };
     if (c.kind === 'monster' && c.template) o.templateSlug = c.template.slug;
+    else if (c.kind === 'monster') o.attacks = c.attacks;   // custom monster (no library template)
     if (c.kind === 'npc') o.attacks = c.attacks;
     return o;
   }
@@ -293,6 +338,7 @@
     if (o.kind === 'monster') {
       var t = templateBySlug(o.templateSlug);
       if (t) { c.template = t; c.attacks = t.attacks || []; }
+      else { c.attacks = o.attacks || []; }   // custom monster: restore its ad-hoc attacks
     } else if (o.kind === 'npc') {
       c.attacks = o.attacks || [];
     }
@@ -305,13 +351,14 @@
     rollDie: rollDie, rollDice: rollDice, abilityMod: abilityMod,
     signed: signed, esc: esc,
     // library
-    templateBySlug: templateBySlug,
+    templateBySlug: templateBySlug, templateByName: templateByName,
     // ids
     newId: newId, bumpIdPast: bumpIdPast,
     // model
     baseCombatant: baseCombatant, rollHp: rollHp,
     createMonster: createMonster, createPlayer: createPlayer,
     createPlayerFromSheet: createPlayerFromSheet, createNpcFromSheet: createNpcFromSheet,
+    createCustomCreature: createCustomCreature,
     parseSheetAttack: parseSheetAttack, sheetInitMod: sheetInitMod,
     findCombatant: findCombatant, combatantLabel: combatantLabel,
     hasHp: hasHp, canBeTargeted: canBeTargeted,

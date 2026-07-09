@@ -76,9 +76,18 @@
     "the monster_action tool; you will receive the result AFTER the engine rolls. " +
     "NEVER state a to-hit number, damage amount, or HP total yourself — narrate only " +
     "from the results the tools give you.\n" +
+    "• When the scene brings enemies or NPCs onto the field, put them into play YOURSELF " +
+    "with add_combatants — never ask the table to add creatures manually. Prefer a real " +
+    "SRD monster by name (set fromLibrary:true) so it gets a full stat block; otherwise " +
+    "give a quick custom stat block (name, hp, ac, attacks). Setting a creature's stat " +
+    "block is prep, not a die roll — that is allowed.\n" +
+    "• Once the combatants are on the table and a fight begins, call roll_initiative to " +
+    "start combat (the engine rolls the whole table and sets the first turn). Then run " +
+    "monsters/NPCs on their turns and ask the players what they do on theirs.\n" +
     "• Use set_condition, apply_damage, apply_heal and advance_turn as the fight needs.\n" +
-    "• You control ONLY monsters and NPCs. Never attack for, roll for, or decide the " +
-    "actions of the player characters. On a player's turn, ask the table what they do.\n" +
+    "• You control ONLY monsters and NPCs. Never make attacks, ability checks, or " +
+    "decisions for the player characters (rolling initiative for the whole table via " +
+    "roll_initiative is fine). On a player's turn, ask the table what they do.\n" +
     "• Act when asked to run the fight or a creature's turn. Don't invent extra rounds " +
     "or attacks nobody asked for. A monster with several attacks may call monster_action " +
     "more than once in its turn.\n\n" +
@@ -90,6 +99,59 @@
     "positioning and range narrative, never precise squares or feet.";
 
   var TOOLS = [
+    {
+      name: 'add_combatants',
+      description: "Bring one or more monsters/NPCs into the fight (e.g. when the scene " +
+        "reveals enemies). The engine creates them, rolls HP for library monsters, and gives " +
+        "them initiative if combat is already underway. Use this instead of asking the table " +
+        "to add creatures by hand.",
+      input_schema: {
+        type: 'object',
+        properties: {
+          creatures: {
+            type: 'array',
+            description: 'The creatures to add.',
+            items: {
+              type: 'object',
+              properties: {
+                name: { type: 'string', description: 'Display name, e.g. "Goblin" or "Grey Gnasher". For a library match, use the SRD monster name.' },
+                fromLibrary: { type: 'boolean', description: 'If true, look the name up in the 322-monster SRD library and use that full stat block (its hp/ac/attacks). Falls back to the custom fields below if no match.' },
+                count: { type: 'integer', description: 'How many to add (default 1, max 20). Each gets its own numbered id.' },
+                kind: { type: 'string', enum: ['monster', 'npc'], description: "Defaults to 'monster'." },
+                hp: { type: 'integer', description: 'Max HP for a custom creature (ignored for a library match).' },
+                ac: { type: 'integer', description: 'Armor Class for a custom creature (default 10).' },
+                initMod: { type: 'integer', description: 'Initiative modifier (usually the Dex mod) for a custom creature. Default 0.' },
+                attacks: {
+                  type: 'array',
+                  description: 'Attacks for a custom creature (omit for a library match).',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      name: { type: 'string', description: 'e.g. "Bite" or "Claw"' },
+                      toHit: { type: 'integer', description: 'Attack bonus, e.g. 4' },
+                      count: { type: 'integer', description: 'Number of damage dice, e.g. 1 for 1d6' },
+                      sides: { type: 'integer', description: 'Damage die size, e.g. 6 for 1d6' },
+                      bonus: { type: 'integer', description: 'Flat damage bonus, e.g. 2' },
+                      type: { type: 'string', description: 'Damage type, e.g. "piercing"' },
+                      ranged: { type: 'boolean' }
+                    },
+                    required: ['name']
+                  }
+                }
+              },
+              required: ['name']
+            }
+          }
+        },
+        required: ['creatures']
+      }
+    },
+    {
+      name: 'roll_initiative',
+      description: 'Start combat: the engine rolls initiative (d20 + modifier) for every ' +
+        'combatant on the table and sets the first turn. Call this once the fighters are in play.',
+      input_schema: { type: 'object', properties: {} }
+    },
     {
       name: 'monster_action',
       description: "Make one attack with a monster or NPC you control. The engine rolls " +
