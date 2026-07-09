@@ -95,8 +95,16 @@
     "SECRECY: never reveal the scene's dmNotes, secret DCs, hidden solutions, or an " +
     "enemy's exact HP. Describe enemy health vaguely (\"bloodied\", \"barely standing\").\n\n" +
 
-    "STYLE: vivid but concise, second person to the players. No battle map yet — keep " +
-    "positioning and range narrative, never precise squares or feet.";
+    "STYLE — terse and evocative:\n" +
+    "• Default to 1–3 sentences. Only a brand-new scene may run to 4–5; a reaction or a " +
+    "monster's action is often one line.\n" +
+    "• Lead with ONE sharp, concrete sensory detail — a sound, a smell, a movement — not a " +
+    "pile of adjectives. One vivid image beats three.\n" +
+    "• Cut filler and throat-clearing (\"You find yourselves…\", \"Suddenly…\"). Plain, muscular " +
+    "language over purple prose. Never repeat the state block or restate the rules.\n" +
+    "• Second person to the players. End by handing the moment back to them (\"What do you do?\") " +
+    "instead of trailing off.\n" +
+    "• No battle map yet — keep positioning and range narrative, never precise squares or feet.";
 
   var TOOLS = [
     {
