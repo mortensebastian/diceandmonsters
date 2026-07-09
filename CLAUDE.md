@@ -60,6 +60,16 @@ Supabase cloud sync.
   (`monster_action`, `set_condition`, `apply_damage`, `apply_heal`,
   `advance_turn`), and the state block. **Golden rule:** Claude picks actions via
   tools; the engine rolls — Claude never states dice/HP numbers.
+- **`voice.js` → `window.Voice`** — optional ElevenLabs voice layer (BYOK, direct
+  browser→ElevenLabs with the `xi-api-key` header). **TTS:** `speak`/`enqueue`
+  read the DM's narration aloud (`enqueue` queues lines so one turn's multiple
+  bubbles don't overlap); default model `eleven_multilingual_v2` so it speaks
+  English *and* Norwegian. **STT:** `startRecording`/`stopAndTranscribe`
+  (MediaRecorder → `speech-to-text`, model `scribe_v1`) power push-to-talk input.
+  Key + settings live only in `localStorage`; with no key set, `hasKey()` is
+  false and the whole layer no-ops (the 🔊/🎤 buttons stay hidden). `play.js`
+  auto-speaks new `dm` chat lines when the 🔊 toggle is on and drives the 🎤
+  push-to-talk button.
 - `play.js` runs the chat + agentic tool loop: send → Claude responds with text
   and/or tool_use → execute each tool via `window.DM` → feed results back → loop
   until `end_turn` (hard iteration cap). Player HP stays hidden; a viewer (shared
@@ -96,6 +106,7 @@ Supabase cloud sync.
 | `diceAndMonsters.playSession` | handoff from planner/adventure → Play (consumed once) |
 | `diceAndMonsters.pendingEncounter` | handoff adventure → planner |
 | `diceAndMonsters.anthropicKey` / `.aiModel` | AIClient (BYOK) |
+| `diceAndMonsters.elevenKey` / `.elevenVoice` / `.elevenTtsModel` / `.elevenSttModel` / `.voiceAuto` | Voice (ElevenLabs BYOK, voice id, TTS/STT models, auto-speak flag) |
 
 The Play "snapshot" (`snapshot()`/`applySnapshot()` in play.js) is the shared
 shape used for local autosave **and** cloud `play_sessions.state`.

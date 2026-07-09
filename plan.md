@@ -30,6 +30,13 @@ cloud saves and shared live sessions so several people watch the same game.
   of characters, adventures, encounters** (`user_collections`). One **global
   login** widget in the nav on every page ("Logged in as …" when signed in).
 - **Character name** editable from the always-visible title field.
+- **Voice (ElevenLabs, BYOK)** — optional voice layer for the AI DM
+  (`voice.js` / `window.Voice`). TTS reads the DM's narration aloud (toggle
+  🔊 in the quick row; multilingual so it speaks English *and* Norwegian);
+  STT push-to-talk (hold 🎤 in the composer) transcribes your speech and
+  sends it to the DM. Key stored only in the browser, sent straight to
+  ElevenLabs; hidden entirely until a key is set, so the app is unchanged
+  without one.
 
 ## Next up (rough priority)
 
@@ -55,8 +62,10 @@ cloud saves and shared live sessions so several people watch the same game.
    Anthropic key server-side so the whole group can use the AI without each
    person needing their own key. `ai-client.js` is already pluggable — only the
    endpoint/mode changes. This is the "Phase 4b" of the AI plan.
-6. **Voice (TTS)** — read the DM's narration aloud (Web Speech API free tier;
-   optional ElevenLabs behind a flag).
+6. ~~**Voice (TTS)** — read the DM's narration aloud.~~ **Done** via ElevenLabs
+   (`voice.js`): TTS for the DM's narration + STT push-to-talk for player input.
+   Possible follow-ups: let live viewers hear the DM too; a Supabase relay so the
+   ElevenLabs key isn't per-browser (mirrors the AI-key relay in item 5).
 
 ## Known rough edges / decisions to revisit
 

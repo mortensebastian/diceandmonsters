@@ -140,8 +140,17 @@
                 <label class="ai__field">Model
                     <input type="text" id="ai-model" class="ai__input" placeholder="claude-opus-4-8">
                 </label>
+                <label class="ai__field">ElevenLabs API key (voice — optional)
+                    <input type="password" id="voice-key" class="ai__input" placeholder="ElevenLabs key" autocomplete="off">
+                </label>
+                <label class="ai__field">Voice ID
+                    <input type="text" id="voice-id" class="ai__input" placeholder="21m00Tcm4TlvDq8ikWAM">
+                </label>
+                <label class="ai__field">Voice model
+                    <input type="text" id="voice-model" class="ai__input" placeholder="eleven_multilingual_v2">
+                </label>
                 <button class="btn-ai-save" type="button">Save</button>
-                <p class="ai__hint">Your key is stored only in this browser (localStorage) and sent straight to Anthropic. Get one at console.anthropic.com.</p>
+                <p class="ai__hint">Your keys are stored only in this browser (localStorage). The Anthropic key goes straight to Anthropic; the ElevenLabs key (for reading narration aloud and mic input) goes straight to ElevenLabs. Get them at console.anthropic.com and elevenlabs.io.</p>
             </div>
 
             <label class="ai__field ai__field--wide">Scene (optional — grounds the DM; “DM notes:” stays private)
@@ -154,10 +163,12 @@
                 <button class="btn-ai-scene" type="button">Describe scene</button>
                 <button class="btn-ai-round" type="button">Run monsters’ turn</button>
                 <button class="btn-ai-reset" type="button" title="Start a fresh conversation">Reset chat</button>
+                <button class="btn-ai-speak" type="button" hidden aria-pressed="false" title="Read the DM's narration aloud">🔊 Voice off</button>
                 <span id="ai-status" class="ai__status"></span>
             </div>
 
             <div class="ai__row ai__composer">
+                <button class="btn-ai-mic" type="button" hidden aria-pressed="false" title="Hold a conversation with the DM by voice">🎤</button>
                 <input type="text" id="ai-input" class="ai__input ai__input--chat" placeholder="Talk to the DM… (e.g. “the goblins attack the fighter”)">
                 <button class="btn-ai-send" type="button">Send</button>
             </div>
@@ -193,6 +204,7 @@
         <script src="ai-context.js"></script>
         <script src="ai-client.js"></script>
         <script src="ai-dm.js"></script>
+        <script src="voice.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
         <script src="supabase-config.js"></script>
         <script src="cloud.js"></script>

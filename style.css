@@ -1253,6 +1253,18 @@ button:disabled { opacity: .4; cursor: not-allowed; box-shadow: none; }
 .ai__row--quick { gap: 8px; }
 .btn-ai-reset { background: #3b4150; color: #e6e6e6; }
 .btn-ai-reset:hover { background: #2c3140; }
+.btn-ai-speak {
+    background: #3b4150; color: #e6e6e6; border: none; border-radius: 6px;
+    padding: 8px 12px; font-family: inherit; font-size: 13px; cursor: pointer;
+}
+.btn-ai-speak:hover { background: #2c3140; }
+.btn-ai-speak[aria-pressed="true"] { background: #9b59b6; color: #fff; }
+.btn-ai-mic {
+    background: #3b4150; color: #e6e6e6; border: none; border-radius: 6px;
+    padding: 10px 14px; font-family: inherit; font-size: 16px; cursor: pointer; line-height: 1;
+}
+.btn-ai-mic:hover { background: #2c3140; }
+.btn-ai-mic[aria-pressed="true"] { background: #c0392b; color: #fff; }
 
 .ai__composer { margin-bottom: 0; }
 .ai__input--chat { flex: 1; min-width: 200px; width: auto; }

@@ -760,6 +760,10 @@
     if (!text) return;
     appendChatBubble(role, text);
     state.chatLog.push({ role: role, text: text });
+    // Read new DM narration aloud when voice is on (never the player's own lines).
+    if (role === 'dm' && window.Voice && Voice.isAuto() && Voice.hasKey() && !viewerMode) {
+      Voice.enqueue(text).catch(function (e) { aiStatus((e && e.message) || 'Voice error.'); });
+    }
     scheduleSave();
   }
 
@@ -931,6 +935,7 @@
   function resetChat() {
     aiMessages = [];
     state.chatLog = [];
+    if (window.Voice) Voice.stop();
     if (el.aiOutput) el.aiOutput.innerHTML = '';
     scheduleSave();
     aiStatus('Chat reset.');
@@ -948,8 +953,58 @@
     var model = (el.aiModel.value || '').trim();
     window.AIClient.setModel(model || window.AIClient.DEFAULT_MODEL);
     el.aiModel.value = window.AIClient.getModel();
+    if (window.Voice) {
+      if (el.voiceKey) Voice.setKey(el.voiceKey.value);
+      if (el.voiceId) { Voice.setVoice(el.voiceId.value); el.voiceId.value = Voice.getVoice(); }
+      if (el.voiceModel) { Voice.setTtsModel(el.voiceModel.value); el.voiceModel.value = Voice.getTtsModel(); }
+      updateVoiceUi();
+    }
     aiStatus('Saved.');
     setTimeout(function () { aiStatus(''); }, 1400);
+  }
+
+  /* ---- Voice (ElevenLabs TTS + STT) — optional, degrades to silent ---- */
+  function updateVoiceUi() {
+    if (!window.Voice) return;
+    var has = Voice.hasKey();
+    if (el.aiSpeakBtn) {
+      el.aiSpeakBtn.hidden = !has;
+      var on = has && Voice.isAuto();
+      el.aiSpeakBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+      el.aiSpeakBtn.textContent = on ? '🔊 Voice on' : '🔊 Voice off';
+    }
+    if (el.aiMicBtn) el.aiMicBtn.hidden = !(has && Voice.canRecord());
+  }
+
+  function toggleVoice() {
+    if (!window.Voice) return;
+    if (!Voice.hasKey()) { aiStatus('Add your ElevenLabs key in Settings first.'); showAiSettings(true); return; }
+    var on = !Voice.isAuto();
+    Voice.setAuto(on);
+    if (!on) Voice.stop();
+    updateVoiceUi();
+  }
+
+  function micDown() {
+    if (!window.Voice || Voice.isRecording()) return;
+    if (!Voice.hasKey()) { aiStatus('Add your ElevenLabs key in Settings first.'); showAiSettings(true); return; }
+    Voice.stop();   // don't record the DM talking over the player
+    Voice.startRecording().then(function () {
+      if (el.aiMicBtn) { el.aiMicBtn.setAttribute('aria-pressed', 'true'); el.aiMicBtn.textContent = '⏺'; }
+      aiStatus('Listening… release to send.');
+    }).catch(function (e) { aiStatus((e && e.message) || 'Mic unavailable.'); });
+  }
+
+  function micUp() {
+    if (!window.Voice || !Voice.isRecording()) return;
+    if (el.aiMicBtn) { el.aiMicBtn.setAttribute('aria-pressed', 'false'); el.aiMicBtn.textContent = '🎤'; }
+    aiStatus('Transcribing…');
+    Voice.stopAndTranscribe().then(function (text) {
+      text = (text || '').trim();
+      if (!text) { aiStatus('Didn\'t catch that.'); return; }
+      aiStatus('');
+      sendChat(text);
+    }).catch(function (e) { aiStatus((e && e.message) || 'Transcription failed.'); });
   }
 
   function initAi() {
@@ -966,10 +1021,30 @@
     el.aiSendBtn     = document.querySelector('.btn-ai-send');
     el.aiStatus      = document.querySelector('#ai-status');
     el.aiOutput      = document.querySelector('#ai-output');
+    el.voiceKey      = document.querySelector('#voice-key');
+    el.voiceId       = document.querySelector('#voice-id');
+    el.voiceModel    = document.querySelector('#voice-model');
+    el.aiSpeakBtn    = document.querySelector('.btn-ai-speak');
+    el.aiMicBtn      = document.querySelector('.btn-ai-mic');
     if (!el.aiOutput || !window.AIClient) return;
 
     el.aiKey.value = window.AIClient.getKey();
     el.aiModel.value = window.AIClient.getModel();
+    if (window.Voice) {
+      if (el.voiceKey) el.voiceKey.value = Voice.getKey();
+      if (el.voiceId) el.voiceId.value = Voice.getVoice();
+      if (el.voiceModel) el.voiceModel.value = Voice.getTtsModel();
+      if (el.aiSpeakBtn) el.aiSpeakBtn.addEventListener('click', toggleVoice);
+      if (el.aiMicBtn) {
+        // Push-to-talk: hold the mic (mouse or touch) to record, release to send.
+        el.aiMicBtn.addEventListener('mousedown', micDown);
+        el.aiMicBtn.addEventListener('mouseup', micUp);
+        el.aiMicBtn.addEventListener('mouseleave', function () { if (Voice.isRecording()) micUp(); });
+        el.aiMicBtn.addEventListener('touchstart', function (e) { e.preventDefault(); micDown(); });
+        el.aiMicBtn.addEventListener('touchend', function (e) { e.preventDefault(); micUp(); });
+      }
+      updateVoiceUi();
+    }
 
     el.aiScene.addEventListener('input', function () {
       var v = el.aiScene.value.trim();
