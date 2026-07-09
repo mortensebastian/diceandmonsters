@@ -83,6 +83,24 @@
     return client.from('play_sessions').delete().eq('id', id);
   }
 
+  /* ---- Groups (for sharing) ---- */
+  function listGroups() {
+    return client.from('groups').select('id,name,invite_code,owner').order('created_at', { ascending: true });
+  }
+  function createGroup(name) {
+    return client.from('groups')
+      .insert({ name: name, owner: currentUser && currentUser.id })
+      .select('id,name,invite_code').single();
+  }
+  function joinGroup(code) {
+    return client.rpc('join_group', { code: code });
+  }
+  function setSessionShare(id, groupId, shared) {
+    return client.from('play_sessions')
+      .update({ group_id: groupId, shared: shared, updated_at: new Date().toISOString() })
+      .eq('id', id).select().single();
+  }
+
   // Realtime: watch one session's row for UPDATEs (for shared viewing).
   function subscribe(id, cb) {
     var ch = client.channel('play_' + id)
@@ -100,6 +118,8 @@
     signIn: signIn, signUp: signUp, signOut: signOut,
     listSessions: listSessions, saveSession: saveSession,
     loadSession: loadSession, deleteSession: deleteSession,
+    listGroups: listGroups, createGroup: createGroup,
+    joinGroup: joinGroup, setSessionShare: setSessionShare,
     subscribe: subscribe, unsubscribe: unsubscribe,
     raw: function () { return client; }
   };

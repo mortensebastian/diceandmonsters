@@ -1285,3 +1285,26 @@ button:disabled { opacity: .4; cursor: not-allowed; box-shadow: none; }
 .btn-cloud-delete { background: #7a3b3b; }
 .cloud__status { font-size: 13px; color: #9aa3b2; }
 .cloud__active { font-size: 12px; color: #e1b12c; display: block; margin-top: 4px; }
+.cloud__sharelabel { font-size: 14px; color: #e6e6e6; display: flex; align-items: center; gap: 8px; }
+.cloud__invite { font-size: 13px; color: #e1b12c; }
+.btn-group-create, .btn-group-join { background: #5b3a86; }
+#cloud-join-code { width: 150px; }
+
+/* Live shared-session viewer (read-only) */
+.viewer-banner {
+    max-width: 880px; margin: 12px auto 0; padding: 10px 16px;
+    background: #2b2616; border: 1px solid #e1b12c; border-radius: 8px;
+    color: #f1c40f; text-align: center; font-size: 14px;
+}
+.btn-viewer-leave {
+    margin-left: 10px; background: #3b4150; color: #fff; border: none;
+    border-radius: 6px; padding: 6px 12px; cursor: pointer; font-family: inherit; font-size: 13px;
+}
+.play-viewer .play-bar,
+.play-viewer .picker,
+.play-viewer .tracker__buttons,
+.play-viewer .item__controls,
+.play-viewer .ai__settings,
+.play-viewer .ai__row--quick,
+.play-viewer .ai__composer,
+.play-viewer #ai-scene { display: none; }

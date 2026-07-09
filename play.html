@@ -22,6 +22,11 @@
             <p class="tagline">Run the fight: initiative, turns, attacks and the log — live at the table.</p>
         </header>
 
+        <div id="viewer-banner" class="viewer-banner" hidden>
+            👁 <span id="viewer-banner-text">Watching a shared session (live, read-only).</span>
+            <button class="btn-viewer-leave" type="button">Leave</button>
+        </div>
+
         <!-- Start a session: from the planner handoff, or a saved encounter -->
         <section class="play-bar">
             <label class="play-bar__pick">Load saved encounter:
@@ -60,6 +65,20 @@
                     <button class="btn-cloud-delete" type="button">Delete</button>
                     <button class="btn-cloud-signout" type="button">Sign out</button>
                 </div>
+
+                <div class="cloud__row cloud__groups">
+                    <select id="cloud-groups" class="cloud__select"></select>
+                    <button class="btn-group-create" type="button">New group</button>
+                    <input type="text" id="cloud-join-code" class="cloud__input" placeholder="invite code">
+                    <button class="btn-group-join" type="button">Join</button>
+                </div>
+                <div class="cloud__row cloud__share">
+                    <label class="cloud__sharelabel">
+                        <input type="checkbox" id="cloud-shared"> Share this session live with the selected group
+                    </label>
+                    <span id="cloud-invite" class="cloud__invite"></span>
+                </div>
+
                 <span id="cloud-active" class="cloud__active"></span>
             </div>
 

@@ -33,6 +33,9 @@
   var cloudSessionId = null;     // id of the active cloud session, if any
   var cloudSessionTitle = '';
   var cloudTimer = null;
+  var cloudGroups = [];          // groups I belong to
+  var viewerMode = false;        // watching someone else's shared session (read-only)
+  var liveChannel = null;        // active realtime subscription
 
   var el = {};
   var statusTimer = null;
@@ -78,6 +81,7 @@
     };
   }
   function persistState() {
+    if (viewerMode) return;   // viewers never write
     try { window.localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(snapshot())); }
     catch (e) { /* storage full / blocked — stays in memory */ }
     cloudAutosave();
@@ -391,7 +395,7 @@
   }
 
   function rollInitiative() {
-    if (!state.combatants.length) return;
+    if (viewerMode || !state.combatants.length) return;
     var order = DM.rollInitiativeAll(state.combatants);
     logLine('--- Initiative rolled ---', 'turn');
     order.forEach(function (c) {
@@ -405,6 +409,7 @@
   }
 
   function nextTurn() {
+    if (viewerMode) return;
     var res = DM.nextTurnId(state.combatants, state.activeId);
     if (res.id == null) { state.activeId = null; return; }
     if (res.newRound) logLine('--- New round ---', 'turn');
@@ -427,7 +432,7 @@
   }
 
   function clearTable() {
-    if (!state.combatants.length) return;
+    if (viewerMode || !state.combatants.length) return;
     if (!window.confirm('Clear the table? This removes all combatants from play.')) return;
     state.combatants = [];
     state.activeId = null;
@@ -448,6 +453,7 @@
     return isNaN(v) || v < 0 ? 0 : v;
   }
   function onListClick(ev) {
+    if (viewerMode) return;
     var btn = ev.target.closest('[data-action]');
     if (!btn) return;
     var cardNode = btn.closest('.item');
@@ -520,6 +526,7 @@
     renderTurnOrder();
   }
   function onTrackClick(ev) {
+    if (viewerMode) return;
     var btn = ev.target.closest('[data-action]');
     if (!btn) return;
     var id = parseInt(btn.closest('.turn__row').getAttribute('data-id'), 10);
@@ -659,6 +666,7 @@
   }
 
   function addCombatant(c, note) {
+    if (viewerMode) return;
     state.combatants.push(c);
     rollInitiativeIfActive(c);
     renderAll();
@@ -859,7 +867,7 @@
   }
 
   function sendChat(userText, displayLabel) {
-    if (aiBusy) return;
+    if (viewerMode || aiBusy) return;
     userText = (userText || '').trim();
     if (!userText) return;
     if (!window.AIClient || !window.AIDM || !window.AIContext) { aiStatus('AI scripts not loaded.'); return; }
@@ -984,8 +992,8 @@
     el.cloudAuth.hidden = signedIn;
     el.cloudPanel.hidden = !signedIn;
     el.cloudUser.textContent = signedIn ? (user.email || 'signed in') : '';
-    if (signedIn) { refreshCloudList(); cloudActiveLabel(); }
-    else { cloudSessionId = null; cloudSessionTitle = ''; }
+    if (signedIn) { refreshCloudList(); refreshGroups(); cloudActiveLabel(); }
+    else { cloudSessionId = null; cloudSessionTitle = ''; leaveViewerMode(); }
   }
 
   function doSignIn() {
@@ -1037,13 +1045,26 @@
     Cloud.loadSession(id).then(function (res) {
       if (res.error) { cloudStatus('Load failed: ' + res.error.message); return; }
       var row = res.data;
+      var mine = row.owner === (Cloud.user() && Cloud.user().id);
       applySnapshot(row.state || {});
-      cloudSessionId = row.id;
-      cloudSessionTitle = row.title;
-      persistState();
+
+      if (mine) {
+        leaveViewerMode();               // clear any prior viewing; take full control
+        cloudSessionId = row.id;
+        cloudSessionTitle = row.title;
+        // reflect this session's share state in the controls
+        if (el.cloudShared) el.cloudShared.checked = !!row.shared;
+        if (row.group_id && el.cloudGroups) { el.cloudGroups.value = row.group_id; updateInviteDisplay(); }
+        persistState();
+        cloudActiveLabel();
+        logLine('Opened cloud session “' + row.title + '”.', 'spawn');
+      } else {
+        // Someone else's shared session: watch it live, read-only.
+        enterViewerMode(row.title);
+        subscribeLive(row.id);
+        logLine('Watching shared session “' + row.title + '” (live).', 'turn');
+      }
       cloudStatus('Opened “' + row.title + '”.');
-      cloudActiveLabel();
-      logLine('Opened cloud session “' + row.title + '”.', 'spawn');
       setTimeout(function () { cloudStatus(''); }, 1600);
     });
   }
@@ -1060,6 +1081,94 @@
     });
   }
 
+  /* ---- Groups + sharing + live viewing (4b) ---- */
+  function refreshGroups() {
+    if (!Cloud.user() || !el.cloudGroups) return;
+    Cloud.listGroups().then(function (res) {
+      if (res.error) { cloudStatus(res.error.message); return; }
+      cloudGroups = res.data || [];
+      el.cloudGroups.innerHTML = cloudGroups.length
+        ? cloudGroups.map(function (g) { return '<option value="' + g.id + '">' + esc(g.name) + '</option>'; }).join('')
+        : '<option value="">No groups yet</option>';
+      el.cloudGroups.disabled = !cloudGroups.length;
+      updateInviteDisplay();
+    });
+  }
+  function selectedGroup() {
+    var id = el.cloudGroups && el.cloudGroups.value;
+    for (var i = 0; i < cloudGroups.length; i++) if (cloudGroups[i].id === id) return cloudGroups[i];
+    return null;
+  }
+  function updateInviteDisplay() {
+    var g = selectedGroup();
+    if (el.cloudInvite) el.cloudInvite.textContent = g ? ('Invite code: ' + g.invite_code) : '';
+  }
+  function doCreateGroup() {
+    var name = window.prompt('Name this group / party:');
+    if (!name || !name.trim()) return;
+    Cloud.createGroup(name.trim()).then(function (res) {
+      if (res.error) { cloudStatus(res.error.message); return; }
+      cloudStatus('Group created.');
+      refreshGroups();
+    });
+  }
+  function doJoinGroup() {
+    var code = (el.cloudJoinCode.value || '').trim();
+    if (!code) { cloudStatus('Enter an invite code.'); return; }
+    Cloud.joinGroup(code).then(function (res) {
+      if (res.error) { cloudStatus(res.error.message); return; }
+      el.cloudJoinCode.value = '';
+      cloudStatus('Joined group.');
+      refreshGroups();
+      refreshCloudList();   // shared sessions in that group now appear
+    });
+  }
+  function doToggleShare() {
+    if (!cloudSessionId) { cloudStatus('Save this session to the cloud first.'); el.cloudShared.checked = false; return; }
+    var g = selectedGroup();
+    var shared = el.cloudShared.checked;
+    if (shared && !g) { cloudStatus('Select or create a group to share with.'); el.cloudShared.checked = false; return; }
+    Cloud.setSessionShare(cloudSessionId, g ? g.id : null, shared).then(function (res) {
+      if (res.error) { cloudStatus('Share failed: ' + res.error.message); el.cloudShared.checked = !shared; return; }
+      cloudStatus(shared
+        ? ('Shared live with “' + g.name + '”. Players open it from their Cloud saves.')
+        : 'Sharing turned off.');
+    });
+  }
+
+  function subscribeLive(id) {
+    if (liveChannel) { Cloud.unsubscribe(liveChannel); liveChannel = null; }
+    liveChannel = Cloud.subscribe(id, function (row) {
+      if (row && row.state) applySnapshot(row.state);
+    });
+  }
+  function enterViewerMode(title) {
+    viewerMode = true;
+    cloudSessionId = null; cloudSessionTitle = '';
+    document.body.classList.add('play-viewer');
+    if (el.viewerBanner) {
+      el.viewerBanner.hidden = false;
+      el.viewerText.textContent = 'Watching “' + title + '” — live, read-only.';
+    }
+    cloudActiveLabel();
+  }
+  function leaveViewerMode() {
+    viewerMode = false;
+    document.body.classList.remove('play-viewer');
+    if (el.viewerBanner) el.viewerBanner.hidden = true;
+    if (liveChannel) { Cloud.unsubscribe(liveChannel); liveChannel = null; }
+  }
+  function doLeaveViewer() {
+    leaveViewerMode();
+    if (!restoreState()) {
+      state.combatants = []; state.activeId = null; state.log = []; state.chatLog = [];
+      renderAll(); renderTurnOrder();
+      if (el.log) el.log.innerHTML = '';
+      if (el.aiOutput) el.aiOutput.innerHTML = '';
+      logLine('Left the shared session.', 'spawn');
+    }
+  }
+
   function initCloud() {
     el.cloud       = document.querySelector('#cloud');
     if (!el.cloud || !window.Cloud || !Cloud.available()) return;   // no config / script → stay local
@@ -1072,6 +1181,12 @@
     el.cloudList   = document.querySelector('#cloud-list');
     el.cloudActive = document.querySelector('#cloud-active');
     el.cloudStatus = document.querySelector('#cloud-status');
+    el.cloudGroups = document.querySelector('#cloud-groups');
+    el.cloudJoinCode = document.querySelector('#cloud-join-code');
+    el.cloudShared = document.querySelector('#cloud-shared');
+    el.cloudInvite = document.querySelector('#cloud-invite');
+    el.viewerBanner = document.querySelector('#viewer-banner');
+    el.viewerText = document.querySelector('#viewer-banner-text');
 
     el.cloud.hidden = false;
     Cloud.init();
@@ -1083,6 +1198,11 @@
     document.querySelector('.btn-cloud-save').addEventListener('click', doSaveToCloud);
     document.querySelector('.btn-cloud-open').addEventListener('click', doOpenFromCloud);
     document.querySelector('.btn-cloud-delete').addEventListener('click', doDeleteFromCloud);
+    document.querySelector('.btn-group-create').addEventListener('click', doCreateGroup);
+    document.querySelector('.btn-group-join').addEventListener('click', doJoinGroup);
+    document.querySelector('.btn-viewer-leave').addEventListener('click', doLeaveViewer);
+    el.cloudShared.addEventListener('change', doToggleShare);
+    el.cloudGroups.addEventListener('change', updateInviteDisplay);
     el.cloudPw.addEventListener('keydown', function (e) { if (e.key === 'Enter') doSignIn(); });
   }
 
