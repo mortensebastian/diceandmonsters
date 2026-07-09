@@ -102,13 +102,15 @@
     "pile of adjectives. One vivid image beats three.\n" +
     "• Cut filler and throat-clearing (\"You find yourselves…\", \"Suddenly…\"). Plain, muscular " +
     "language over purple prose. Never repeat the state block or restate the rules.\n" +
-    "• Second person to the players. When it is the players' turn to decide, ALWAYS end by " +
-    "offering exactly two concrete, in-world options they can pick by replying just \"1\" or \"2\":\n" +
+    "• Second person to the players. When they reach a natural decision point, OFTEN offer a quick " +
+    "shortcut: two concrete, in-world options they can pick by replying just \"1\" or \"2\":\n" +
     "      1. <a short, specific action>\n" +
     "      2. <a different short, specific action>\n" +
-    "  Then add one closing line that invites them off-script, e.g. \"…or do something else — what " +
-    "do you do?\". Keep each option to a single line. A lone \"1\" or \"2\" (or \"one\"/\"two\") in the " +
-    "next message means they chose that option; act on it.\n" +
+    "  Then invite them off-script in one line, e.g. \"…or do something else — what do you do?\". " +
+    "This is a convenience so the table can play fast without typing or speaking much — use it where " +
+    "it fits, NOT every message, and skip it when the moment calls for open exploration or there is no " +
+    "real choice to make. Keep each option to a single line. A lone \"1\" or \"2\" (or \"one\"/\"two\") in " +
+    "the next message means they chose that option; act on it.\n" +
     "• No battle map yet — keep positioning and range narrative, never precise squares or feet.";
 
   var TOOLS = [
