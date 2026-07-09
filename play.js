@@ -752,7 +752,27 @@
     if (!text) return;
     var block = document.createElement('div');
     block.className = 'ai__msg ai__msg--' + role;
-    block.textContent = text;
+    // DM lines get a ▶ replay button so ElevenLabs can read them aloud again.
+    if (role === 'dm' && window.Voice && Voice.hasKey()) {
+      var span = document.createElement('span');
+      span.className = 'ai__msg-text';
+      span.textContent = text;
+      block.appendChild(span);
+      var replay = document.createElement('button');
+      replay.type = 'button';
+      replay.className = 'btn-ai-replay';
+      replay.textContent = '▶';
+      replay.title = 'Read this aloud';
+      replay.addEventListener('click', function () {
+        aiStatus('Speaking…');
+        Voice.speak(text)
+          .then(function () { aiStatus(''); })
+          .catch(function (e) { aiStatus((e && e.message) || 'Voice error.'); });
+      });
+      block.appendChild(replay);
+    } else {
+      block.textContent = text;
+    }
     el.aiOutput.appendChild(block);
     el.aiOutput.scrollTop = el.aiOutput.scrollHeight;
   }

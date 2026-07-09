@@ -1244,7 +1244,15 @@ button:disabled { opacity: .4; cursor: not-allowed; box-shadow: none; }
 .ai__msg--dm {
     background: #12141a; border-left: 3px solid #9b59b6; color: #d7dbe2;
     align-self: flex-start;
+    display: flex; align-items: flex-start; gap: 8px;
 }
+.ai__msg-text { flex: 1; min-width: 0; }
+.btn-ai-replay {
+    flex-shrink: 0; background: transparent; color: #9b59b6;
+    border: 1px solid #3b4150; border-radius: 5px; padding: 2px 8px;
+    font-size: 12px; line-height: 1.4; cursor: pointer;
+}
+.btn-ai-replay:hover { background: #2c3140; color: #af6fca; box-shadow: none; }
 .ai__msg--user {
     background: #1f2b38; border-right: 3px solid #4aa3df; color: #e6e6e6;
     align-self: flex-end;
