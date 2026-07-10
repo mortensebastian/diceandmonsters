@@ -87,6 +87,7 @@
       subclass: '', xp: 0,
       resistances: '', immunities: '',
       cls: '', level: 1, race: '', background: '', alignment: '',
+      motivation: '', flaw: '',
       abilities: { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 },
       saveProf: {}, skillProf: {},
       ac: 10, armor: '', shield: false, initBonus: 0, speed: 30,
@@ -639,6 +640,8 @@
       '</div>' +
       '<div class="rd-block"><h3>Saving throws</h3><div class="rd-chips">' + saves + '</div></div>' +
       '<div class="rd-block"><h3>Skills</h3><div class="rd-chips">' + skills + '</div></div>' +
+      blockIf('Motivation', c.motivation) +
+      blockIf('Flaw', c.flaw) +
       '<div class="rd-block"><h3>Attacks</h3>' + attacks + '</div>' +
       spellsHtml +
       blockIf('Resistances', c.resistances) +
@@ -749,7 +752,7 @@
     applyMode('view');     // clicking a character opens the clean read view
   }
 
-  function addCharacter(c) {
+  function addCharacter(c, openMode) {
     chars.push(c);
     active = c;
     category = c.category || 'pc';
@@ -758,7 +761,47 @@
     renderTabs();
     renderSelector();
     renderSheet();
-    applyMode('edit');     // a new/duplicated character opens the builder
+    applyMode(openMode || 'edit');     // a new/duplicated character opens the builder
+  }
+
+  // Turn the wizard's plain choices into a full character, reusing the
+  // same race/class/background rules the sheet uses. Ability scores from
+  // the builder are "base"; applyRace layers the racial ASI on top.
+  function createFromBuilder(data) {
+    var c = newCharacter(data.category);
+    var prev = active;
+    active = c;                       // apply* functions operate on `active`
+    if (data.name) c.name = data.name;
+    c.abilities = {
+      str: data.abilities.str, dex: data.abilities.dex, con: data.abilities.con,
+      int: data.abilities.int, wis: data.abilities.wis, cha: data.abilities.cha
+    };
+    c.level = data.level || 1;
+    c.alignment = data.alignment || '';
+    c.motivation = data.motivation || '';
+    c.flaw = data.flaw || '';
+    if (data.race) { c.race = data.race; applyRace(data.race); }
+    if (data.cls) { c.cls = data.cls; applyClass(data.cls); }
+    if (data.background) { c.background = data.background; applyBackground(data.background); }
+    if (data.rollHp && SRD.classes[c.cls]) {
+      var die = SRD.classes[c.cls].hitDie, con = mod(c.abilities.con), total = die + con;
+      for (var i = 2; i <= (c.level || 1); i++) {
+        total += Math.max(1, (Math.floor(Math.random() * die) + 1) + con);
+      }
+      c.hp.max = Math.max(1, total);
+      c.hp.current = c.hp.max;
+    }
+    active = prev;
+    // A wizard-built character opens on the clean read view (it's already built).
+    addCharacter(c, 'view');
+  }
+
+  function newCharacterFlow() {
+    if (window.CharBuilder && window.CharBuilder.open) {
+      window.CharBuilder.open({ category: category, srd: SRD, onComplete: createFromBuilder });
+    } else {
+      addCharacter(newCharacter(category));   // fallback: blank sheet in edit mode
+    }
   }
 
   function deleteActive() {
@@ -939,6 +982,8 @@
       if (!c.spells) c.spells = [];
       if (!c.deathSaves) c.deathSaves = { success: [false, false, false], failure: [false, false, false] };
       if (c.inspiration === undefined) c.inspiration = false;
+      if (c.motivation === undefined) c.motivation = '';
+      if (c.flaw === undefined) c.flaw = '';
       if (!c.currency) c.currency = { cp: 0, sp: 0, ep: 0, gp: 0, pp: 0 };
     });
     if (!chars.length) chars = [newCharacter('pc')];
@@ -978,9 +1023,7 @@
       });
     }
     el.select.addEventListener('change', function () { switchTo(el.select.value); });
-    document.querySelector('.btn-new-char').addEventListener('click', function () {
-      addCharacter(newCharacter(category));
-    });
+    document.querySelector('.btn-new-char').addEventListener('click', newCharacterFlow);
     document.querySelector('.btn-dup-char').addEventListener('click', function () {
       var copy = JSON.parse(JSON.stringify(active));
       copy.id = uid();
