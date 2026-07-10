@@ -100,7 +100,6 @@
     state.chatLog = data.chatLog || [];
     aiMessages = data.aiMessages || [];
     if (window.Battlemap) window.Battlemap.setMap(data.map || null);
-    if (el.syncMapControls) el.syncMapControls();
 
     renderAll();
     renderTurnOrder();
@@ -275,7 +274,7 @@
   // Push the live roster to the battlemap and keep it locked for viewers.
   function syncBattlemap() {
     if (!window.Battlemap) return;
-    window.Battlemap.setLocked(viewerMode);
+    window.Battlemap.setMode(viewerMode ? 'view' : 'play');
     window.Battlemap.setCombatants(state.combatants);
   }
 
@@ -612,6 +611,10 @@
     combatants.forEach(function (c) { DM.bumpIdPast(c.id); });
     state.activeId = null;
     state.editingInitId = null;
+
+    // The planner / adventure ships the map it was built on; adopt it (or a
+    // clean default when there is none) so the fight starts on the right map.
+    if (window.Battlemap) window.Battlemap.setMap(data.map || null);
 
     if (data.scene) {
       state.scene = { title: data.scene.title || '', text: data.scene.text || '' };
@@ -1387,88 +1390,21 @@
     }
   }
 
+  // The Game Session only moves tokens; the map is designed in the planner /
+  // adventure and arrives via the handoff or the restored session snapshot.
   function initBattlemap() {
     var BM = window.Battlemap;
     var canvas = document.querySelector('#battlemap-canvas');
     if (!BM || !canvas) return;
 
-    var wrap = document.querySelector('#battlemap-wrap');
-    var dist = document.querySelector('#battlemap-dist');
-    var tools = document.querySelector('#battlemap-tools');
-    var terrainBar = document.querySelector('#battlemap-terrain');
-    var gridSel = document.querySelector('#bm-grid');
-    var colsInput = document.querySelector('#bm-cols');
-    var rowsInput = document.querySelector('#bm-rows');
-    var bgInput = document.querySelector('#bm-bg');
-    var bgClear = document.querySelector('#bm-bg-clear');
-    var terrainClear = document.querySelector('#bm-terrain-clear');
-
     BM.init({
-      canvas: canvas, wrap: wrap, distanceEl: dist,
+      canvas: canvas,
+      wrap: document.querySelector('#battlemap-wrap'),
+      distanceEl: document.querySelector('#battlemap-dist'),
       onMove: function () { scheduleSave(); },
-      onChange: function () { scheduleSave(); },
       onSelect: function (id) { selectMapToken(id); }
     });
-
-    // Terrain swatches
-    var current = 'wall';
-    terrainBar.innerHTML = BM.TERRAIN_ORDER.map(function (key) {
-      var t = BM.TERRAIN[key];
-      return '<button class="bm-swatch' + (key === current ? ' bm-swatch--active' : '') +
-        '" data-terrain="' + key + '" title="' + esc(t.label) + '">' +
-        '<span class="bm-swatch__dot" style="background:' + t.swatch + '"></span>' +
-        esc(t.label) + '</button>';
-    }).join('');
-
-    function setTool(name) {
-      BM.setTool(name);
-      var btns = tools.querySelectorAll('.bm-tool');
-      for (var i = 0; i < btns.length; i++) {
-        btns[i].classList.toggle('bm-tool--active', btns[i].getAttribute('data-tool') === name);
-      }
-    }
-
-    tools.addEventListener('click', function (ev) {
-      var t = ev.target.closest('.bm-tool');
-      if (t) { setTool(t.getAttribute('data-tool')); return; }
-      var sw = ev.target.closest('.bm-swatch');
-      if (sw) {
-        current = sw.getAttribute('data-terrain');
-        BM.setTerrain(current);
-        setTool('paint');
-        var all = terrainBar.querySelectorAll('.bm-swatch');
-        for (var i = 0; i < all.length; i++) {
-          all[i].classList.toggle('bm-swatch--active', all[i] === sw);
-        }
-      }
-    });
-
-    function applyGrid() {
-      BM.setGrid(gridSel.value, parseInt(colsInput.value, 10), parseInt(rowsInput.value, 10));
-    }
-    gridSel.addEventListener('change', applyGrid);
-    colsInput.addEventListener('change', applyGrid);
-    rowsInput.addEventListener('change', applyGrid);
-
-    bgInput.addEventListener('change', function () {
-      if (bgInput.files && bgInput.files[0]) {
-        BM.setBackgroundFromFile(bgInput.files[0]);
-        bgClear.hidden = false;
-      }
-      bgInput.value = '';
-    });
-    bgClear.addEventListener('click', function () { BM.clearBackground(); bgClear.hidden = true; });
-    terrainClear.addEventListener('click', function () { BM.clearTerrain(); });
-
-    // Reflect restored/initial map state in the controls.
-    el.syncMapControls = function () {
-      var sz = BM.size();
-      gridSel.value = BM.grid();
-      colsInput.value = sz.cols;
-      rowsInput.value = sz.rows;
-      bgClear.hidden = !BM.hasBackground();
-    };
-    el.syncMapControls();
+    BM.setMode(viewerMode ? 'view' : 'play');
   }
 
   function init() {

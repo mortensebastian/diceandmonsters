@@ -88,6 +88,19 @@
             <div class="monster__list"></div>
         </section>
 
+        <!-- Battlemap: design the map here; it ships with the encounter to the Game Session -->
+        <section class="battlemap" id="battlemap">
+            <div class="battlemap__head">
+                <h2 class="battlemap__title">Battlemap</h2>
+                <span id="battlemap-dist" class="battlemap__dist"></span>
+            </div>
+            <div class="battlemap__tools" id="battlemap-tools"></div>
+            <div class="battlemap__wrap" id="battlemap-wrap">
+                <canvas id="battlemap-canvas" class="battlemap__canvas"></canvas>
+            </div>
+            <p class="battlemap__hint">Paint terrain or drop in a battlemap image, then drag tokens to their starting positions. Square = tactical combat; hex = overland travel. The map and starting positions ship with the encounter to the Game Session.</p>
+        </section>
+
         <!-- Standard 5e conditions as suggestions (free text is also allowed) -->
         <datalist id="conditions-list">
             <option value="Blinded"></option>
@@ -108,6 +121,7 @@
         </datalist>
 
         <script src="monsters-data.js"></script>
+        <script src="battlemap.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
         <script src="supabase-config.js"></script>
         <script src="cloud.js"></script>

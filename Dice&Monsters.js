@@ -85,7 +85,9 @@
       initRoll: null,
       initMod: 0,         // Dex mod / feats — carried over for the Game Session
       conditions: [],     // conditions, e.g. "Poisoned", "Prone"
-      attacks: []
+      attacks: [],
+      x: null,            // battlemap column (null = not placed yet)
+      y: null             // battlemap row
     };
   }
 
@@ -417,6 +419,7 @@
     el.encMeta.textContent = state.combatants.length
       ? (state.combatants.length + ' in encounter')
       : '';
+    if (window.Battlemap) window.Battlemap.setCombatants(state.combatants);
   }
 
   // Re-render a single card (without disturbing the other cards).
@@ -489,7 +492,8 @@
     }
     var payload = {
       name: (el.encName && el.encName.value.trim()) || '',
-      combatants: state.combatants.map(serializeCombatant)
+      combatants: state.combatants.map(serializeCombatant),
+      map: window.Battlemap ? window.Battlemap.getMap() : null
     };
     try {
       window.localStorage.setItem('diceAndMonsters.playSession', JSON.stringify(payload));
@@ -526,7 +530,8 @@
     var o = {
       kind: c.kind, name: c.name, hp: c.hp, maxHp: c.maxHp, ac: c.ac,
       dead: c.dead, initiative: c.initiative, initRoll: c.initRoll,
-      initMod: c.initMod, conditions: c.conditions.slice()
+      initMod: c.initMod, conditions: c.conditions.slice(),
+      x: (c.x == null ? null : c.x), y: (c.y == null ? null : c.y)
     };
     if (c.kind === 'monster' && c.template) o.templateSlug = c.template.slug;
     // NPCs have no library template, so keep their attacks inline.
@@ -544,6 +549,8 @@
     c.initRoll = (o.initRoll == null ? null : o.initRoll);
     c.initMod = o.initMod || 0;
     c.conditions = (o.conditions || []).slice();
+    c.x = (o.x == null ? null : o.x);
+    c.y = (o.y == null ? null : o.y);
     if (o.kind === 'monster') {
       var t = templateBySlug(o.templateSlug);
       if (t) { c.template = t; c.attacks = t.attacks || []; }
@@ -571,7 +578,8 @@
     var entry = {
       name: name,
       savedAt: Date.now(),
-      combatants: state.combatants.map(serializeCombatant)
+      combatants: state.combatants.map(serializeCombatant),
+      map: window.Battlemap ? window.Battlemap.getMap() : null
     };
     var idx = savedIndexByName(name);
     if (idx !== -1) state.saved[idx] = entry; else state.saved.push(entry);
@@ -590,6 +598,7 @@
       return;
     }
     state.combatants = entry.combatants.map(deserializeCombatant);
+    if (window.Battlemap) window.Battlemap.setMap(entry.map || null);
     renderAll();
   }
 
@@ -674,6 +683,31 @@
     if (btn) { ev.preventDefault(); btn.click(); }
   }
 
+  /* ---- Battlemap (design mode: paint terrain, place tokens) ---- */
+  function selectMapToken(id) {
+    var nodes = el.list.querySelectorAll('.item');
+    for (var i = 0; i < nodes.length; i++) {
+      var nid = parseInt(nodes[i].getAttribute('data-id'), 10);
+      var on = (id != null && nid === id);
+      nodes[i].classList.toggle('item--selected', on);
+      if (on) nodes[i].scrollIntoView({ block: 'nearest' });
+    }
+  }
+
+  function initBattlemap() {
+    var BM = window.Battlemap;
+    var canvas = document.querySelector('#battlemap-canvas');
+    if (!BM || !canvas) return;
+    BM.init({
+      canvas: canvas,
+      wrap: document.querySelector('#battlemap-wrap'),
+      distanceEl: document.querySelector('#battlemap-dist'),
+      onSelect: selectMapToken
+    });
+    BM.setMode('design');
+    BM.buildToolbar(document.querySelector('#battlemap-tools'));
+  }
+
   /* ---- Init ---- */
   function init() {
     el.search     = document.querySelector('#search');
@@ -712,6 +746,7 @@
     populateTypeFilter();
     populateSizeFilter();
     populateMonsterSelect();
+    initBattlemap();
     renderAll();
     renderSavedList();
 

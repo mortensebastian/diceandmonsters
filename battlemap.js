@@ -49,7 +49,12 @@
   var bgImage = null;          // Image built from map.bg
   var tool = 'select';         // 'select' | 'paint' | 'erase'
   var paintTerrain = 'wall';
-  var locked = false;          // viewers: no drag / no paint
+  // Interaction mode:
+  //   'design' — full editing (Encounter Planner / Adventure editor)
+  //   'play'   — move/add tokens only, no map editing (Game Session)
+  //   'view'   — read-only (shared-session viewers)
+  var mode = 'design';
+  var toolbarEl = null;        // container built by buildToolbar(), if any
   var selectedId = null;
   var drag = null;             // { id, fromCol, fromRow, px, py, col, row }
   var painting = false;
@@ -351,13 +356,13 @@
   }
 
   function onDown(ev) {
-    if (locked || !CTX) return;
+    if (mode === 'view' || !CTX) return;
     var m = metrics();
     var p = evPos(ev);
     var cell = pixelToCell(p.x, p.y, m);
     if (!cell) return;
 
-    if (tool === 'paint' || tool === 'erase') {
+    if ((tool === 'paint' || tool === 'erase') && mode === 'design') {
       lastPaintKey = null;
       painting = true;
       paintAt(cell);
@@ -444,11 +449,101 @@
         catch (e) { map.bg = reader.result; }   // tainted/edge case: keep original
         loadBg();
         render();
+        syncToolbar();
         if (cb.onChange) cb.onChange();
       };
       img.src = reader.result;
     };
     reader.readAsDataURL(file);
+  }
+
+  /* ---- Editing toolbar (design mode) ---- */
+  function setTool(name) {
+    tool = (name === 'paint' || name === 'erase') ? name : 'select';
+    if (!toolbarEl) return;
+    var btns = toolbarEl.querySelectorAll('.bm-tool');
+    for (var i = 0; i < btns.length; i++) {
+      btns[i].classList.toggle('bm-tool--active', btns[i].getAttribute('data-tool') === tool);
+    }
+  }
+
+  // Keep the toolbar controls in step with the current map (after setMap etc).
+  function syncToolbar() {
+    if (!toolbarEl) return;
+    var gridSel = toolbarEl.querySelector('.bm-grid');
+    var cols = toolbarEl.querySelector('.bm-cols');
+    var rows = toolbarEl.querySelector('.bm-rows');
+    var bgClear = toolbarEl.querySelector('.bm-bg-clear');
+    if (gridSel) gridSel.value = map.grid;
+    if (cols) cols.value = map.cols;
+    if (rows) rows.value = map.rows;
+    if (bgClear) bgClear.hidden = !map.bg;
+  }
+
+  function buildToolbar(container) {
+    if (!container) return;
+    toolbarEl = container;
+    var swatches = TERRAIN_ORDER.map(function (key) {
+      var t = TERRAIN[key];
+      return '<button class="bm-swatch" data-terrain="' + key + '" title="' + t.label + '">' +
+        '<span class="bm-swatch__dot" style="background:' + t.swatch + '"></span>' + t.label + '</button>';
+    }).join('');
+    container.innerHTML =
+      '<div class="bm-group">' +
+        '<button class="bm-tool bm-tool--active" data-tool="select" title="Move &amp; select tokens">✥ Move</button>' +
+        '<button class="bm-tool" data-tool="paint" title="Paint terrain">🖌 Paint</button>' +
+        '<button class="bm-tool" data-tool="erase" title="Erase terrain">⌫ Erase</button>' +
+      '</div>' +
+      '<div class="bm-group bm-terrain">' + swatches + '</div>' +
+      '<div class="bm-group">' +
+        '<label class="bm-lbl">Grid <select class="bm-select bm-grid" title="Square battle grid or hex overland grid">' +
+          '<option value="square">Square</option><option value="hex">Hex</option></select></label>' +
+        '<label class="bm-lbl">Cols <input type="number" class="bm-num bm-cols" min="4" max="60"></label>' +
+        '<label class="bm-lbl">Rows <input type="number" class="bm-num bm-rows" min="4" max="60"></label>' +
+      '</div>' +
+      '<div class="bm-group">' +
+        '<label class="bm-file" title="Use a battlemap image under the grid">🖼 Background' +
+          '<input type="file" accept="image/*" class="bm-bg" hidden></label>' +
+        '<button class="bm-btn bm-bg-clear" hidden>Clear image</button>' +
+        '<button class="bm-btn bm-terrain-clear">Clear terrain</button>' +
+      '</div>';
+
+    var terrainBar = container.querySelector('.bm-terrain');
+    container.addEventListener('click', function (ev) {
+      var toolBtn = ev.target.closest('.bm-tool');
+      if (toolBtn) { setTool(toolBtn.getAttribute('data-tool')); return; }
+      var sw = ev.target.closest('.bm-swatch');
+      if (sw) {
+        paintTerrain = sw.getAttribute('data-terrain');
+        setTool('paint');
+        var all = terrainBar.querySelectorAll('.bm-swatch');
+        for (var i = 0; i < all.length; i++) all[i].classList.toggle('bm-swatch--active', all[i] === sw);
+        return;
+      }
+      if (ev.target.closest('.bm-terrain-clear')) { window.Battlemap.clearTerrain(); return; }
+      if (ev.target.closest('.bm-bg-clear')) { window.Battlemap.clearBackground(); }
+    });
+
+    var gridSel = container.querySelector('.bm-grid');
+    var colsInput = container.querySelector('.bm-cols');
+    var rowsInput = container.querySelector('.bm-rows');
+    function applyGrid() {
+      window.Battlemap.setGrid(gridSel.value, parseInt(colsInput.value, 10), parseInt(rowsInput.value, 10));
+    }
+    gridSel.addEventListener('change', applyGrid);
+    colsInput.addEventListener('change', applyGrid);
+    rowsInput.addEventListener('change', applyGrid);
+
+    var bgInput = container.querySelector('.bm-bg');
+    bgInput.addEventListener('change', function () {
+      if (bgInput.files && bgInput.files[0]) setBackgroundFromFile(bgInput.files[0]);
+      bgInput.value = '';
+    });
+
+    // Highlight the default terrain swatch and reflect current state.
+    var first = terrainBar.querySelector('.bm-swatch[data-terrain="' + paintTerrain + '"]');
+    if (first) first.classList.add('bm-swatch--active');
+    syncToolbar();
   }
 
   /* ---- Public API ---- */
@@ -486,8 +581,12 @@
     },
 
     setSelected: function (id) { selectedId = (id == null ? null : id); render(); },
-    setLocked: function (v) { locked = !!v; },
-    setTool: function (t) { tool = t; },
+    setMode: function (m) {
+      mode = (m === 'play' || m === 'view') ? m : 'design';
+      if (toolbarEl) toolbarEl.hidden = (mode !== 'design');
+    },
+    mode: function () { return mode; },
+    setTool: setTool,
     setTerrain: function (t) { paintTerrain = t; },
 
     setGrid: function (type, cols, rows) {
@@ -496,6 +595,7 @@
       if (rows) map.rows = Math.max(4, Math.min(60, rows | 0));
       ensurePlacement();
       render();
+      syncToolbar();
       if (cb.onChange) cb.onChange();
     },
 
@@ -508,9 +608,15 @@
     setBackgroundFromFile: setBackgroundFromFile,
     clearBackground: function () {
       map.bg = null; bgImage = null; render();
+      syncToolbar();
       if (cb.onChange) cb.onChange();
     },
     hasBackground: function () { return !!map.bg; },
+
+    // Build the editing toolbar into a container and wire it to this module.
+    // Used by the Encounter Planner and the Adventure editor (design mode);
+    // the Game Session doesn't call it (play mode = move tokens only).
+    buildToolbar: function (container) { buildToolbar(container); },
 
     // Snapshot hooks used by play.js (ride the same session save).
     getMap: function () {
@@ -528,6 +634,7 @@
         bg: data.bg || null
       } : defaultMap();
       loadBg();
+      syncToolbar();
       if (CTX) { ensurePlacement(); render(); }
     },
 
