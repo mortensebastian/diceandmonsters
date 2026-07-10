@@ -117,6 +117,43 @@
             <div id="turn-order" class="turn"></div>
         </section>
 
+        <!-- Battlemap: the map behind the grid + tokens on it -->
+        <section class="battlemap" id="battlemap">
+            <div class="battlemap__head">
+                <h2 class="battlemap__title">Battlemap</h2>
+                <span id="battlemap-dist" class="battlemap__dist"></span>
+            </div>
+            <div class="battlemap__tools" id="battlemap-tools">
+                <div class="bm-group">
+                    <button class="bm-tool bm-tool--active" data-tool="select" title="Move &amp; select tokens">✥ Move</button>
+                    <button class="bm-tool" data-tool="paint" title="Paint terrain">🖌 Paint</button>
+                    <button class="bm-tool" data-tool="erase" title="Erase terrain">⌫ Erase</button>
+                </div>
+                <div class="bm-group" id="battlemap-terrain"></div>
+                <div class="bm-group">
+                    <label class="bm-lbl">Grid
+                        <select id="bm-grid" class="bm-select" title="Square battle grid or hex overland grid">
+                            <option value="square">Square</option>
+                            <option value="hex">Hex</option>
+                        </select>
+                    </label>
+                    <label class="bm-lbl">Cols <input type="number" id="bm-cols" class="bm-num" min="4" max="60" value="16"></label>
+                    <label class="bm-lbl">Rows <input type="number" id="bm-rows" class="bm-num" min="4" max="60" value="12"></label>
+                </div>
+                <div class="bm-group">
+                    <label class="bm-file" title="Use a battlemap image under the grid">
+                        🖼 Background<input type="file" id="bm-bg" accept="image/*" hidden>
+                    </label>
+                    <button class="bm-btn" id="bm-bg-clear" hidden>Clear image</button>
+                    <button class="bm-btn" id="bm-terrain-clear">Clear terrain</button>
+                </div>
+            </div>
+            <div class="battlemap__wrap" id="battlemap-wrap">
+                <canvas id="battlemap-canvas" class="battlemap__canvas"></canvas>
+            </div>
+            <p class="battlemap__hint">Drag tokens to move (distance shows in feet). Paint terrain, or drop in a battlemap image. Square = tactical combat; hex = overland travel.</p>
+        </section>
+
         <!-- The combatants in play -->
         <section class="encounter">
             <div class="encounter__head">
@@ -207,6 +244,7 @@
 
         <script src="monsters-data.js"></script>
         <script src="combat-engine.js"></script>
+        <script src="battlemap.js"></script>
         <script src="ai-context.js"></script>
         <script src="ai-client.js"></script>
         <script src="ai-dm.js"></script>

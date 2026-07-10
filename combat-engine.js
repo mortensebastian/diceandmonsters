@@ -74,7 +74,9 @@
       initRoll: null,      // raw d20, for the breakdown
       initMod: 0,
       conditions: [],
-      attacks: []
+      attacks: [],
+      x: null,             // battlemap column (null = not placed yet)
+      y: null              // battlemap row
     };
   }
 
@@ -318,7 +320,8 @@
     var o = {
       kind: c.kind, name: c.name, hp: c.hp, maxHp: c.maxHp, ac: c.ac,
       dead: c.dead, initiative: c.initiative, initRoll: c.initRoll,
-      initMod: c.initMod, conditions: c.conditions.slice()
+      initMod: c.initMod, conditions: c.conditions.slice(),
+      x: (c.x == null ? null : c.x), y: (c.y == null ? null : c.y)
     };
     if (c.kind === 'monster' && c.template) o.templateSlug = c.template.slug;
     else if (c.kind === 'monster') o.attacks = c.attacks;   // custom monster (no library template)
@@ -335,6 +338,8 @@
     c.initRoll = (o.initRoll == null ? null : o.initRoll);
     c.initMod = o.initMod || 0;
     c.conditions = (o.conditions || []).slice();
+    c.x = (o.x == null ? null : o.x);
+    c.y = (o.y == null ? null : o.y);
     if (o.kind === 'monster') {
       var t = templateBySlug(o.templateSlug);
       if (t) { c.template = t; c.attacks = t.attacks || []; }

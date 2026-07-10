@@ -29,7 +29,7 @@ Supabase cloud sync.
 |---|---|---|
 | Home | `index.html` | Landing cards linking to the tools |
 | Encounter Planner | `encounter.html` + `Dice&Monsters.js` | Prep only: pick monsters (322 SRD), add players/PCs/NPCs, set conditions, save named encounters. No live combat — "Start game session ▶" hands the roster off to the Game Session. |
-| Game Session (gameplay) | `play.html` + `play.js` | The live table (nav label "Game Session"; file stays `play.html`): initiative, turns, attacks, HP, conditions, combat log, **AI DM chat**, add combatants mid-fight, autosave, cloud saves + shared live sessions. |
+| Game Session (gameplay) | `play.html` + `play.js` | The live table (nav label "Game Session"; file stays `play.html`): initiative, turns, attacks, HP, conditions, combat log, **AI DM chat**, **battlemap**, add combatants mid-fight, autosave, cloud saves + shared live sessions. |
 | Character Sheet | `character.html` + `character.js` | 5e sheets (abilities, skills, attacks, spells). Read/edit modes. Name is editable in the always-visible title field. |
 | Groups | `groups.html` + `groups.js` | DM party summary (AC/init/passive perception) from local PCs. (Not yet wired to Supabase groups.) |
 | Adventure | `adventure.html` + `adventure.js` | Built-in one-shots + your own. "🎲 Play this scene" sends scene text + monsters to the Game Session. |
@@ -42,8 +42,23 @@ Supabase cloud sync.
   `deserializeCombatant`. **Both** the planner and Play use it. The engine owns
   all randomness and HP math.
 - **Combatant model:** `{ id, kind: 'monster'|'npc'|'player', name, hp, maxHp,
-  ac, dead, initiative, initRoll, initMod, conditions[], attacks[], template? }`.
-  Players have **no HP counter** (they track their own); monsters/NPCs do.
+  ac, dead, initiative, initRoll, initMod, conditions[], attacks[], x?, y?,
+  template? }`. Players have **no HP counter** (they track their own);
+  monsters/NPCs do. `x`/`y` are optional battlemap cell coordinates (null until
+  placed), serialized by the engine so they ride the session snapshot.
+- **`battlemap.js` → `window.Battlemap`** — a `<canvas>` tabletop for the Game
+  Session. Draws the map *behind* the grid (paintable terrain — wall/water/
+  difficult/grass/wood/lava as a sparse `{ "col,row": type }` map — and/or a
+  downscaled background image stored as a data URL) and the combatant tokens
+  *on* it (coloured by kind, drag to move, click to select, distance readout in
+  feet). All grid geometry (neighbours/centres/`pixelToCell`/distance) is
+  isolated so **square** (tactical combat, 5e Chebyshev distance) and **hex**
+  (overland travel, cube distance) share the same tokens and dragging. UI-only,
+  no game rules: token positions live on the combatants (engine `x`/`y`), and
+  play.js persists the map config via `getMap()`/`setMap()` in the session
+  snapshot. **The canvas pins its CSS width/height to its backing pixel size
+  each render** — otherwise `max-width` shrinks width but not height and clicks
+  map to the wrong cell. Viewers (shared sessions) get `setLocked(true)`.
 
 ### AI layer (Play page)
 
