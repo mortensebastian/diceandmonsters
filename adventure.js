@@ -183,6 +183,7 @@
         treasureHtml(s, i, false) +
         sceneMonsHtml(s, i, false) +
         '<div class="scene__actions">' +
+          (s.battlemap ? '<button class="btn-view-map" data-viewmap="' + i + '">🗺 View map</button>' : '') +
           '<button class="btn-play-scene" data-play="' + i + '">🎲 Play this scene</button>' +
           '<button class="btn-send" data-send="' + i + '">▶ Send encounter to planner</button>' +
         '</div>' +
@@ -210,6 +211,7 @@
           '<input class="mon-input" list="mon-list" placeholder="monster name">' +
           '<input class="mon-count" type="number" min="1" value="1">' +
           '<button class="btn-add-mon" data-add-mon="' + i + '">+ Monster</button>' +
+          '<button class="btn-edit-map" data-editmap="' + i + '">🗺 ' + (s.battlemap ? 'Edit' : 'Add') + ' map</button>' +
           '<button class="btn-play-scene" data-play="' + i + '">🎲 Play scene</button>' +
           '<button class="btn-send" data-send="' + i + '">▶ Send to planner</button>' +
           '<button class="btn-del-scene" data-del-scene="' + i + '">Delete scene</button>' +
@@ -291,10 +293,56 @@
       window.localStorage.setItem('diceAndMonsters.playSession', JSON.stringify({
         name: active.title + ' — ' + scene.title,
         monsters: mons,
-        scene: { title: scene.title, text: scene.text || '' }
+        scene: { title: scene.title, text: scene.text || '' },
+        map: scene.battlemap || null   // the pre-made / edited scene map
       }));
     } catch (e) { /* ignore */ }
     window.location.href = 'play.html';
+  }
+
+  /* ---- Scene map editor (a modal, so it survives view re-renders) ---- */
+  var mapModal = { el: null, ready: false, sceneIdx: -1 };
+
+  function initMapModal() {
+    mapModal.el = document.querySelector('#adv-map-modal');
+    var canvas = document.querySelector('#battlemap-canvas');
+    if (!mapModal.el || !window.Battlemap || !canvas) return;
+    window.Battlemap.init({
+      canvas: canvas,
+      wrap: document.querySelector('#battlemap-wrap'),
+      distanceEl: document.querySelector('#battlemap-dist'),
+      onChange: function () {
+        // Only editable scenes persist; built-ins are opened read-only.
+        if (mapModal.sceneIdx < 0 || isBuiltin(active)) return;
+        active.scenes[mapModal.sceneIdx].battlemap = window.Battlemap.getMap();
+        persist();
+      }
+    });
+    window.Battlemap.buildToolbar(document.querySelector('#battlemap-tools'));
+    document.querySelector('#adv-map-close').addEventListener('click', closeMapModal);
+    mapModal.el.addEventListener('click', function (e) {
+      if (e.target === mapModal.el) closeMapModal();   // click the backdrop
+    });
+    mapModal.ready = true;
+  }
+
+  function openMapModal(idx, editable) {
+    if (!mapModal.ready) return;
+    var scene = active.scenes[idx];
+    if (!scene) return;
+    mapModal.sceneIdx = idx;
+    document.querySelector('#adv-map-title').textContent =
+      (editable ? 'Edit map — ' : 'Map — ') + (scene.title || 'scene');
+    document.querySelector('#adv-map-hint').hidden = !editable;
+    mapModal.el.hidden = false;                 // show first so the canvas has width
+    window.Battlemap.setMode(editable ? 'design' : 'view');
+    window.Battlemap.setCombatants([]);         // adventure maps are terrain only
+    window.Battlemap.setMap(scene.battlemap || null);
+  }
+
+  function closeMapModal() {
+    mapModal.sceneIdx = -1;
+    if (mapModal.el) mapModal.el.hidden = true;
   }
 
   /* ---- Editor input / change / click (delegated on #adv-main) ---- */
@@ -338,7 +386,10 @@
     var t = e.target;
     if (t.hasAttribute('data-play')) { playScene(+t.getAttribute('data-play')); return; }
     if (t.hasAttribute('data-send')) { sendScene(+t.getAttribute('data-send')); return; }
+    if (t.hasAttribute('data-viewmap')) { openMapModal(+t.getAttribute('data-viewmap'), false); return; }
     if (isBuiltin(active)) return; // editor-only below
+
+    if (t.hasAttribute('data-editmap')) { openMapModal(+t.getAttribute('data-editmap'), true); return; }
 
     if (t.hasAttribute('data-add-mon')) {
       var si = +t.getAttribute('data-add-mon');
@@ -438,6 +489,8 @@
     el.main.addEventListener('input', onMainInput);
     el.main.addEventListener('change', onMainChange);
     el.main.addEventListener('click', onMainClick);
+
+    initMapModal();
   }
 
   document.addEventListener('DOMContentLoaded', init);

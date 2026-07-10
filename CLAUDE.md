@@ -32,7 +32,7 @@ Supabase cloud sync.
 | Game Session (gameplay) | `play.html` + `play.js` | The live table (nav label "Game Session"; file stays `play.html`): initiative, turns, attacks, HP, conditions, combat log, **AI DM chat**, **battlemap**, add combatants mid-fight, autosave, cloud saves + shared live sessions. |
 | Character Sheet | `character.html` + `character.js` | 5e sheets (abilities, skills, attacks, spells). Read/edit modes. Name is editable in the always-visible title field. |
 | Groups | `groups.html` + `groups.js` | DM party summary (AC/init/passive perception) from local PCs. (Not yet wired to Supabase groups.) |
-| Adventure | `adventure.html` + `adventure.js` | Built-in one-shots + your own. "🎲 Play this scene" sends scene text + monsters to the Game Session. |
+| Adventure | `adventure.html` + `adventure.js` | Built-in one-shots + your own. "🎲 Play this scene" sends scene text + monsters + the scene's map to the Game Session. Each scene can carry a `battlemap` (grid + terrain); built-in one-shots ship pre-made maps authored in `adventures-data.js` via the `bmap('square', [...ascii])` helper. The map editor opens in a modal (so it survives the editor's `innerHTML` re-renders). |
 
 ## Core modules
 
@@ -46,8 +46,8 @@ Supabase cloud sync.
   template? }`. Players have **no HP counter** (they track their own);
   monsters/NPCs do. `x`/`y` are optional battlemap cell coordinates (null until
   placed), serialized by the engine so they ride the session snapshot.
-- **`battlemap.js` → `window.Battlemap`** — a `<canvas>` tabletop for the Game
-  Session. Draws the map *behind* the grid (paintable terrain — wall/water/
+- **`battlemap.js` → `window.Battlemap`** — a `<canvas>` tabletop shared by three
+  pages. Draws the map *behind* the grid (paintable terrain — wall/water/
   difficult/grass/wood/lava as a sparse `{ "col,row": type }` map — and/or a
   downscaled background image stored as a data URL) and the combatant tokens
   *on* it (coloured by kind, drag to move, click to select, distance readout in
@@ -55,10 +55,20 @@ Supabase cloud sync.
   isolated so **square** (tactical combat, 5e Chebyshev distance) and **hex**
   (overland travel, cube distance) share the same tokens and dragging. UI-only,
   no game rules: token positions live on the combatants (engine `x`/`y`), and
-  play.js persists the map config via `getMap()`/`setMap()` in the session
-  snapshot. **The canvas pins its CSS width/height to its backing pixel size
-  each render** — otherwise `max-width` shrinks width but not height and clicks
-  map to the wrong cell. Viewers (shared sessions) get `setLocked(true)`.
+  each page persists the map config via `getMap()`/`setMap()`.
+  - **Three modes** (`setMode`): **`design`** — full editing (Encounter Planner
+    + Adventure editor); **`play`** — move/add tokens only, no map editing (Game
+    Session); **`view`** — read-only (shared-session viewers, and the Adventure
+    "View map" preview). The editing toolbar (tools, terrain swatches, grid,
+    background) is built by the module itself via `buildToolbar(container)`, so
+    the planner and adventure editors reuse it; the Game Session never calls it.
+  - **Where maps are made:** the map is designed in the **Encounter Planner**
+    (saved with the encounter + shipped on "Start game session") or the
+    **Adventure** editor (per-scene `scene.battlemap`, shipped on "Play this
+    scene"). The Game Session only receives a map and moves tokens on it.
+  - **The canvas pins its CSS width/height to its backing pixel size each
+    render** — otherwise `max-width` shrinks width but not height and clicks map
+    to the wrong cell.
 
 ### AI layer (Play page)
 

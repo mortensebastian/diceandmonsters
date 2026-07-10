@@ -9,6 +9,25 @@
 (function () {
   'use strict';
 
+  // Build a battlemap from ASCII art so the pre-made maps stay readable.
+  // Each string is a row; legend maps a character to a terrain type
+  // (wall/water/difficult/grass/wood/lava). Any other char = open floor.
+  var LEGEND = {
+    '#': 'wall', '~': 'water', '.': 'difficult',
+    '"': 'grass', '=': 'wood', '^': 'lava'
+  };
+  function bmap(grid, rows) {
+    var cols = 0, terrain = {};
+    rows.forEach(function (line, r) {
+      if (line.length > cols) cols = line.length;
+      for (var c = 0; c < line.length; c++) {
+        var type = LEGEND[line.charAt(c)];
+        if (type) terrain[c + ',' + r] = type;
+      }
+    });
+    return { v: 1, grid: grid, cols: cols, rows: rows.length, terrain: terrain, bg: null };
+  }
+
   window.ADVENTURES = [
     {
       id: 'builtin-sunken-crypt',
@@ -20,6 +39,20 @@
       scenes: [
         {
           title: '1. The Drowned Stair',
+          battlemap: bmap('square', [
+            '##############',
+            '#............#',
+            '#.##......##.#',
+            '#.##..~~..##.#',
+            '#...~~~~~~...#',
+            '#..~~~~~~~~..#',
+            '#..~~~~~~~~..#',
+            '#..~~~~~~~~..#',
+            '#...~~~~~~...#',
+            '#.##......##.#',
+            '#.##......##.#',
+            '##############'
+          ]),
           text: 'Rain hammers the ruined chapel until the whole hillside seems to weep. Past the ' +
             'collapsed altar, a stone stair spirals down into black water that swallows your torchlight ' +
             'whole. The air smells of cold clay and older rot.\n\n' +
@@ -100,6 +133,20 @@
         },
         {
           title: "2. Gallows' Bridge",
+          battlemap: bmap('square', [
+            '""""""""""""""""',
+            '""""""""""""""""',
+            '"""""""===""""""',
+            '~~~~~~~===~~~~~~~',
+            '~~~~~~~===~~~~~~~',
+            '~~~~~~~===~~~~~~~',
+            '~~~~~~~===~~~~~~~',
+            '~~~~~~~===~~~~~~~',
+            '~~~~~~~===~~~~~~~',
+            '"""""""===""""""',
+            '""""""""""""""""',
+            '""""""""""""""""'
+          ]),
           text: 'The old toll bridge sags across a deep ravine, its timbers grey and its name carved ' +
             'into the gatepost above a row of very fresh-looking nooses. The goblins have been busy: ' +
             'ropes run to stacked rockfalls at either end, and a wolf the size of a pony paces the far ' +
@@ -149,6 +196,18 @@
       scenes: [
         {
           title: '1. The Welcome Hall',
+          battlemap: bmap('square', [
+            '##############',
+            '#............#',
+            '#....####....#',
+            '#....#..#....#',
+            '#....#..#....#',
+            '#....####....#',
+            '#............#',
+            '#............#',
+            '#####....#####',
+            '#####....#####'
+          ]),
           text: 'The manor\'s front doors swing inward at your approach, though no hand touches them. ' +
             'Dust lies thick on a grand staircase, the chandeliers hang dark, and a single suit of ' +
             'polished armor stands at the foot of the stairs — far too clean for a house this forgotten.\n\n' +

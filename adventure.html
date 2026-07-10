@@ -48,8 +48,25 @@
 
         <datalist id="mon-list"></datalist>
 
+        <!-- Battlemap editor (opened per scene; lives outside the re-rendered view) -->
+        <div id="adv-map-modal" class="bm-modal" hidden>
+            <div class="bm-modal__box">
+                <div class="bm-modal__head">
+                    <h2 class="bm-modal__title" id="adv-map-title">Scene map</h2>
+                    <span id="battlemap-dist" class="battlemap__dist"></span>
+                    <button class="bm-modal__close" id="adv-map-close" type="button" aria-label="Close">✕</button>
+                </div>
+                <div class="battlemap__tools" id="battlemap-tools"></div>
+                <div class="battlemap__wrap" id="battlemap-wrap">
+                    <canvas id="battlemap-canvas" class="battlemap__canvas"></canvas>
+                </div>
+                <p class="battlemap__hint" id="adv-map-hint">Paint terrain, or drop in a battlemap image. Square = tactical combat; hex = overland travel. Monsters take their starting positions when you play the scene.</p>
+            </div>
+        </div>
+
         <script src="monsters-data.js"></script>
         <script src="adventures-data.js"></script>
+        <script src="battlemap.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
         <script src="supabase-config.js"></script>
         <script src="cloud.js"></script>

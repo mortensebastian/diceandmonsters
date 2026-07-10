@@ -1711,3 +1711,40 @@ button:disabled { opacity: .4; cursor: not-allowed; box-shadow: none; }
     border-radius: 4px;
 }
 .battlemap__hint { margin-top: 10px; font-size: 12px; color: #7a8090; }
+
+/* Scene-map editor modal (Adventure) */
+.bm-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    background: rgba(0,0,0,.6);
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 24px 16px;
+    overflow: auto;
+}
+.bm-modal[hidden] { display: none; }
+.bm-modal__box {
+    background: #1d2029;
+    border: 1px solid #2c3140;
+    border-radius: 12px;
+    padding: 18px;
+    width: 100%;
+    max-width: 920px;
+    box-shadow: 0 20px 60px rgba(0,0,0,.5);
+}
+.bm-modal__head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+.bm-modal__title { font-size: 16px; color: #4aa3df; margin-right: auto; }
+.bm-modal__close {
+    background: #3b4150;
+    padding: 6px 12px;
+    font-size: 15px;
+    line-height: 1;
+}
+.bm-modal__close:hover { background: #4a5162; }
