@@ -28,11 +28,11 @@ Supabase cloud sync.
 | Page | Files | Purpose |
 |---|---|---|
 | Home | `index.html` | Landing cards linking to the tools |
-| Encounter Planner | `encounter.html` + `Dice&Monsters.js` | Prep: pick monsters (322 SRD), add players/PCs, save named encounters. "Start play session ▶" hands off to Play. |
-| Play (gameplay) | `play.html` + `play.js` | The live table: initiative, turns, attacks, HP, conditions, combat log, **AI DM chat**, add combatants mid-fight, autosave, cloud saves + shared live sessions. |
+| Encounter Planner | `encounter.html` + `Dice&Monsters.js` | Prep only: pick monsters (322 SRD), add players/PCs/NPCs, set conditions, save named encounters. No live combat — "Start game session ▶" hands the roster off to the Game Session. |
+| Game Session (gameplay) | `play.html` + `play.js` | The live table (nav label "Game Session"; file stays `play.html`): initiative, turns, attacks, HP, conditions, combat log, **AI DM chat**, add combatants mid-fight, autosave, cloud saves + shared live sessions. |
 | Character Sheet | `character.html` + `character.js` | 5e sheets (abilities, skills, attacks, spells). Read/edit modes. Name is editable in the always-visible title field. |
 | Groups | `groups.html` + `groups.js` | DM party summary (AC/init/passive perception) from local PCs. (Not yet wired to Supabase groups.) |
-| Adventure | `adventure.html` + `adventure.js` | Built-in one-shots + your own. "🎲 Play this scene" sends scene text + monsters to Play. |
+| Adventure | `adventure.html` + `adventure.js` | Built-in one-shots + your own. "🎲 Play this scene" sends scene text + monsters to the Game Session. |
 
 ## Core modules
 

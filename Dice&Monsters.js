@@ -1,17 +1,22 @@
 /* ============================================================
-   Dice & Monsters
+   Dice & Monsters — Encounter Planner
    ------------------------------------------------------------
-   Structured into clear layers:
-     1. Dice     - randomness and dice rolls
-     2. Data     - the monster library + state
-     3. Model    - combatants (monster OR player)
-     4. Combat   - attacks, damage, death, initiative, turn order
-     5. UI       - rendering, combat log, events
+   Prep only. This page builds an encounter (pick monsters, add
+   players, import character sheets) and saves it under a name.
+   Running the fight — initiative, turns, attacks, HP, the log —
+   lives on the Game Session page. "Start game session ▶" hands
+   the roster over there.
 
-   A "combatant" is either a monster or a player. Players have
-   only a name for now (+ optional initiative modifier / AC), but
-   the model has room for hp/maxHp/ac/stats so a full character
-   sheet can be attached later without reworking the rest.
+   Structured into clear layers:
+     1. Dice     - randomness (only used to roll a monster's HP)
+     2. Data     - the monster library + state
+     3. Model    - combatants (monster / npc / player)
+     4. UI       - rendering, events
+
+   A "combatant" is a monster, an imported NPC, or a player.
+   Players carry only a name (+ optional initiative modifier / AC);
+   monsters and NPCs also carry HP and attacks so the Game Session
+   page has everything it needs when the roster is handed over.
    ============================================================ */
 (function () {
   'use strict';
@@ -52,12 +57,9 @@
   var library = []; // all monsters from the file
 
   var state = {
-    combatants: [],     // monsters and players mixed together
+    combatants: [],   // monsters, NPCs and players mixed together
     nextId: 1,
-    activeId: null,     // whose turn it is (id), or null
-    editingInitId: null, // combatant being edited in the tracker, or null
-    editInitMode: 'd20', // tracker edit field: 'd20' roll or final 'total'
-    saved: []            // saved encounters (also persisted to localStorage)
+    saved: []         // saved encounters (also persisted to localStorage)
   };
 
   var STORAGE_KEY = 'diceAndMonsters.encounters';
@@ -67,19 +69,21 @@
      ========================================================= */
 
   // Shared "shell" for a combatant. Players get null where they
-  // lack numbers for now - fill them in later for HP/stats.
+  // lack numbers (HP). The initiative fields stay on the model so
+  // the roster serializes cleanly for the Game Session page, which
+  // is where initiative is actually rolled.
   function baseCombatant(kind, name) {
     return {
       id: state.nextId++,
-      kind: kind,        // 'monster' | 'player'
+      kind: kind,        // 'monster' | 'npc' | 'player'
       name: name,
       hp: null,          // set for anything with an HP counter
       maxHp: null,
       ac: null,
       dead: false,
-      initiative: null,  // total: initRoll + initMod (set when rolled)
-      initRoll: null,    // the raw d20 result, so we can show the breakdown
-      initMod: 0,         // modifier added to the d20 (Dex mod, feats, …)
+      initiative: null,  // filled in on the Game Session page
+      initRoll: null,
+      initMod: 0,         // Dex mod / feats — carried over for the Game Session
       conditions: [],     // conditions, e.g. "Poisoned", "Prone"
       attacks: []
     };
@@ -106,7 +110,7 @@
 
   // Player: name + optional initiative modifier + optional AC.
   // HP is the player's own business (the DM shouldn't know it);
-  // the DM needs AC to decide whether a monster's attack hits.
+  // the DM needs AC so the Game Session can resolve attacks on them.
   function createPlayer(name, initMod, ac) {
     var c = baseCombatant('player', name);
     c.initMod = initMod || 0;
@@ -173,19 +177,9 @@
     return null;
   }
 
-  function combatantLabel(c) {
-    return '#' + c.id + ' ' + c.name;
-  }
-
   // Does this combatant have an HP counter? (Players: no - their own.)
   function hasHp(c) {
     return c.maxHp != null;
-  }
-
-  // Can it be targeted? Requires an AC to roll against. Monsters
-  // always have one; players get it when the DM types in their AC.
-  function canBeTargeted(c) {
-    return c.ac != null;
   }
 
   // Short explanations of the standard 5e conditions.
@@ -228,156 +222,10 @@
   }
 
   /* =========================================================
-     4. COMBAT
-     ========================================================= */
-
-  function applyDamage(c, amount) {
-    if (!hasHp(c)) return 0;
-    if (amount < 0) amount = 0;
-    c.hp = Math.max(0, c.hp - amount);
-    c.dead = c.hp === 0;
-    return amount;
-  }
-
-  function applyHeal(c, amount) {
-    if (!hasHp(c)) return 0;
-    if (amount < 0) amount = 0;
-    c.hp = Math.min(c.maxHp, c.hp + amount);
-    if (c.hp > 0) c.dead = false;
-    return amount;
-  }
-
-  function performAttack(attacker, attack, target) {
-    if (target && target.dead) {
-      logLine(combatantLabel(attacker) + ' attacks ' +
-        combatantLabel(target) + ', but it is already dead.', 'miss');
-      return;
-    }
-
-    var d20 = rollDie(20);
-    var crit = d20 === 20;
-    var fumble = d20 === 1;
-    var toHit = d20 + attack.toHit;
-
-    var who = combatantLabel(attacker) + ' uses ' + attack.name;
-    var vs = target ? (' on ' + combatantLabel(target)) : '';
-
-    var isMiss = fumble || (target && toHit < target.ac);
-    if (isMiss) {
-      var why = fumble ? 'Critical miss!' :
-        ('rolled ' + toHit + ' vs AC ' + target.ac + ' - miss.');
-      logLine(who + vs + ': ' + why, 'miss');
-      return;
-    }
-
-    var diceCount = attack.count * (crit ? 2 : 1);
-    var dmg = (attack.sides > 0 ? rollDice(diceCount, attack.sides) : 0) + attack.bonus;
-    if (dmg < 0) dmg = 0;
-
-    var hitTxt = crit ? 'CRITICAL HIT!' :
-      ('rolled ' + toHit + (target ? ' vs AC ' + target.ac : '') + ' - hit.');
-    var dmgTxt = dmg + ' ' + (attack.type || '') + ' damage';
-
-    if (target && hasHp(target)) {
-      // Monster (or anything with HP): subtract the damage.
-      applyDamage(target, dmg);
-      var status = target.dead
-        ? (' ' + combatantLabel(target) + ' DIES!')
-        : (' (' + target.hp + '/' + target.maxHp + ' HP left)');
-      logLine(who + vs + ': ' + hitTxt + ' ' + dmgTxt + '.' + status,
-        target.dead ? 'kill' : 'hit');
-      refreshCard(target);
-    } else if (target) {
-      // Player with AC but no HP counter: report it, don't subtract.
-      logLine(who + vs + ': ' + hitTxt + ' ' + dmgTxt +
-        ' - ' + combatantLabel(target) + ' tracks the damage themselves.', 'hit');
-    } else {
-      logLine(who + ': ' + hitTxt + ' ' + dmgTxt + '.', 'hit');
-    }
-  }
-
-  // ---- Initiative + turn order ----
-
-  // Short visible breakdown, e.g. "16 + 1" (or just "16" when no mod).
-  function initBreakdown(c) {
-    if (c.initRoll == null) return '';
-    if (!c.initMod) return String(c.initRoll);
-    return c.initRoll + (c.initMod > 0 ? ' + ' + c.initMod : ' - ' + (-c.initMod));
-  }
-
-  // Breakdown for the combat log, e.g. " (d20 16, mod +1)".
-  function initLogBreak(c) {
-    return c.initRoll != null
-      ? ' (d20 ' + c.initRoll + ', mod ' + signed(c.initMod) + ')' : '';
-  }
-
-  // Set a combatant's initiative from a given d20 roll + its modifier.
-  function setInitiative(c, d20) {
-    c.initRoll = d20;
-    c.initiative = d20 + c.initMod;
-  }
-
-  // Roll d20 + initMod for everyone. Makes the first one active.
-  function rollInitiative() {
-    if (!state.combatants.length) return;
-    state.combatants.forEach(function (c) {
-      setInitiative(c, rollDie(20));
-    });
-    logLine('--- Initiative rolled ---', 'turn');
-    orderedCombatants().forEach(function (c) {
-      logLine(combatantLabel(c) + ': ' + c.initiative + initLogBreak(c), 'turn');
-    });
-    var order = orderedAlive();
-    state.activeId = order.length ? order[0].id : null;
-    renderAll();
-    renderTurnOrder();
-    if (state.activeId) {
-      logLine('First up: ' + combatantLabel(findCombatant(state.activeId)) + '.', 'turn');
-    }
-  }
-
-  // Everyone with initiative, highest first (tie-break: initMod, id).
-  function orderedCombatants() {
-    return state.combatants
-      .filter(function (c) { return c.initiative != null; })
-      .slice()
-      .sort(function (a, b) {
-        return (b.initiative - a.initiative) ||
-               (b.initMod - a.initMod) ||
-               (a.id - b.id);
-      });
-  }
-
-  function orderedAlive() {
-    return orderedCombatants().filter(function (c) { return !c.dead; });
-  }
-
-  // Pass the turn to the next living combatant in the order.
-  function nextTurn() {
-    var order = orderedAlive();
-    if (!order.length) { state.activeId = null; return; }
-    var ids = order.map(function (c) { return c.id; });
-    var idx = ids.indexOf(state.activeId);
-    var nextIdx = (idx + 1) % ids.length;
-    if (idx !== -1 && nextIdx === 0) logLine('--- New round ---', 'turn');
-    state.activeId = ids[nextIdx];
-    logLine('Turn: ' + combatantLabel(findCombatant(state.activeId)) + '.', 'turn');
-    updateActiveHighlight();
-    renderTurnOrder();
-  }
-
-  /* =========================================================
-     5. UI
+     4. UI
      ========================================================= */
 
   var el = {};
-
-  function logLine(text, cls) {
-    var line = document.createElement('div');
-    line.className = 'log__line' + (cls ? ' log__line--' + cls : '');
-    line.textContent = text;
-    el.log.insertBefore(line, el.log.firstChild);
-  }
 
   // ---- Monster picker ----
   function uniqueCrLabels() {
@@ -458,84 +306,32 @@
   }
 
   // ---- Card rendering ----
-  function hpClass(c) {
-    var ratio = c.hp / c.maxHp;
-    if (c.dead) return 'hpbar__fill--dead';
-    if (ratio <= 0.33) return 'hpbar__fill--low';
-    if (ratio <= 0.66) return 'hpbar__fill--mid';
-    return '';
-  }
-
   function hpBarHtml(c) {
-    // HP bar only for things with an HP counter (monsters). Players
-    // have none - they keep track of their own HP.
+    // HP bar only for things with an HP counter (monsters/NPCs).
+    // Players have none - they keep track of their own HP.
     if (!hasHp(c)) return '';
     var ratio = Math.round(c.hp / c.maxHp * 100);
     return '<div class="hpbar">' +
-      '<div class="hpbar__fill ' + hpClass(c) + '" style="width:' + ratio + '%"></div>' +
-      '<span class="hpbar__label">' + c.hp + ' / ' + c.maxHp + ' HP' +
-        (c.dead ? ' &middot; DEAD' : '') + '</span>' +
-    '</div>';
-  }
-
-  function attackButtonsHtml(c) {
-    if (!c.attacks.length) return '';
-    return '<div class="attacks">' + c.attacks.map(function (a, i) {
-      var dice = a.sides > 0 ? (a.count + 'd' + a.sides) : '';
-      var bonus = a.bonus ? signed(a.bonus) : '';
-      var dmg = (dice + (dice && bonus ? ' ' : '') + bonus).trim() || '0';
-      var tag = a.ranged ? ' &#10148;' : '';
-      return '<button class="btn-attack" data-action="attack" data-attack="' + i + '">' +
-        a.name + tag + '<span class="btn-attack__meta">' +
-        signed(a.toHit) + ' to hit &middot; ' + dmg + ' ' + a.type + '</span></button>';
-    }).join('') + '</div>';
-  }
-
-  function targetSelectHtml(c) {
-    // All living combatants with an AC to roll against (monsters, and
-    // players who have been given an AC). Players without AC can't be picked.
-    var others = state.combatants.filter(function (o) {
-      return o.id !== c.id && !o.dead && canBeTargeted(o);
-    });
-    if (!c.attacks.length) return '';
-    var opts = '<option value="">- none / just roll -</option>';
-    opts += others.map(function (o) {
-      return '<option value="' + o.id + '">#' + o.id + ' ' + esc(o.name) +
-        ' (AC ' + o.ac + ')</option>';
-    }).join('');
-    return '<label class="target">Target: <select data-role="target">' +
-      opts + '</select></label>';
-  }
-
-  function manualHtml(c) {
-    if (!hasHp(c)) return '';
-    return '<div class="manual">' +
-      '<input type="number" min="0" class="manual__input" data-role="amount" placeholder="HP">' +
-      '<button class="btn-damage" data-action="damage">Damage</button>' +
-      '<button class="btn-heal" data-action="heal">Heal</button>' +
-      '<button class="btn-remove" data-action="remove">Remove</button>' +
+      '<div class="hpbar__fill" style="width:' + ratio + '%"></div>' +
+      '<span class="hpbar__label">' + c.maxHp + ' HP</span>' +
     '</div>';
   }
 
   function metaHtml(c) {
-    var initTitle = c.initRoll != null
-      ? ' title="d20 ' + c.initRoll + ', mod ' + signed(c.initMod) + '"' : '';
-    var init = c.initiative != null
-      ? '<span class="badge badge--init"' + initTitle + '>Init ' + c.initiative + '</span>' : '';
     if (c.kind === 'player') {
       var ac = c.ac != null
         ? '<span class="badge badge--ac">AC ' + c.ac + '</span>' : '';
       return '<span class="item__meta"><span class="badge badge--player">Player</span>' +
-        ac + init + '</span>';
+        ac + '</span>';
     }
     if (c.kind === 'npc') {
       return '<span class="item__meta"><span class="badge badge--npc">NPC</span>' +
-        '<span class="badge badge--ac">AC ' + c.ac + '</span>' + init + '</span>';
+        '<span class="badge badge--ac">AC ' + c.ac + '</span></span>';
     }
     var t = c.template;
     return '<span class="item__meta">' + t.size + ' ' + t.type +
       ' &middot; CR ' + t.crLabel + ' &middot; AC ' + c.ac +
-      (t.acDesc ? ' (' + t.acDesc + ')' : '') + ' ' + init + '</span>';
+      (t.acDesc ? ' (' + t.acDesc + ')' : '') + '</span>';
   }
 
   function statsHtml(c) {
@@ -574,8 +370,7 @@
     '</div>' + effectsHtml;
   }
 
-  // Player controls: optional AC + remove. Initiative is edited in
-  // the turn-order box. No HP - the player owns their own HP.
+  // Player controls: optional AC + remove.
   function playerControlsHtml(c) {
     return '<div class="manual">' +
       '<label class="ac-edit">AC <input type="number" min="0" ' +
@@ -586,17 +381,22 @@
     '</div>';
   }
 
+  // Monster/NPC controls: just remove — the fight is run on the Game Session page.
+  function monsterControlsHtml() {
+    return '<div class="manual">' +
+      '<button class="btn-remove" data-action="remove">Remove</button>' +
+    '</div>';
+  }
+
   function cardHtml(c) {
-    var active = c.id === state.activeId ? ' item--active' : '';
-    var dead = c.dead ? ' item--dead' : '';
     var kindCls = ' item--' + c.kind;
     var inner = c.kind === 'player'
       ? playerControlsHtml(c)
-      : (targetSelectHtml(c) + attackButtonsHtml(c) + manualHtml(c));
+      : monsterControlsHtml();
     var controls = '<div class="item__controls">' + inner + conditionsHtml(c) + '</div>';
 
     return '' +
-      '<div class="item' + kindCls + active + dead + '" data-id="' + c.id + '">' +
+      '<div class="item' + kindCls + '" data-id="' + c.id + '">' +
         '<div class="item__head">' +
           '<span class="item__name">#' + c.id + ' ' + esc(c.name) + '</span>' +
           metaHtml(c) +
@@ -614,110 +414,9 @@
     } else {
       el.list.innerHTML = state.combatants.map(cardHtml).join('');
     }
-    var alive = state.combatants.filter(function (c) { return !c.dead; }).length;
     el.encMeta.textContent = state.combatants.length
-      ? (state.combatants.length + ' in encounter - ' + alive + ' alive')
+      ? (state.combatants.length + ' in encounter')
       : '';
-  }
-
-  // All combatants for the tracker: those with initiative first
-  // (highest on top), those without at the bottom. So all are editable.
-  function trackerOrder() {
-    return state.combatants.slice().sort(function (a, b) {
-      var ai = a.initiative == null ? -Infinity : a.initiative;
-      var bi = b.initiative == null ? -Infinity : b.initiative;
-      return (bi - ai) || (b.initMod - a.initMod) || (a.id - b.id);
-    });
-  }
-
-  // Turn-order tracker with editable initiative for everyone.
-  function renderTurnOrder() {
-    if (!state.combatants.length) {
-      el.turnOrder.innerHTML =
-        '<p class="turn__hint">Add monsters and players, then roll or type in initiative.</p>';
-      el.nextBtn.disabled = true;
-      return;
-    }
-    el.nextBtn.disabled = !state.combatants.some(function (c) { return c.initiative != null; });
-
-    el.turnOrder.innerHTML = trackerOrder().map(function (c) {
-      var cls = 'turn__row';
-      if (c.id === state.activeId) cls += ' turn__row--active';
-      if (c.dead) cls += ' turn__row--dead';
-
-      var initGroup;
-      if (c.id === state.editingInitId) {
-        // Edit mode: d20-roll or final-total field + save (check symbol).
-        var mode = state.editInitMode;
-        var curVal = mode === 'total'
-          ? (c.initiative != null ? c.initiative : '')
-          : (c.initRoll != null ? c.initRoll : '');
-        var modChip = mode === 'd20'
-          ? '<span class="turn__initmod" title="initiative modifier">' +
-              signed(c.initMod) + '</span>'
-          : '';
-        var toggle = '<span class="init-mode">' +
-          '<button class="' + (mode === 'd20' ? 'active' : '') + '" ' +
-            'data-action="init-mode" data-mode="d20" title="Enter the d20 roll; the modifier is added">d20</button>' +
-          '<button class="' + (mode === 'total' ? 'active' : '') + '" ' +
-            'data-action="init-mode" data-mode="total" title="Enter the final initiative directly">Total</button>' +
-        '</span>';
-        initGroup = '<span class="turn__initgroup">' +
-          '<input type="number" class="turn__init-input" data-role="track-init" ' +
-            'value="' + curVal + '" placeholder="' + (mode === 'total' ? 'total' : 'd20') + '" ' +
-            'title="' + (mode === 'total' ? 'final initiative' : 'd20 roll') + '">' +
-          modChip + toggle +
-          '<button class="btn-track-save" data-action="save-init" ' +
-            'title="Save" aria-label="Save">&#10003;</button>' +
-        '</span>';
-      } else {
-        // Total + breakdown (d20 + mod) + pencil right next to it.
-        var brk = c.initRoll != null
-          ? '<span class="turn__initbreak" title="d20 ' + c.initRoll +
-              ' + initiative modifier ' + signed(c.initMod) + '">(' +
-              esc(initBreakdown(c)) + ')</span>'
-          : '';
-        initGroup = '<span class="turn__initgroup">' +
-          '<span class="turn__init">' +
-            (c.initiative != null ? c.initiative : '–') + '</span>' +
-          brk +
-          '<button class="btn-track-edit" data-action="edit-init" ' +
-            'title="Edit initiative" aria-label="Edit initiative">&#9998;</button>' +
-        '</span>';
-      }
-
-      var conds = c.conditions.length
-        ? '<span class="turn__cond">' + c.conditions.map(esc).join(', ') + '</span>' : '';
-
-      return '<div class="' + cls + '" data-id="' + c.id + '">' +
-        initGroup +
-        '<span class="turn__name">' + esc(c.name) + '</span>' +
-        conds +
-        '<span class="turn__tag">' + (c.kind === 'player' ? 'player' : 'monster') +
-          (c.dead ? ' &middot; dead' : '') + '</span>' +
-      '</div>';
-    }).join('');
-
-    var input = el.turnOrder.querySelector('input[data-role="track-init"]');
-    if (input) { input.focus(); input.select(); }
-  }
-
-  function refreshCard(c) {
-    var node = el.list.querySelector('.item[data-id="' + c.id + '"]');
-    if (!node || !hasHp(c)) return;
-    node.classList.toggle('item--dead', c.dead);
-    var fill = node.querySelector('.hpbar__fill');
-    if (fill) {
-      fill.style.width = Math.round(c.hp / c.maxHp * 100) + '%';
-      fill.className = 'hpbar__fill ' + hpClass(c);
-    }
-    var label = node.querySelector('.hpbar__label');
-    if (label) {
-      label.textContent = c.hp + ' / ' + c.maxHp + ' HP' + (c.dead ? ' · DEAD' : '');
-    }
-    var alive = state.combatants.filter(function (x) { return !x.dead; }).length;
-    el.encMeta.textContent = state.combatants.length + ' in encounter - ' + alive + ' alive';
-    renderTurnOrder();
   }
 
   // Re-render a single card (without disturbing the other cards).
@@ -726,52 +425,20 @@
     if (node) node.outerHTML = cardHtml(c);
   }
 
-  function updateActiveHighlight() {
-    var nodes = el.list.querySelectorAll('.item');
-    for (var i = 0; i < nodes.length; i++) {
-      var id = parseInt(nodes[i].getAttribute('data-id'), 10);
-      nodes[i].classList.toggle('item--active', id === state.activeId);
-    }
-  }
-
   /* ---- Actions ---- */
-
-  // If combat is already underway, give the newcomer an initiative now.
-  function rollInitiativeIfActive(c) {
-    var inProgress = state.combatants.some(function (x) {
-      return x.id !== c.id && x.initiative != null;
-    });
-    if (inProgress) {
-      setInitiative(c, rollDie(20));
-      logLine(combatantLabel(c) + ' rolls initiative ' + c.initiative +
-        initLogBreak(c) + '.', 'turn');
-    }
-  }
 
   function addMonster(slug) {
     var template = templateBySlug(slug);
     if (!template) return;
-    var c = createMonster(template);
-    state.combatants.push(c);
-    rollInitiativeIfActive(c);
+    state.combatants.push(createMonster(template));
     renderAll();
-    renderTurnOrder();
-    logLine(combatantLabel(c) + ' appears (' + c.maxHp + ' HP, AC ' + c.ac + ').', 'spawn');
   }
 
   function addPlayer(name, initMod, ac) {
     name = (name || '').trim();
     if (!name) return;
-    var c = createPlayer(name, initMod, ac);
-    state.combatants.push(c);
-    rollInitiativeIfActive(c);
+    state.combatants.push(createPlayer(name, initMod, ac));
     renderAll();
-    renderTurnOrder();
-    var extra = [];
-    if (initMod) extra.push('init ' + signed(initMod));
-    if (ac != null) extra.push('AC ' + ac);
-    logLine('Player ' + combatantLabel(c) + ' joins' +
-      (extra.length ? ' (' + extra.join(', ') + ')' : '') + '.', 'spawn');
   }
 
   // Bring a saved character sheet into the encounter.
@@ -780,15 +447,8 @@
     for (var i = 0; i < sheets.length; i++) if (sheets[i].id === id) sheet = sheets[i];
     if (!sheet) return;
     var isNpc = sheet.category === 'npc';
-    var c = isNpc ? createNpcFromSheet(sheet) : createPlayerFromSheet(sheet);
-    state.combatants.push(c);
-    rollInitiativeIfActive(c);
+    state.combatants.push(isNpc ? createNpcFromSheet(sheet) : createPlayerFromSheet(sheet));
     renderAll();
-    renderTurnOrder();
-    var note = isNpc
-      ? ' (NPC, ' + c.maxHp + ' HP, AC ' + c.ac + ')'
-      : ' (player, AC ' + (c.ac != null ? c.ac : '–') + ')';
-    logLine(combatantLabel(c) + ' added from sheet' + note + '.', 'spawn');
   }
 
   // Fill the import dropdown from saved sheets, grouped by category.
@@ -811,30 +471,20 @@
   }
 
   function removeCombatant(id) {
-    var c = findCombatant(id);
     state.combatants = state.combatants.filter(function (x) { return x.id !== id; });
-    if (state.activeId === id) {
-      var order = orderedAlive();
-      state.activeId = order.length ? order[0].id : null;
-    }
     renderAll();
-    renderTurnOrder();
-    if (c) logLine(combatantLabel(c) + ' removed.', 'spawn');
   }
 
   function clearEncounter() {
     if (!state.combatants.length) return;
     state.combatants = [];
-    state.activeId = null;
     renderAll();
-    renderTurnOrder();
-    logLine('Encounter cleared.', 'spawn');
   }
 
-  // Hand the current encounter over to the Gameplay page and go there.
-  function startPlaySession() {
+  // Hand the current roster over to the Game Session page and go there.
+  function startGameSession() {
     if (!state.combatants.length) {
-      logLine('Nothing to play - add monsters and players first.', 'spawn');
+      window.alert('Nothing to play — add monsters and players first.');
       return;
     }
     var payload = {
@@ -844,7 +494,7 @@
     try {
       window.localStorage.setItem('diceAndMonsters.playSession', JSON.stringify(payload));
     } catch (e) {
-      logLine('Could not start play session (storage blocked).', 'spawn');
+      window.alert('Could not start the game session (storage blocked).');
       return;
     }
     window.location.href = 'play.html';
@@ -870,6 +520,8 @@
 
   // Plain-object snapshot of a combatant. Monsters keep only their
   // template slug (re-linked from the library on load) to stay lean.
+  // Initiative fields ride along so the Game Session page can pick
+  // up any per-combatant modifiers.
   function serializeCombatant(c) {
     var o = {
       kind: c.kind, name: c.name, hp: c.hp, maxHp: c.maxHp, ac: c.ac,
@@ -911,9 +563,9 @@
   // Save the current encounter under a name. Overwrites a same-named one.
   function saveEncounter(name) {
     name = (name || '').trim();
-    if (!name) { logLine('Give the encounter a name before saving.', 'spawn'); return false; }
+    if (!name) { window.alert('Give the encounter a name before saving.'); return false; }
     if (!state.combatants.length) {
-      logLine('Nothing to save - the encounter is empty.', 'spawn');
+      window.alert('Nothing to save — the encounter is empty.');
       return false;
     }
     var entry = {
@@ -926,8 +578,6 @@
     state.saved.sort(function (a, b) { return a.name.localeCompare(b.name); });
     persistSaved();
     renderSavedList();
-    logLine((idx !== -1 ? 'Updated' : 'Saved') + ' encounter "' + name +
-      '" (' + entry.combatants.length + ' combatants).', 'spawn');
     return true;
   }
 
@@ -940,12 +590,7 @@
       return;
     }
     state.combatants = entry.combatants.map(deserializeCombatant);
-    state.activeId = null;
-    state.editingInitId = null;
     renderAll();
-    renderTurnOrder();
-    logLine('Loaded encounter "' + entry.name + '" (' +
-      state.combatants.length + ' combatants).', 'spawn');
   }
 
   function deleteEncounter(index) {
@@ -955,7 +600,6 @@
     state.saved.splice(index, 1);
     persistSaved();
     renderSavedList();
-    logLine('Deleted saved encounter "' + entry.name + '".', 'spawn');
   }
 
   function renderSavedList() {
@@ -988,18 +632,6 @@
     else if (action === 'delete') deleteEncounter(i);
   }
 
-  function readTarget(cardNode) {
-    var sel = cardNode.querySelector('select[data-role="target"]');
-    var id = sel && sel.value ? parseInt(sel.value, 10) : NaN;
-    return isNaN(id) ? null : findCombatant(id);
-  }
-
-  function readAmount(cardNode) {
-    var input = cardNode.querySelector('input[data-role="amount"]');
-    var v = parseInt(input && input.value, 10);
-    return isNaN(v) || v < 0 ? 0 : v;
-  }
-
   function onListClick(ev) {
     var btn = ev.target.closest('[data-action]');
     if (!btn) return;
@@ -1009,122 +641,23 @@
     if (!c) return;
     var action = btn.getAttribute('data-action');
 
-    if (action === 'attack') {
-      var attack = c.attacks[parseInt(btn.getAttribute('data-attack'), 10)];
-      performAttack(c, attack, readTarget(cardNode));
-
-    } else if (action === 'damage') {
-      var dmg = readAmount(cardNode);
-      if (dmg > 0) {
-        applyDamage(c, dmg);
-        logLine(combatantLabel(c) + ' takes ' + dmg + ' damage.' +
-          (c.dead ? ' It DIES!' : ' (' + c.hp + '/' + c.maxHp + ' HP)'),
-          c.dead ? 'kill' : 'hit');
-        refreshCard(c);
-      }
-
-    } else if (action === 'heal') {
-      var amt = readAmount(cardNode);
-      if (amt > 0) {
-        applyHeal(c, amt);
-        logLine(combatantLabel(c) + ' heals ' + amt + ' HP (' +
-          c.hp + '/' + c.maxHp + ').', 'heal');
-        refreshCard(c);
-      }
-
-    } else if (action === 'set-ac') {
+    if (action === 'set-ac') {
       var acInput = cardNode.querySelector('input[data-role="ac"]');
       var rawAc = (acInput && acInput.value || '').trim();
       var ac = parseInt(rawAc, 10);
       c.ac = (rawAc === '' || isNaN(ac) || ac < 0) ? null : ac;
-      logLine(combatantLabel(c) + (c.ac != null
-        ? ' now has AC ' + c.ac + ' - can be targeted.'
-        : ' has no AC set.'), 'spawn');
-      renderAll();        // refresh target lists + meta on everyone
-      renderTurnOrder();
+      renderAll();        // refresh meta on the card
 
     } else if (action === 'add-condition') {
       var condInput = cardNode.querySelector('input[data-role="condition"]');
-      if (addCondition(c, condInput && condInput.value)) {
-        var added = c.conditions[c.conditions.length - 1];
-        var info = conditionInfo(added);
-        logLine(combatantLabel(c) + ' is now ' + added +
-          (info ? ' - ' + info : '') + '.', 'spawn');
-        rerenderCard(c);
-        renderTurnOrder();
-      }
+      if (addCondition(c, condInput && condInput.value)) rerenderCard(c);
 
     } else if (action === 'remove-condition') {
       removeCondition(c, btn.getAttribute('data-cond'));
       rerenderCard(c);
-      renderTurnOrder();
 
     } else if (action === 'remove') {
       removeCombatant(id);
-    }
-  }
-
-  // ---- Turn-order box: edit initiative for everyone ----
-  function commitTrackInit(c) {
-    var input = el.turnOrder.querySelector(
-      '.turn__row[data-id="' + c.id + '"] input[data-role="track-init"]');
-    var raw = (input && input.value || '').trim();
-    var n = parseInt(raw, 10);
-    if (raw === '' || isNaN(n)) {
-      // Empty = drop out of the order entirely.
-      c.initRoll = null;
-      c.initiative = null;
-    } else if (state.editInitMode === 'total') {
-      // The field is the final total; set it directly, no breakdown.
-      c.initRoll = null;
-      c.initiative = n;
-    } else {
-      // The field is the d20 roll; the modifier is added on top.
-      setInitiative(c, n);
-    }
-    state.editingInitId = null;
-    logLine(combatantLabel(c) + (c.initiative != null
-      ? ' now has initiative ' + c.initiative + initLogBreak(c) + '.'
-      : ' removed from the initiative order.'), 'turn');
-    rerenderCard(c);     // update the Init badge on the card
-    renderTurnOrder();   // re-sort the order
-  }
-
-  function onTrackClick(ev) {
-    var btn = ev.target.closest('[data-action]');
-    if (!btn) return;
-    var id = parseInt(btn.closest('.turn__row').getAttribute('data-id'), 10);
-    var c = findCombatant(id);
-    if (!c) return;
-    var action = btn.getAttribute('data-action');
-    if (action === 'edit-init') {
-      state.editingInitId = id;
-      state.editInitMode = 'd20';
-      renderTurnOrder();
-    } else if (action === 'save-init') {
-      commitTrackInit(c);
-    } else if (action === 'init-mode') {
-      // Switch d20 <-> total, keeping whatever was already typed.
-      var inp = btn.closest('.turn__row').querySelector('input[data-role="track-init"]');
-      var keep = inp ? inp.value : '';
-      state.editInitMode = btn.getAttribute('data-mode');
-      renderTurnOrder();
-      var inp2 = el.turnOrder.querySelector(
-        '.turn__row[data-id="' + id + '"] input[data-role="track-init"]');
-      if (inp2) inp2.value = keep;
-    }
-  }
-
-  function onTrackKeydown(ev) {
-    if (!ev.target.matches || !ev.target.matches('input[data-role="track-init"]')) return;
-    var id = parseInt(ev.target.closest('.turn__row').getAttribute('data-id'), 10);
-    if (ev.key === 'Enter') {
-      ev.preventDefault();
-      var c = findCombatant(id);
-      if (c) commitTrackInit(c);
-    } else if (ev.key === 'Escape') {
-      state.editingInitId = null;
-      renderTurnOrder();
     }
   }
 
@@ -1134,7 +667,7 @@
     var input = ev.target;
     if (!input.matches || !input.matches('input[data-role]')) return;
     var action = {
-      ac: 'set-ac', condition: 'add-condition', amount: 'damage'
+      ac: 'set-ac', condition: 'add-condition'
     }[input.getAttribute('data-role')];
     if (!action) return;
     var btn = input.closest('.item').querySelector('button[data-action="' + action + '"]');
@@ -1157,9 +690,6 @@
     el.addPlayer  = document.querySelector('.btn-add-player');
     el.charImport = document.querySelector('#char-import');
     el.importBtn  = document.querySelector('.btn-import-char');
-    el.initBtn    = document.querySelector('.btn-init');
-    el.nextBtn    = document.querySelector('.btn-next');
-    el.turnOrder  = document.querySelector('#turn-order');
     el.encName    = document.querySelector('#encounter-name');
     el.saveBtn    = document.querySelector('.btn-save-encounter');
     el.savedList  = document.querySelector('#saved-list');
@@ -1167,7 +697,6 @@
     el.startPlayBtn = document.querySelector('.btn-start-play');
     el.list       = document.querySelector('.monster__list');
     el.encMeta    = document.querySelector('#encounter-meta');
-    el.log        = document.querySelector('#log');
 
     library = (window.MONSTER_DATA || []).slice();
 
@@ -1184,7 +713,6 @@
     populateSizeFilter();
     populateMonsterSelect();
     renderAll();
-    renderTurnOrder();
     renderSavedList();
 
     el.search.addEventListener('input', populateMonsterSelect);
@@ -1226,9 +754,6 @@
       });
     }
 
-    el.initBtn.addEventListener('click', rollInitiative);
-    el.nextBtn.addEventListener('click', nextTurn);
-
     function submitSave() {
       if (saveEncounter(el.encName.value)) el.encName.value = '';
     }
@@ -1239,13 +764,9 @@
     el.savedList.addEventListener('click', onSavedClick);
 
     el.clearBtn.addEventListener('click', clearEncounter);
-    if (el.startPlayBtn) el.startPlayBtn.addEventListener('click', startPlaySession);
+    if (el.startPlayBtn) el.startPlayBtn.addEventListener('click', startGameSession);
     el.list.addEventListener('click', onListClick);
     el.list.addEventListener('keydown', onListKeydown);
-    el.turnOrder.addEventListener('click', onTrackClick);
-    el.turnOrder.addEventListener('keydown', onTrackKeydown);
-
-    logLine('Ready! ' + library.length + ' monsters loaded. Add monsters and players.', 'spawn');
 
     if (window.CloudSync) {
       window.CloudSync.attach({
@@ -1270,7 +791,6 @@
       var n = m.count || 1;
       for (var i = 0; i < n; i++) addMonster(m.slug);
     });
-    if (data.name) logLine('Loaded "' + data.name + '" from an adventure.', 'turn');
   }
 
   document.addEventListener('DOMContentLoaded', init);

@@ -12,14 +12,14 @@
         <nav class="nav">
             <a href="index.html" class="nav__link">Home</a>
             <a href="encounter.html" class="nav__link nav__link--active">Encounter</a>
-            <a href="play.html" class="nav__link">Play</a>
+            <a href="play.html" class="nav__link">Game Session</a>
             <a href="character.html" class="nav__link">Characters</a>
             <a href="groups.html" class="nav__link">Groups</a>
             <a href="adventure.html" class="nav__link">Adventure</a>
         </nav>
         <header class="topbar">
             <h1>Encounter Planner</h1>
-            <p class="tagline">Build a D&amp;D encounter, attack, and watch the monsters die.</p>
+            <p class="tagline">Build a D&amp;D encounter, save it, and start a game session when you're ready.</p>
         </header>
 
         <div id="cloud-bar" class="cloud-bar-wrap"></div>
@@ -67,18 +67,6 @@
             <p class="import__hint">PCs come in as players (AC + initiative only); NPCs come in with HP and attacks.</p>
         </section>
 
-        <!-- Turn order / initiative -->
-        <section class="tracker">
-            <div class="tracker__head">
-                <h2 class="tracker__title">Turn order</h2>
-                <div class="tracker__buttons">
-                    <button class="btn-init">Roll initiative</button>
-                    <button class="btn-next" disabled>Next turn</button>
-                </div>
-            </div>
-            <div id="turn-order" class="turn"></div>
-        </section>
-
         <!-- Saved encounters (prep ahead of time) -->
         <section class="saved">
             <h2 class="saved__title">Saved encounters</h2>
@@ -94,16 +82,10 @@
             <div class="encounter__head">
                 <h2 class="encounter__title">Encounter</h2>
                 <span id="encounter-meta" class="encounter__meta"></span>
-                <button class="btn-start-play">Start play session ▶</button>
+                <button class="btn-start-play">Start game session ▶</button>
                 <button class="btn-clear">Clear encounter</button>
             </div>
             <div class="monster__list"></div>
-        </section>
-
-        <!-- Combat log -->
-        <section class="logwrap">
-            <h2 class="logwrap__title">Combat log</h2>
-            <div id="log" class="log"></div>
         </section>
 
         <!-- Standard 5e conditions as suggestions (free text is also allowed) -->
