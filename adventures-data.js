@@ -13,21 +13,33 @@
   // Each string is a row; legend maps a character to a terrain type.
   // Any other char (space) = open floor. `areas` is an optional list of
   // numbered pins { n, x, y, title, read, dm } (read-aloud + secret DM notes).
+  // Start markers on open floor: P = player start, M = monster start,
+  // N = NPC start — collected into `starts` so tokens spawn there (players
+  // by the approach/doorway, monsters at their spot) instead of one corner.
   var LEGEND = {
     '#': 'wall', '~': 'water', ':': 'rapids', '"': 'grass', '=': 'wood',
     '&': 'briars', 'A': 'stalagmite', 'S': 'steps', '+': 'road',
     '.': 'difficult', '^': 'lava'
   };
-  function bmap(grid, rows, areas) {
-    var cols = 0, terrain = {};
+  var STARTS = { 'P': 'players', 'M': 'monsters', 'N': 'npcs' };
+  // `starts` (optional) overrides the ASCII P/M/N markers — use it when start
+  // cells sit on water/terrain that a marker char would erase.
+  function bmap(grid, rows, areas, starts) {
+    var cols = 0, terrain = {}, ascii = { players: [], monsters: [], npcs: [] };
     rows.forEach(function (line, r) {
       if (line.length > cols) cols = line.length;
       for (var c = 0; c < line.length; c++) {
-        var type = LEGEND[line.charAt(c)];
-        if (type) terrain[c + ',' + r] = type;
+        var ch = line.charAt(c);
+        if (LEGEND[ch]) terrain[c + ',' + r] = LEGEND[ch];
+        else if (STARTS[ch]) ascii[STARTS[ch]].push({ x: c, y: r });
       }
     });
-    return { v: 1, grid: grid, cols: cols, rows: rows.length, terrain: terrain, areas: areas || [], bg: null };
+    var s = starts || ascii;
+    var hasStarts = (s.players || []).length || (s.monsters || []).length || (s.npcs || []).length;
+    return {
+      v: 1, grid: grid, cols: cols, rows: rows.length,
+      terrain: terrain, areas: areas || [], starts: hasStarts ? s : null, bg: null
+    };
   }
 
   window.ADVENTURES = [
@@ -61,7 +73,12 @@
             { n: 2, x: 11, y: 8, title: 'Submerged Alcove',
               read: 'A niche in the far wall lies just under the surface, something pale glinting within.',
               dm: 'The rats nest here and burst out when the party reaches the landing. DC 12 Investigation finds a silver holy symbol worth 25 gp, still oddly warm.' }
-          ]),
+          ], {
+            // Players enter from the chapel at the top of the stair; the rats
+            // lurk at the flooded edges / alcove below.
+            players: [{ x: 5, y: 3 }, { x: 8, y: 3 }, { x: 3, y: 2 }, { x: 10, y: 2 }],
+            monsters: [{ x: 11, y: 8 }, { x: 2, y: 8 }, { x: 11, y: 7 }, { x: 2, y: 7 }, { x: 3, y: 9 }]
+          }),
           text: 'Rain hammers the ruined chapel until the whole hillside seems to weep. Past the ' +
             'collapsed altar, a stone stair spirals down into black water that swallows your torchlight ' +
             'whole. The air smells of cold clay and older rot.\n\n' +
@@ -162,7 +179,12 @@
             { n: 1, x: 8, y: 9, title: 'The Toll Gate',
               read: 'The bridge sags before you, its name carved into a gatepost above a row of very fresh nooses. The road behind you climbs up from the river.',
               dm: 'Near end: a second rigged rockfall and the tripwire (DC 13 to spot/cut). Halfway across the planks groan — DC 10 Dex if you run, or fall prone.' }
-          ]),
+          ], {
+            // The party arrives by the road at the near (south) end; the
+            // goblins hold the far bank, the worg by the bridge mouth.
+            players: [{ x: 7, y: 10 }, { x: 8, y: 10 }, { x: 9, y: 10 }, { x: 10, y: 10 }, { x: 7, y: 11 }],
+            monsters: [{ x: 2, y: 0 }, { x: 5, y: 0 }, { x: 13, y: 0 }, { x: 7, y: 1 }]
+          }),
           text: 'The old toll bridge sags across a deep ravine, its timbers grey and its name carved ' +
             'into the gatepost above a row of very fresh-looking nooses. The goblins have been busy: ' +
             'ropes run to stacked rockfalls at either end, and a wolf the size of a pony paces the far ' +
@@ -217,18 +239,23 @@
             '#            #',
             '#   #    #   #',
             '#            #',
-            '#     SS     #',
-            '#     SS     #',
+            '#     M      #',
+            '#            #',
+            '#            #',
             '#   #    #   #',
             '#            #',
-            '#            #',
-            '######==######'
+            '######==######',
+            '     S==S     ',
+            '     +==+     ',
+            '    "++++"    ',
+            '   "PP  PP"   ',
+            '   """"""""   '
           ], [
             { n: 1, x: 6, y: 4, title: 'The Suit of Armor',
               read: 'A suit of ancient armor stands in the middle of the welcome hall, visor down, oddly clean.',
               dm: 'Animated Armor. It clanks to life and attacks the moment the doors slam shut behind the party, or if anyone touches it.' },
             { n: 2, x: 6, y: 9, title: 'The Front Doors',
-              read: 'The manor\'s front doors swing inward at your approach, though no hand touches them.',
+              read: 'The manor\'s front doors swing inward at your approach, though no hand touches them. The party can gather on the porch outside.',
               dm: 'Once the last character is inside, the doors slam and lock themselves (DC 15 Str to force) — the house wants them to stay.' }
           ]),
           text: 'The manor\'s front doors swing inward at your approach, though no hand touches them. ' +

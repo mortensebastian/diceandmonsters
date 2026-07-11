@@ -47,7 +47,16 @@
   var KIND_COLOR = { monster: '#c0392b', npc: '#9b59b6', player: '#4aa3df' };
 
   function defaultMap() {
-    return { v: 1, grid: 'square', cols: 16, rows: 12, terrain: {}, areas: [], bg: null };
+    return { v: 1, grid: 'square', cols: 16, rows: 12, terrain: {}, areas: [], starts: null, bg: null };
+  }
+
+  // Copy a { players:[], monsters:[], npcs:[] } start-zone spec (cells only).
+  function copyStarts(s) {
+    if (!s) return null;
+    function cells(a) { return (a || []).map(function (p) { return { x: p.x, y: p.y }; }); }
+    var out = { players: cells(s.players), monsters: cells(s.monsters), npcs: cells(s.npcs) };
+    if (!out.players.length && !out.monsters.length && !out.npcs.length) return null;
+    return out;
   }
 
   /* ---- Module state ---- */
@@ -472,17 +481,61 @@
     return { col: 0, row: 0 };
   }
 
-  // Give every unplaced combatant a home; clamp any that fell outside a
-  // resized grid. Persists via onMove so positions survive a reload.
+  // Nearest free (non-wall, in-bounds, unoccupied) cell, searching outward in
+  // square rings from an anchor — so tokens cluster near their start zone
+  // without stacking on one cell.
+  function ringFree(cx, cy, used) {
+    var maxR = map.cols + map.rows, r, dx, dy, c, rr;
+    for (r = 0; r <= maxR; r++) {
+      for (dy = -r; dy <= r; dy++) {
+        for (dx = -r; dx <= r; dx++) {
+          if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;   // ring edge only
+          c = cx + dx; rr = cy + dy;
+          if (!inBounds(c, rr) || isWall(c, rr) || occupied(used, c, rr)) continue;
+          return { col: c, row: rr };
+        }
+      }
+    }
+    return firstFree(used);
+  }
+
+  // Which start cells apply to a combatant kind (map.starts.players/monsters/
+  // npcs), or a sensible default zone: players near the bottom (the approach /
+  // doorway), monsters/NPCs near the top.
+  function startList(kind) {
+    var s = map.starts || {};
+    if (kind === 'player') return s.players || null;
+    if (kind === 'npc' && s.npcs && s.npcs.length) return s.npcs;
+    return s.monsters || null;
+  }
+  function defaultAnchor(kind) {
+    var cx = Math.floor(map.cols / 2);
+    return kind === 'player' ? { x: cx, y: map.rows - 2 } : { x: cx, y: 1 };
+  }
+
+  // Give every unplaced combatant a home from its kind's start zone (clamping
+  // any that fell outside a resized grid). Persists via onMove so positions
+  // survive a reload. Players and monsters spawn apart, not in one corner.
   function ensurePlacement() {
     var used = {};
     combatants.forEach(function (c) {
       if (c.x != null && c.y != null && inBounds(c.x, c.y)) used[c.x + ',' + c.y] = true;
     });
+    var idx = {};   // next unused index into each kind's start list
     combatants.forEach(function (c) {
       var moved = false;
       if (c.x == null || c.y == null) {
-        var spot = firstFree(used);
+        var list = startList(c.kind), spot = null;
+        if (list && list.length) {
+          var key = (c.kind === 'player') ? 'player' : (list === (map.starts || {}).npcs ? 'npc' : 'monster');
+          var i = idx[key] || 0;
+          while (i < list.length && occupied(used, list[i].x, list[i].y)) i++;
+          if (i < list.length) { spot = { col: list[i].x, row: list[i].y }; idx[key] = i + 1; }
+          else { var last = list[list.length - 1]; spot = ringFree(last.x, last.y, used); }
+        } else {
+          var a = defaultAnchor(c.kind);
+          spot = ringFree(a.x, a.y, used);
+        }
         c.x = spot.col; c.y = spot.row; moved = true;
       } else if (!inBounds(c.x, c.y)) {
         c.x = Math.min(Math.max(0, c.x), map.cols - 1);
@@ -901,7 +954,7 @@
       var areas = (map.areas || []).map(function (a) {
         return { n: a.n, x: a.x, y: a.y, title: a.title || '', read: a.read || '', dm: a.dm || '' };
       });
-      return { v: 1, grid: map.grid, cols: map.cols, rows: map.rows, terrain: terrain, areas: areas, bg: map.bg || null };
+      return { v: 1, grid: map.grid, cols: map.cols, rows: map.rows, terrain: terrain, areas: areas, starts: copyStarts(map.starts), bg: map.bg || null };
     },
     setMap: function (data) {
       map = data ? {
@@ -913,6 +966,7 @@
         areas: (data.areas || []).map(function (a) {
           return { n: a.n, x: a.x, y: a.y, title: a.title || '', read: a.read || '', dm: a.dm || '' };
         }),
+        starts: copyStarts(data.starts),
         bg: data.bg || null
       } : defaultMap();
       selectedArea = null;

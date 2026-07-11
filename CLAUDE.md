@@ -79,6 +79,12 @@ Supabase cloud sync.
     (viewers never see `dm`), and areas + token `pos` are fed to the AI DM via
     `ai-context.js` so it reads the right area out and reasons about position
     (1 cell = 5 ft). `getAreas()` exposes them.
+  - **Start zones** (`map.starts: { players:[], monsters:[], npcs:[] }` of
+    cells) — unplaced tokens spawn from their kind's start list (ring-search on
+    overflow) instead of piling into the top-left corner; the default when a map
+    has none is players near the bottom (the approach/doorway), monsters near
+    the top. In `adventures-data.js`, `bmap()` reads `P`/`M`/`N` ASCII markers
+    or takes an explicit `starts` 4th arg (for starts that sit on water/terrain).
 
 ### AI layer (Play page)
 
