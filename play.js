@@ -227,6 +227,41 @@
     }).join(' &middot; ');
     return '<div class="item__stats">' + stats + '</div>';
   }
+  // Read-only spell reference for player/NPC combatants imported from a sheet.
+  // Collapsible so it doesn't crowd the card; each spell shows what it does.
+  function spellsHtml(c) {
+    if (!c.spells || !c.spells.length) return '';
+    var sc = c.spellcasting;
+    var head = sc ? ('Save DC ' + sc.dc + ' &middot; Atk ' + signed(sc.atk)) : '';
+    var byLvl = {};
+    c.spells.forEach(function (sp) {
+      var k = (sp.level == null ? '?' : sp.level);
+      (byLvl[k] = byLvl[k] || []).push(sp);
+    });
+    var keys = Object.keys(byLvl).sort(function (a, b) {
+      return (a === '?' ? 99 : +a) - (b === '?' ? 99 : +b);
+    });
+    var body = keys.map(function (k) {
+      var lab = (k === '0') ? 'Cantrips' : (k === '?' ? 'Other' : 'Level ' + k);
+      var items = byLvl[k].map(function (sp) {
+        var info = window.SpellInfo ? window.SpellInfo.get(sp.name) : null;
+        var meta = info && window.SpellInfo.meta(sp.name);
+        var text = (info && info.desc) ? info.desc : (sp.notes || '');
+        var tip = window.SpellInfo ? window.SpellInfo.tooltip(sp.name) : '';
+        return '<div class="spell-ref__item"' + (tip ? ' title="' + esc(tip) + '"' : '') + '>' +
+          '<span class="spell-ref__name">' + esc(sp.name) + '</span>' +
+          (meta ? '<span class="spell-ref__meta">' + esc(meta) + '</span>' : '') +
+          (text ? '<span class="spell-ref__desc">' + esc(text) + '</span>' : '') +
+        '</div>';
+      }).join('');
+      return '<div class="spell-ref__grp"><div class="spell-ref__lvl">' + lab + '</div>' + items + '</div>';
+    }).join('');
+    return '<details class="spell-ref">' +
+      '<summary>✦ Spells (' + c.spells.length + ')' +
+        (head ? ' <span class="spell-ref__dc">' + head + '</span>' : '') + '</summary>' +
+      '<div class="spell-ref__body">' + body + '</div>' +
+    '</details>';
+  }
   function conditionsHtml(c) {
     var chips = c.conditions.map(function (cond) {
       var info = DM.conditionInfo(cond);
@@ -282,7 +317,7 @@
           '<span class="item__name">#' + c.id + ' ' + esc(c.name) + '</span>' +
           metaHtml(c) + revealToggleHtml(c) +
         '</div>' +
-        hpBarHtml(c) + statsHtml(c) + controls +
+        hpBarHtml(c) + statsHtml(c) + spellsHtml(c) + controls +
       '</div>';
   }
 

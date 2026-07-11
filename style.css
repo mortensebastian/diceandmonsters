@@ -1969,3 +1969,113 @@ button:disabled { opacity: .4; cursor: not-allowed; box-shadow: none; }
 .player-cloud__row button:hover { background: #3a91cc; }
 .btn-player-leave { background: #12141a !important; border: 1px solid #2c3140 !important; color: #cfd6e2 !important; }
 .player-cloud__status { display: block; margin-top: 8px; color: #8a93a6; font-size: 13px; }
+
+/**********************************************
+*** SPELL DESCRIPTIONS (editor, sheet, play)
+**********************************************/
+
+/* Live preview under the character-sheet spell picker */
+.spell-preview {
+    margin-top: 10px;
+    background: #12141a;
+    border: 1px solid #2c3140;
+    border-left: 3px solid #9b59b6;
+    border-radius: 8px;
+    padding: 10px 12px;
+}
+
+/* Info block shown per spell in the editor list */
+.spell-entry { margin-bottom: 10px; }
+.spell-info {
+    margin: 4px 0 0 2px;
+    padding: 6px 10px;
+    background: #171a22;
+    border-left: 2px solid #9b59b6;
+    border-radius: 0 6px 6px 0;
+}
+.spell-info__meta {
+    font-size: 11px;
+    color: #9b7fc0;
+    text-transform: uppercase;
+    letter-spacing: .3px;
+    margin-bottom: 3px;
+}
+.spell-info__desc { font-size: 13px; color: #c2c9d6; line-height: 1.45; }
+
+/* Read-only sheet view: spells grouped by level, each with its text */
+.rd-spelllvl { margin-bottom: 12px; }
+.rd-spelllvl__lbl {
+    font-size: 12px;
+    color: #9b59b6;
+    text-transform: uppercase;
+    letter-spacing: .5px;
+    font-weight: 700;
+    margin-bottom: 6px;
+}
+.rd-spell {
+    padding: 6px 0 6px 10px;
+    border-left: 2px solid #2c3140;
+    margin-bottom: 6px;
+}
+.rd-spell__name { font-weight: 600; color: #e6e6e6; font-size: 14px; }
+.rd-spell__meta {
+    display: block;
+    font-size: 11px;
+    color: #8a93a6;
+    text-transform: uppercase;
+    letter-spacing: .3px;
+    margin-top: 2px;
+}
+.rd-spell__desc { font-size: 13px; color: #c2c9d6; line-height: 1.45; margin-top: 3px; }
+
+/* Game Session card: collapsible spell reference */
+.spell-ref {
+    margin-top: 10px;
+    background: #12141a;
+    border: 1px solid #2c3140;
+    border-radius: 8px;
+    padding: 4px 10px;
+}
+.spell-ref > summary {
+    cursor: pointer;
+    font-size: 13px;
+    color: #b98fd6;
+    padding: 4px 2px;
+    list-style: none;
+    user-select: none;
+}
+.spell-ref > summary::-webkit-details-marker { display: none; }
+.spell-ref > summary::before { content: '▸ '; color: #6c7589; }
+.spell-ref[open] > summary::before { content: '▾ '; }
+.spell-ref__dc {
+    color: #8a93a6;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: .3px;
+}
+.spell-ref__body { padding: 6px 2px 4px; }
+.spell-ref__grp { margin-bottom: 8px; }
+.spell-ref__lvl {
+    font-size: 11px;
+    color: #9b59b6;
+    text-transform: uppercase;
+    letter-spacing: .5px;
+    font-weight: 700;
+    margin-bottom: 4px;
+}
+.spell-ref__item {
+    padding: 4px 0 4px 10px;
+    border-left: 2px solid #2c3140;
+    margin-bottom: 4px;
+}
+.spell-ref__name { font-weight: 600; color: #e6e6e6; font-size: 13px; }
+.spell-ref__meta {
+    display: block;
+    font-size: 10px;
+    color: #8a93a6;
+    text-transform: uppercase;
+    letter-spacing: .3px;
+    margin-top: 1px;
+}
+.spell-ref__desc { display: block; font-size: 12px; color: #c2c9d6; line-height: 1.4; margin-top: 2px; }
+.player-self__spells { margin-top: 12px; }

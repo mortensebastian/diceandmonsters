@@ -77,7 +77,9 @@
       attacks: [],
       x: null,             // battlemap column (null = not placed yet)
       y: null,             // battlemap row
-      hidden: false        // DM-only: not yet revealed to players (role-based visibility)
+      hidden: false,       // DM-only: not yet revealed to players (role-based visibility)
+      spells: [],          // [{ name, level, notes }] — reference only, engine never casts
+      spellcasting: null   // { ability, dc, atk } when the sheet has a casting ability
     };
   }
 
@@ -133,9 +135,29 @@
     };
   }
 
+  // Pull a sheet's spell list and casting numbers (DC / attack bonus) so the
+  // Game Session can show them for reference. The engine never rolls spells.
+  function sheetSpellcasting(sheet) {
+    var spells = (sheet.spells || []).map(function (sp) {
+      var lvl = (sp.level === '' || sp.level == null) ? null : parseInt(sp.level, 10);
+      return { name: sp.name || '', level: isNaN(lvl) ? null : lvl, notes: sp.notes || '' };
+    }).filter(function (sp) { return sp.name; });
+    var casting = null;
+    if (sheet.spellAbility) {
+      var lvl = sheet.level || 1;
+      var pb = 2 + Math.floor((lvl - 1) / 4);
+      var sm = abilityMod((sheet.abilities && sheet.abilities[sheet.spellAbility]) || 10);
+      casting = { ability: sheet.spellAbility, dc: 8 + pb + sm, atk: pb + sm };
+    }
+    return { spells: spells, casting: casting };
+  }
+
   function createPlayerFromSheet(sheet) {
-    return createPlayer(sheet.name || 'Player', sheetInitMod(sheet),
+    var c = createPlayer(sheet.name || 'Player', sheetInitMod(sheet),
       (sheet.ac != null && sheet.ac !== '' ? sheet.ac : null));
+    var sc = sheetSpellcasting(sheet);
+    c.spells = sc.spells; c.spellcasting = sc.casting;
+    return c;
   }
 
   function createNpcFromSheet(sheet) {
@@ -146,6 +168,8 @@
     c.ac = (sheet.ac != null && sheet.ac !== '') ? sheet.ac : 10;
     c.initMod = sheetInitMod(sheet);
     c.attacks = (sheet.attacks || []).map(parseSheetAttack);
+    var sc = sheetSpellcasting(sheet);
+    c.spells = sc.spells; c.spellcasting = sc.casting;
     return c;
   }
 
@@ -331,6 +355,8 @@
     if (c.kind === 'monster' && c.template) o.templateSlug = c.template.slug;
     else if (c.kind === 'monster') o.attacks = c.attacks;   // custom monster (no library template)
     if (c.kind === 'npc') o.attacks = c.attacks;
+    if (c.spells && c.spells.length) o.spells = c.spells;
+    if (c.spellcasting) o.spellcasting = c.spellcasting;
     return o;
   }
   function deserializeCombatant(o) {
@@ -354,6 +380,8 @@
     } else if (o.kind === 'npc') {
       c.attacks = o.attacks || [];
     }
+    c.spells = o.spells || [];
+    c.spellcasting = o.spellcasting || null;
     return c;
   }
 

@@ -119,6 +119,56 @@
     el.selfConds.innerHTML = conds.length
       ? conds.map(function (c) { return '<span class="turn__cond">' + esc(c) + '</span>'; }).join('')
       : '<span class="player-none">No conditions.</span>';
+
+    renderSelfSpells(sheet);
+  }
+
+  // Your own spells, read from your sheet, with descriptions so you can
+  // read what each one does at the table.
+  function renderSelfSpells(sheet) {
+    if (!el.selfSpells) return;
+    var spells = (sheet && sheet.spells || []).filter(function (sp) { return sp.name; });
+    if (!spells.length) { el.selfSpells.hidden = true; el.selfSpells.innerHTML = ''; return; }
+    el.selfSpells.hidden = false;
+
+    var head = '';
+    if (sheet.spellAbility) {
+      var lvl = sheet.level || 1;
+      var pb = 2 + Math.floor((lvl - 1) / 4);
+      var m = Math.floor((((sheet.abilities || {})[sheet.spellAbility] || 10) - 10) / 2);
+      head = 'Save DC ' + (8 + pb + m) + ' · Atk ' + ((pb + m) >= 0 ? '+' : '') + (pb + m);
+    }
+
+    var byLvl = {};
+    spells.forEach(function (sp) {
+      var k = (sp.level === '' || sp.level == null) ? '?' : sp.level;
+      (byLvl[k] = byLvl[k] || []).push(sp);
+    });
+    var keys = Object.keys(byLvl).sort(function (a, b) {
+      return (a === '?' ? 99 : +a) - (b === '?' ? 99 : +b);
+    });
+    var body = keys.map(function (k) {
+      var lab = (k === '0' || k === 0) ? 'Cantrips' : (k === '?' ? 'Other' : 'Level ' + k);
+      var items = byLvl[k].map(function (sp) {
+        var info = window.SpellInfo ? window.SpellInfo.get(sp.name) : null;
+        var meta = info && window.SpellInfo.meta(sp.name);
+        var text = (info && info.desc) ? info.desc : (sp.notes || '');
+        var tip = window.SpellInfo ? window.SpellInfo.tooltip(sp.name) : '';
+        return '<div class="spell-ref__item"' + (tip ? ' title="' + esc(tip) + '"' : '') + '>' +
+          '<span class="spell-ref__name">' + esc(sp.name) + '</span>' +
+          (meta ? '<span class="spell-ref__meta">' + esc(meta) + '</span>' : '') +
+          (text ? '<span class="spell-ref__desc">' + esc(text) + '</span>' : '') +
+        '</div>';
+      }).join('');
+      return '<div class="spell-ref__grp"><div class="spell-ref__lvl">' + lab + '</div>' + items + '</div>';
+    }).join('');
+
+    el.selfSpells.innerHTML =
+      '<details class="spell-ref" open>' +
+        '<summary>✦ Your spells (' + spells.length + ')' +
+          (head ? ' <span class="spell-ref__dc">' + esc(head) + '</span>' : '') + '</summary>' +
+        '<div class="spell-ref__body">' + body + '</div>' +
+      '</details>';
   }
 
   function renderScene() {
@@ -325,6 +375,7 @@
     el.selfAc     = document.querySelector('#player-self-ac');
     el.selfInit   = document.querySelector('#player-self-init');
     el.selfConds  = document.querySelector('#player-self-conds');
+    el.selfSpells = document.querySelector('#player-self-spells');
     el.tracker    = document.querySelector('#player-tracker');
     el.turn       = document.querySelector('#player-turn');
     el.foesWrap   = document.querySelector('#player-foes-wrap');

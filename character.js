@@ -395,6 +395,28 @@
     el.spellPick.innerHTML = html;
   }
 
+  // Meta + description block for a spell name (empty if unknown).
+  function spellInfoHtml(name, cls) {
+    if (!window.SpellInfo) return '';
+    var s = window.SpellInfo.get(name);
+    if (!s || (!s.desc && !s.school)) return '';
+    var meta = window.SpellInfo.meta(name);
+    return '<div class="spell-info' + (cls ? ' ' + cls : '') + '">' +
+      (meta ? '<div class="spell-info__meta">' + esc(meta) + '</div>' : '') +
+      (s.desc ? '<div class="spell-info__desc">' + esc(s.desc) + '</div>' : '') +
+    '</div>';
+  }
+
+  // Preview the spell currently highlighted in the picker, so it can be
+  // read before it's added.
+  function renderSpellPreview() {
+    if (!el.spellPreview) return;
+    var name = el.spellPick ? el.spellPick.value : '';
+    var html = name ? spellInfoHtml(name) : '';
+    el.spellPreview.innerHTML = html;
+    el.spellPreview.hidden = !html;
+  }
+
   function addSpellFromPicker() {
     var name = el.spellPick ? el.spellPick.value : '';
     if (!name) {
@@ -486,12 +508,15 @@
   function renderSpells() {
     el.spells.innerHTML = active.spells.length
       ? active.spells.map(function (sp, i) {
-          return '<div class="spell-row" data-spell-index="' + i + '">' +
-            '<input type="number" class="spell-lvl" min="0" max="9" ' +
-              'data-spell-field="level" value="' + esc(sp.level) + '" title="Level (0 = cantrip)">' +
-            '<input type="text" placeholder="Spell name" data-spell-field="name" value="' + esc(sp.name) + '">' +
-            '<input type="text" placeholder="Notes (range, save, damage…)" data-spell-field="notes" value="' + esc(sp.notes) + '">' +
-            '<button type="button" class="btn-del-spell" title="Remove">&times;</button>' +
+          return '<div class="spell-entry" data-spell-index="' + i + '">' +
+            '<div class="spell-row">' +
+              '<input type="number" class="spell-lvl" min="0" max="9" ' +
+                'data-spell-field="level" value="' + esc(sp.level) + '" title="Level (0 = cantrip)">' +
+              '<input type="text" placeholder="Spell name" data-spell-field="name" value="' + esc(sp.name) + '">' +
+              '<input type="text" placeholder="Notes (range, save, damage…)" data-spell-field="notes" value="' + esc(sp.notes) + '">' +
+              '<button type="button" class="btn-del-spell" title="Remove">&times;</button>' +
+            '</div>' +
+            spellInfoHtml(sp.name) +
           '</div>';
         }).join('')
       : '<p class="muted">No spells yet.</p>';
@@ -607,8 +632,17 @@
       c.spells.forEach(function (sp) { (byLvl[sp.level || '?'] = byLvl[sp.level || '?'] || []).push(sp); });
       var spLines = Object.keys(byLvl).sort().map(function (k) {
         var lab = (k === '0') ? 'Cantrips' : (k === '?' ? 'Other' : 'Level ' + k);
-        return '<div class="rd-spelllvl"><b>' + lab + ':</b> ' +
-          byLvl[k].map(function (sp) { return esc(sp.name || '?'); }).join(', ') + '</div>';
+        var items = byLvl[k].map(function (sp) {
+          var info = window.SpellInfo ? window.SpellInfo.get(sp.name) : null;
+          var meta = info && window.SpellInfo.meta(sp.name);
+          var body = (info && info.desc) ? info.desc : (sp.notes || '');
+          return '<div class="rd-spell">' +
+            '<div class="rd-spell__name">' + esc(sp.name || '?') +
+              (meta ? '<span class="rd-spell__meta">' + esc(meta) + '</span>' : '') + '</div>' +
+            (body ? '<div class="rd-spell__desc">' + esc(body) + '</div>' : '') +
+          '</div>';
+        }).join('');
+        return '<div class="rd-spelllvl"><div class="rd-spelllvl__lbl">' + lab + '</div>' + items + '</div>';
       }).join('');
       spellsHtml = '<div class="rd-block"><h3>Spells</h3>' +
         '<p class="rd-line">Save DC ' + dc + ' &middot; Spell attack ' + atk +
@@ -888,7 +922,16 @@
     } else if (t.hasAttribute('data-spell-field')) {
       var srow = t.closest('[data-spell-index]');
       var si = parseInt(srow.getAttribute('data-spell-index'), 10);
-      active.spells[si][t.getAttribute('data-spell-field')] = t.value;
+      var sfield = t.getAttribute('data-spell-field');
+      active.spells[si][sfield] = t.value;
+      if (sfield === 'name') {
+        // Refresh just this entry's info block, keeping the input focused.
+        var old = srow.querySelector('.spell-info');
+        if (old) old.parentNode.removeChild(old);
+        var tmp = document.createElement('div');
+        tmp.innerHTML = spellInfoHtml(t.value);
+        if (tmp.firstChild) srow.appendChild(tmp.firstChild);
+      }
     } else if (t.hasAttribute('data-death')) {
       active.deathSaves[t.getAttribute('data-death')][+t.getAttribute('data-didx')] = t.checked;
     } else {
@@ -948,6 +991,7 @@
     el.spellAtk = document.querySelector('#spell-atk');
     el.spellSlots = document.querySelector('#spell-slots');
     el.spellPick = document.querySelector('#spell-pick');
+    el.spellPreview = document.querySelector('#spell-preview');
     el.gallery = document.querySelector('#char-gallery-cards');
     el.profBonus = document.querySelector('#prof-bonus');
     el.initTotal = document.querySelector('#init-total');
@@ -1023,6 +1067,7 @@
       });
     }
     el.select.addEventListener('change', function () { switchTo(el.select.value); });
+    if (el.spellPick) el.spellPick.addEventListener('change', renderSpellPreview);
     document.querySelector('.btn-new-char').addEventListener('click', newCharacterFlow);
     document.querySelector('.btn-dup-char').addEventListener('click', function () {
       var copy = JSON.parse(JSON.stringify(active));
