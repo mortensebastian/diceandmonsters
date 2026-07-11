@@ -1939,3 +1939,12 @@ button:disabled { opacity: .4; cursor: not-allowed; box-shadow: none; }
 }
 .btn-marker-reveal { border-color: #27632f !important; color: #27ae60 !important; }
 .btn-marker-remove { border-color: #7a2318 !important; color: #c0392b !important; }
+
+/* ============================================================
+   Role-driven layout: each seat shows only its own components.
+   role-ai  = Play vs AI DM (AI is the DM; human is a player)
+   role-dm  = human DM console
+   ============================================================ */
+.role-dm #ai-dm { display: none; }                 /* human DM: no AI DM panel */
+.role-ai #reveal-panel { display: none; }          /* AI is the DM: no manual reveal panel */
+.role-ai .item__reveal { display: none; }          /* …nor per-creature reveal toggles */

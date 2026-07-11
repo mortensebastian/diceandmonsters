@@ -1607,13 +1607,20 @@
     var role = currentRole();
     var h1 = document.querySelector('.topbar h1');
     var tag = document.querySelector('.topbar .tagline');
+    // A body class drives the per-role layout in CSS, so each seat shows
+    // only its own components (no shared DOM peeking through).
+    document.body.classList.add('role-' + role);
+    // Highlight the matching gameplay nav entry.
+    var navLink = document.querySelector('.nav__link[data-role-link="' + role + '"]');
+    if (navLink) navLink.classList.add('nav__link--active');
+
     if (role === 'dm') {
-      var aiPanel = document.querySelector('#ai-dm');
-      if (aiPanel) aiPanel.hidden = true;           // human DM: no AI DM panel
       if (h1) h1.textContent = 'DM Console';
       if (tag) tag.textContent = 'You run the world. Reveal the map and creatures as the players discover them.';
       document.title = 'DM Console — Dice & Monsters';
     } else {
+      // AI is the DM: the human is a player, so the DM reveal controls
+      // (hidden via CSS) don't apply here; the AI DM panel does.
       if (h1) h1.textContent = 'Play vs AI DM';
       if (tag) tag.textContent = 'The AI is your Dungeon Master — it sees the whole map; you see only what your party has found.';
       document.title = 'Play vs AI DM — Dice & Monsters';
