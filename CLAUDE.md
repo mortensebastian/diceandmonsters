@@ -193,13 +193,19 @@ shape used for local autosave **and** cloud `play_sessions.state`.
 
 - Schema in `supabase/schema.sql` (run once in the SQL Editor). Tables:
   `profiles`, `groups`, `group_members`, `character_sheets` (legacy, unused by
-  the frontend), `play_sessions` (live game state + Realtime), `user_collections`
-  (characters/adventures/encounters blobs). RLS throughout; owner-writes /
-  group-members-read for shared sessions.
+  the frontend), `play_sessions` (full DM state — **owner-only**),
+  `play_player_views` (the sanitized projection players read — group-readable),
+  `user_collections` (characters/adventures/encounters blobs). RLS throughout.
 - Setup steps and the new-dashboard locations for URL + key are in `SUPABASE.md`.
-- **Sharing model:** single-writer. The DM owns and writes a `play_sessions` row;
-  when `shared=true` + attached to a group, group members open it read-only and
-  get live Realtime updates (~2s cadence, the cloud-autosave debounce).
+- **Sharing model:** single-writer, **two rows per live session**. The DM owns
+  and writes the full `play_sessions.state` (owner-only RLS — players can't read
+  it). When sharing to a group, the DM also upserts `play_player_views.view` =
+  `Visibility.playerView(snapshot)`; group members read/subscribe to *that* row
+  only (Realtime, ~2s cadence). This is the multiplayer half of the fundamental
+  rule: because Postgres RLS can't hide a single column, the hidden state and the
+  player projection are **separate tables**, and player clients never touch the
+  full-state table. Players join via the group invite code and open the DM's
+  `player.html?s=<sessionId>` link (a lobby in `player.js`).
 
 ## Running & testing locally
 

@@ -83,6 +83,42 @@
     return client.from('play_sessions').delete().eq('id', id);
   }
 
+  /* ---- Player projections (the sanitized view players receive) ----
+     The DM upserts a role-scoped view (from Visibility.playerView) here;
+     group members read/subscribe to it. The full state in play_sessions
+     stays owner-only, so hidden info never reaches a player client. */
+  // rec: { session_id, group_id, title, view }
+  function savePlayerView(rec) {
+    return client.from('play_player_views').upsert({
+      session_id: rec.session_id,
+      owner: currentUser && currentUser.id,
+      group_id: (rec.group_id == null ? null : rec.group_id),
+      title: rec.title || null,
+      view: rec.view,
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'session_id' }).select().single();
+  }
+  function deletePlayerView(sessionId) {
+    return client.from('play_player_views').delete().eq('session_id', sessionId);
+  }
+  function loadPlayerView(sessionId) {
+    return client.from('play_player_views').select('*').eq('session_id', sessionId).maybeSingle();
+  }
+  // Shared views the current user may open (their own + their groups').
+  function listPlayerViews() {
+    return client.from('play_player_views')
+      .select('session_id,title,updated_at,group_id,owner')
+      .order('updated_at', { ascending: false });
+  }
+  function subscribePlayerView(sessionId, cb) {
+    var ch = client.channel('ppv_' + sessionId)
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'play_player_views', filter: 'session_id=eq.' + sessionId },
+        function (payload) { cb(payload.new || null); })
+      .subscribe();
+    return ch;
+  }
+
   /* ---- User collections (characters / adventures / encounters) ---- */
   function getCollection(kind) {
     return client.from('user_collections').select('data')
@@ -130,6 +166,9 @@
     signIn: signIn, signUp: signUp, signOut: signOut,
     listSessions: listSessions, saveSession: saveSession,
     loadSession: loadSession, deleteSession: deleteSession,
+    savePlayerView: savePlayerView, deletePlayerView: deletePlayerView,
+    loadPlayerView: loadPlayerView, listPlayerViews: listPlayerViews,
+    subscribePlayerView: subscribePlayerView,
     getCollection: getCollection, saveCollection: saveCollection,
     listGroups: listGroups, createGroup: createGroup,
     joinGroup: joinGroup, setSessionShare: setSessionShare,

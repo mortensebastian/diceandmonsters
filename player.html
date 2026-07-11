@@ -24,6 +24,24 @@
             <p class="tagline">Your seat at the table — you see only what your character can see.</p>
         </header>
 
+        <!-- Join the DM's live session (Supabase; hidden unless configured) -->
+        <section class="player-cloud" id="player-cloud" hidden>
+            <h2 class="player-cloud__title">☁ Join a live game</h2>
+            <p class="player-cloud__hint" id="player-cloud-signin">Sign in (top-right) to join your DM's session.</p>
+            <div class="player-cloud__panel" id="player-cloud-panel" hidden>
+                <div class="player-cloud__row">
+                    <input type="text" id="player-join-code" class="player-cloud__input" placeholder="Invite code from your DM">
+                    <button class="btn-player-join" type="button">Join group</button>
+                </div>
+                <div class="player-cloud__row">
+                    <select id="player-session" class="player-cloud__select"></select>
+                    <button class="btn-player-open" type="button">Open</button>
+                    <button class="btn-player-leave" type="button" hidden>Leave</button>
+                </div>
+                <span id="player-cloud-status" class="player-cloud__status"></span>
+            </div>
+        </section>
+
         <!-- Which character am I playing? -->
         <section class="player-who">
             <label class="player-who__label">Play as:

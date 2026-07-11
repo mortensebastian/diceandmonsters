@@ -31,6 +31,13 @@
   var selfName = '';
   var el = {};
 
+  // Cloud (live multiplayer) state. When a cloud session is open, its
+  // already-sanitized `view` is the source of truth; the full DM state is
+  // never fetched here (RLS forbids it), so nothing hidden can arrive.
+  var cloudView = null;
+  var cloudSessionId = null;
+  var cloudChannel = null;
+
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (ch) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch];
@@ -42,9 +49,11 @@
   }
 
   /* ---- Source the player-safe view ---------------------------------- */
-  // Prefer the projection the DM published; otherwise project the local
-  // autosave ourselves so a same-device player still sees a safe view.
+  // Source priority: a live cloud session (already sanitized server-side) →
+  // the DM's locally-published projection → projecting the local autosave
+  // ourselves (same-device demo). Every path yields a player-safe view.
   function loadView() {
+    if (cloudView) return cloudView;
     var projected = readLS(PROJECTION_KEY);
     if (projected && projected.role === 'player') return projected;
     var raw = readLS(AUTOSAVE_KEY);
@@ -220,6 +229,88 @@
     el.areaCard.hidden = false;
   }
 
+  /* ---- Cloud lobby: join the DM's live session --------------------- */
+  function pcStatus(t) { if (el.pcStatus) el.pcStatus.textContent = t || ''; }
+
+  function initCloud() {
+    el.cloud = document.querySelector('#player-cloud');
+    if (!el.cloud || !window.Cloud || !Cloud.available()) return;   // no cloud → local only
+    el.cloud.hidden = false;
+    el.pcSignin  = document.querySelector('#player-cloud-signin');
+    el.pcPanel   = document.querySelector('#player-cloud-panel');
+    el.pcCode    = document.querySelector('#player-join-code');
+    el.pcSession = document.querySelector('#player-session');
+    el.pcStatus  = document.querySelector('#player-cloud-status');
+    el.pcOpen    = document.querySelector('.btn-player-open');
+    el.pcLeave   = document.querySelector('.btn-player-leave');
+
+    document.querySelector('.btn-player-join').addEventListener('click', doJoin);
+    el.pcOpen.addEventListener('click', function () { if (el.pcSession.value) openSession(el.pcSession.value); });
+    el.pcLeave.addEventListener('click', leaveSession);
+
+    var deepLink = null;
+    try { deepLink = new URLSearchParams(window.location.search).get('s'); } catch (e) { /* ignore */ }
+
+    Cloud.init();
+    Cloud.onAuth(function (user) {
+      var signedIn = !!user;
+      if (el.pcSignin) el.pcSignin.hidden = signedIn;
+      if (el.pcPanel) el.pcPanel.hidden = !signedIn;
+      if (signedIn) {
+        refreshSessions(function () { if (deepLink) { openSession(deepLink); deepLink = null; } });
+      }
+    });
+  }
+  function refreshSessions(done) {
+    Cloud.listPlayerViews().then(function (res) {
+      if (res.error) { pcStatus(res.error.message); return; }
+      var rows = res.data || [];
+      el.pcSession.innerHTML = rows.length
+        ? rows.map(function (r) { return '<option value="' + r.session_id + '">' + esc(r.title || 'Untitled') + '</option>'; }).join('')
+        : '<option value="">No shared sessions yet</option>';
+      el.pcSession.disabled = !rows.length;
+      if (done) done();
+    });
+  }
+  function doJoin() {
+    var code = (el.pcCode.value || '').trim();
+    if (!code) { pcStatus('Enter the invite code from your DM.'); return; }
+    pcStatus('Joining…');
+    Cloud.joinGroup(code).then(function (res) {
+      if (res.error) { pcStatus(res.error.message); return; }
+      el.pcCode.value = ''; pcStatus('Joined. Pick the session below.');
+      refreshSessions();
+    });
+  }
+  function openSession(id) {
+    if (!id) return;
+    pcStatus('Opening…');
+    Cloud.loadPlayerView(id).then(function (res) {
+      if (res.error) { pcStatus('Could not open: ' + res.error.message); return; }
+      if (!res.data) { pcStatus('Not available — ask your DM to share, and make sure you joined the group.'); return; }
+      cloudSessionId = id;
+      cloudView = res.data.view || null;
+      subscribeCloud(id);
+      pcStatus('Live: “' + (res.data.title || 'session') + '”.');
+      if (el.pcLeave) el.pcLeave.hidden = false;
+      refresh();
+    });
+  }
+  function subscribeCloud(id) {
+    if (cloudChannel) { Cloud.unsubscribe(cloudChannel); cloudChannel = null; }
+    cloudChannel = Cloud.subscribePlayerView(id, function (row) {
+      cloudView = row ? row.view : null;
+      refresh();
+    });
+  }
+  function leaveSession() {
+    if (cloudChannel) { Cloud.unsubscribe(cloudChannel); cloudChannel = null; }
+    cloudSessionId = null; cloudView = null;
+    if (el.pcLeave) el.pcLeave.hidden = true;
+    pcStatus('Left the session.');
+    refresh();
+  }
+
   function init() {
     el.selfSelect = document.querySelector('#player-self-select');
     el.conn       = document.querySelector('#player-conn');
@@ -251,6 +342,7 @@
     });
 
     initBattlemap();
+    initCloud();
     refresh();
 
     // Live updates: cross-tab storage events (instant) + a slow poll.

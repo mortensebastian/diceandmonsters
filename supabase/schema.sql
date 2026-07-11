@@ -219,13 +219,13 @@ create index if not exists play_sessions_group_idx on play_sessions(group_id);
 
 alter table play_sessions enable row level security;
 
--- Read your own sessions, plus shared sessions in groups you belong to.
+-- Owner-only. The full session `state` holds hidden monsters, DM notes,
+-- traps and the AI transcript, so it must NEVER be readable by players —
+-- Postgres RLS can't hide a single column, so players don't read this row
+-- at all. They read the sanitized projection in play_player_views instead.
 drop policy if exists play_select on play_sessions;
 create policy play_select on play_sessions
-  for select to authenticated using (
-    owner = auth.uid()
-    or (shared = true and group_id is not null and is_group_member(group_id))
-  );
+  for select to authenticated using ( owner = auth.uid() );
 
 -- Only the owner (the DM) creates / edits / deletes a session.
 drop policy if exists play_insert on play_sessions;
@@ -240,9 +240,54 @@ drop policy if exists play_delete on play_sessions;
 create policy play_delete on play_sessions
   for delete to authenticated using (owner = auth.uid());
 
--- Realtime: let players watch the DM's session update live.
+-- Realtime: let the DM's own devices watch their session update live.
 -- (Safe to run once; if it says the table is already a member, ignore it.)
 alter publication supabase_realtime add table play_sessions;
+
+-- ---- Player projection (the role-scoped view players receive) ----
+-- The DM writes `view` from Visibility.playerView(): revealed combatants
+-- only, the fog-limited map, revealed non-secret areas/markers, DM
+-- narration — and nothing else. Group members READ this; the owner writes
+-- it. This table, not play_sessions, is what a player client subscribes to,
+-- so hidden information is never sent to a player at all (the fundamental
+-- rule, enforced in the database).
+create table if not exists play_player_views (
+  session_id uuid primary key references play_sessions(id) on delete cascade,
+  owner      uuid not null references auth.users(id) on delete cascade,
+  group_id   uuid references groups(id) on delete set null,
+  title      text,
+  view       jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists play_player_views_group_idx on play_player_views(group_id);
+create index if not exists play_player_views_owner_idx on play_player_views(owner);
+
+alter table play_player_views enable row level security;
+
+-- The owner (DM) writes it; the owner and any member of the attached group
+-- may read it. There is nothing secret here to protect column-wise.
+drop policy if exists ppv_select on play_player_views;
+create policy ppv_select on play_player_views
+  for select to authenticated using (
+    owner = auth.uid()
+    or (group_id is not null and is_group_member(group_id))
+  );
+
+drop policy if exists ppv_insert on play_player_views;
+create policy ppv_insert on play_player_views
+  for insert to authenticated with check (owner = auth.uid());
+
+drop policy if exists ppv_update on play_player_views;
+create policy ppv_update on play_player_views
+  for update to authenticated using (owner = auth.uid());
+
+drop policy if exists ppv_delete on play_player_views;
+create policy ppv_delete on play_player_views
+  for delete to authenticated using (owner = auth.uid());
+
+-- Realtime: players watch the projection update live as the DM plays.
+alter publication supabase_realtime add table play_player_views;
 
 -- ============================================================
 -- User collections — your characters / adventures / encounters

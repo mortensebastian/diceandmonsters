@@ -34,6 +34,8 @@
   var cloudSessionTitle = '';
   var cloudTimer = null;
   var cloudGroups = [];          // groups I belong to
+  var cloudShareOn = false;      // is the active session shared with players?
+  var cloudShareGroupId = null;  // which group it's shared with
   var viewerMode = false;        // watching someone else's shared session (read-only)
   var liveChannel = null;        // active realtime subscription
 
@@ -1221,10 +1223,25 @@
     if (!window.Cloud || !Cloud.available() || !Cloud.user() || !cloudSessionId) return;
     clearTimeout(cloudTimer);
     cloudTimer = setTimeout(function () {
-      Cloud.saveSession({ id: cloudSessionId, title: cloudSessionTitle, state: snapshot() })
+      var snap = snapshot();
+      Cloud.saveSession({ id: cloudSessionId, title: cloudSessionTitle, state: snap })
         .then(function (res) { if (res && res.error) cloudStatus('Cloud save failed: ' + res.error.message); })
         .catch(function (e) { cloudStatus('Cloud save failed.'); });
+      pushPlayerView(snap);   // the sanitized projection players actually receive
     }, 2000);
+  }
+  // Publish the role-scoped player projection to the cloud (the ONLY thing
+  // players read). Full state goes to play_sessions (owner-only); this goes
+  // to play_player_views (group-readable). Enforces "hidden info never sent".
+  function pushPlayerView(snap) {
+    if (!cloudShareOn || !cloudShareGroupId || !cloudSessionId) return;
+    if (!Cloud.available() || !Cloud.user() || !window.Visibility) return;
+    Cloud.savePlayerView({
+      session_id: cloudSessionId,
+      group_id: cloudShareGroupId,
+      title: cloudSessionTitle,
+      view: window.Visibility.playerView(snap, {})
+    }).catch(function () { /* transient; next autosave retries */ });
   }
 
   function refreshCloudList() {
@@ -1248,7 +1265,7 @@
     el.cloudPanel.hidden = !signedIn;
     if (el.cloudSigninHint) el.cloudSigninHint.hidden = signedIn;
     if (signedIn) { refreshCloudList(); refreshGroups(); cloudActiveLabel(); }
-    else { cloudSessionId = null; cloudSessionTitle = ''; leaveViewerMode(); }
+    else { cloudSessionId = null; cloudSessionTitle = ''; cloudShareOn = false; cloudShareGroupId = null; leaveViewerMode(); }
   }
 
   function doSaveToCloud() {
@@ -1285,8 +1302,12 @@
         cloudSessionId = row.id;
         cloudSessionTitle = row.title;
         // reflect this session's share state in the controls
+        cloudShareOn = !!row.shared;
+        cloudShareGroupId = row.shared ? (row.group_id || null) : null;
         if (el.cloudShared) el.cloudShared.checked = !!row.shared;
-        if (row.group_id && el.cloudGroups) { el.cloudGroups.value = row.group_id; updateInviteDisplay(); }
+        if (row.group_id && el.cloudGroups) { el.cloudGroups.value = row.group_id; }
+        updateInviteDisplay();
+        if (cloudShareOn) pushPlayerView(row.state || {});
         persistState();
         cloudActiveLabel();
         logLine('Opened cloud session “' + row.title + '”.', 'spawn');
@@ -1307,7 +1328,7 @@
     if (!window.confirm('Delete this cloud session permanently?')) return;
     Cloud.deleteSession(id).then(function (res) {
       if (res.error) { cloudStatus('Delete failed: ' + res.error.message); return; }
-      if (id === cloudSessionId) { cloudSessionId = null; cloudSessionTitle = ''; cloudActiveLabel(); }
+      if (id === cloudSessionId) { cloudSessionId = null; cloudSessionTitle = ''; cloudShareOn = false; cloudShareGroupId = null; cloudActiveLabel(); }
       cloudStatus('Deleted.');
       refreshCloudList();
     });
@@ -1332,8 +1353,15 @@
     return null;
   }
   function updateInviteDisplay() {
+    if (!el.cloudInvite) return;
     var g = selectedGroup();
-    if (el.cloudInvite) el.cloudInvite.textContent = g ? ('Invite code: ' + g.invite_code) : '';
+    if (cloudShareOn && g && cloudSessionId) {
+      var link = playerJoinLink();
+      el.cloudInvite.innerHTML = 'Invite code <b>' + esc(g.invite_code) + '</b> · ' +
+        '<a href="' + esc(link) + '" target="_blank" rel="noopener">Player link ↗</a>';
+    } else {
+      el.cloudInvite.textContent = g ? ('Invite code: ' + g.invite_code) : '';
+    }
   }
   function doCreateGroup() {
     var name = window.prompt('Name this group / party:');
@@ -1362,10 +1390,22 @@
     if (shared && !g) { cloudStatus('Select or create a group to share with.'); el.cloudShared.checked = false; return; }
     Cloud.setSessionShare(cloudSessionId, g ? g.id : null, shared).then(function (res) {
       if (res.error) { cloudStatus('Share failed: ' + res.error.message); el.cloudShared.checked = !shared; return; }
-      cloudStatus(shared
-        ? ('Shared live with “' + g.name + '”. Players open it from their Cloud saves.')
-        : 'Sharing turned off.');
+      cloudShareOn = shared;
+      cloudShareGroupId = shared ? g.id : null;
+      if (shared) {
+        pushPlayerView(snapshot());   // publish the projection right away
+        cloudStatus('Shared live with “' + g.name + '”. Send players the invite link + code below.');
+      } else {
+        Cloud.deletePlayerView(cloudSessionId).catch(function () { /* ignore */ });
+        cloudStatus('Sharing turned off.');
+      }
+      updateInviteDisplay();
     });
+  }
+  function playerJoinLink() {
+    if (!cloudSessionId) return '';
+    var base = window.location.href.replace(/[^\/]*(\?.*)?$/, '');
+    return base + 'player.html?s=' + cloudSessionId;
   }
 
   function subscribeLive(id) {

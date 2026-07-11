@@ -1948,3 +1948,24 @@ button:disabled { opacity: .4; cursor: not-allowed; box-shadow: none; }
 .role-dm #ai-dm { display: none; }                 /* human DM: no AI DM panel */
 .role-ai #reveal-panel { display: none; }          /* AI is the DM: no manual reveal panel */
 .role-ai .item__reveal { display: none; }          /* …nor per-creature reveal toggles */
+
+/* Player cloud lobby (player.html) */
+.player-cloud {
+    max-width: 960px; margin: 0 auto 14px; padding: 14px 16px;
+    background: #1d2029; border: 1px solid #2c3140; border-radius: 12px;
+}
+.player-cloud__title { font-size: 16px; color: #4aa3df; margin-bottom: 8px; }
+.player-cloud__hint { color: #9aa3b2; font-size: 13px; }
+.player-cloud__row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; align-items: center; }
+.player-cloud__input, .player-cloud__select {
+    background: #12141a; color: #e6e6e6; border: 1px solid #2c3140;
+    border-radius: 6px; padding: 7px 10px; font-size: 14px;
+}
+.player-cloud__select { min-width: 200px; }
+.player-cloud__row button {
+    background: #2980b9; color: #fff; border: none; border-radius: 6px;
+    padding: 7px 14px; font-size: 13px; cursor: pointer;
+}
+.player-cloud__row button:hover { background: #3a91cc; }
+.btn-player-leave { background: #12141a !important; border: 1px solid #2c3140 !important; color: #cfd6e2 !important; }
+.player-cloud__status { display: block; margin-top: 8px; color: #8a93a6; font-size: 13px; }
