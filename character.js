@@ -688,6 +688,78 @@
   }
 
   /* ---- Level up ---- */
+
+  // Description for a gained feature, or '' when we have none.
+  function featureDesc(name) {
+    var f = (window.SRD_LEVELING || {}).features || {};
+    return f[name] || '';
+  }
+
+  // A <select> option list; `sel` marks the current value.
+  function optionTags(options, sel) {
+    return options.map(function (o) {
+      var v = o.name || o;
+      return '<option value="' + esc(v) + '" data-desc="' + esc(o.desc || '') + '"' +
+        (v === sel ? ' selected' : '') + '>' + esc(v) + '</option>';
+    }).join('');
+  }
+
+  // Render one gained feature: a plain read-more block, an interactive
+  // choice (subclass / fighting style / metamagic / invocation) or the
+  // Ability Score Improvement picker.
+  function renderFeature(name) {
+    var choice = (window.SRD_LEVELING || {}).choiceFor
+      ? window.SRD_LEVELING.choiceFor(name, active.cls) : null;
+    var desc = featureDesc(name);
+
+    if (choice && choice.type === 'asi') {
+      var abilOpts = '<option value="">—</option>' + ABILITIES.map(function (a) {
+        return '<option value="' + a.key + '">' + esc(a.label) + '</option>';
+      }).join('');
+      var featList = (window.SRD_LEVELING || {}).feats || [];
+      return '' +
+        '<div class="levelup-choice levelup-asi" data-feature="' + esc(name) + '">' +
+          '<div class="levelup-choice-head">' + esc(name) +
+            (desc ? '<span class="levelup-hint">' + esc(desc) + '</span>' : '') + '</div>' +
+          '<label class="levelup-row"><span>Choose</span>' +
+            '<select class="levelup-asi-mode">' +
+              '<option value="asi" selected>Raise ability scores</option>' +
+              '<option value="feat">Take a feat</option>' +
+            '</select></label>' +
+          '<div class="levelup-asi-scores">' +
+            '<label class="levelup-row"><span>+1</span><select class="levelup-asi-a">' + abilOpts + '</select></label>' +
+            '<label class="levelup-row"><span>+1</span><select class="levelup-asi-b">' + abilOpts + '</select></label>' +
+            '<p class="levelup-opt-desc">Increase one score by 2 (pick the same twice) or two scores by 1. Max 20.</p>' +
+          '</div>' +
+          '<div class="levelup-asi-feat" hidden>' +
+            '<label class="levelup-row"><span>Feat</span><select class="levelup-feat-sel">' +
+              optionTags(featList, featList[0] && featList[0].name) + '</select></label>' +
+            '<p class="levelup-opt-desc">' + esc((featList[0] && featList[0].desc) || '') + '</p>' +
+          '</div>' +
+        '</div>';
+    }
+
+    if (choice && choice.type === 'pick') {
+      var opts = choice.options || [];
+      if (!opts.length) {
+        return '<details class="levelup-feat"><summary>' + esc(name) + '</summary>' +
+          '<p>' + (desc ? esc(desc) : 'Depends on your subclass — check your subclass features.') + '</p></details>';
+      }
+      var first = opts[0];
+      return '' +
+        '<div class="levelup-choice" data-key="' + esc(choice.key) + '" data-feature="' + esc(name) + '">' +
+          '<div class="levelup-choice-head">' + esc(choice.label) +
+            (desc ? '<span class="levelup-hint">' + esc(desc) + '</span>' : '') + '</div>' +
+          '<select class="levelup-pick">' + optionTags(opts, first.name) + '</select>' +
+          '<p class="levelup-opt-desc">' + esc(first.desc || '') + '</p>' +
+        '</div>';
+    }
+
+    // Plain feature — a read-more disclosure.
+    return '<details class="levelup-feat"><summary>' + esc(name) + '</summary>' +
+      '<p>' + (desc ? esc(desc) : 'No summary available — see the class description in the rulebook.') + '</p></details>';
+  }
+
   function showLevelUp() {
     var cd = SRD.classes[active.cls];
     var cur = active.level || 1;
@@ -698,7 +770,8 @@
       return;
     }
     var target = cur + 1;
-    var feats = ((window.SRD_LEVELING || {})[active.cls] || {})[target] || [];
+    var byClass = ((window.SRD_LEVELING || {}).classes || {})[active.cls] || {};
+    var feats = byClass[target] || [];
     var avg = cd ? (cd.hitDie / 2 + 1) : 0;
     var con = abilMod('con');
     var hpGain = cd ? Math.max(1, avg + con) : 0;
@@ -710,11 +783,13 @@
     } else {
       html += '<p class="rd-line">+' + hpGain + ' HP (average ' + avg + ' + Con ' + signed(con) +
         ') &middot; Proficiency bonus ' + signed(newPb) + '</p>';
-      html += feats.length
-        ? '<p class="rd-line">You gain:</p><ul class="rd-list">' +
-            feats.map(function (f) { return '<li>' + esc(f) + '</li>'; }).join('') + '</ul>'
-        : '<p class="muted">No new class feature at this level beyond any proficiency increase.</p>';
-      html += '<p class="muted">Apply adds the HP and bumps level &amp; proficiency. Add the listed features to your sheet as you choose them.</p>';
+      if (feats.length) {
+        html += '<p class="rd-line">You gain — expand a feature to read it, and pick your options:</p>';
+        html += '<div class="levelup-feats">' + feats.map(renderFeature).join('') + '</div>';
+      } else {
+        html += '<p class="muted">No new class feature at this level beyond any proficiency increase.</p>';
+      }
+      html += '<p class="muted">Apply adds the HP, bumps level &amp; proficiency, applies any ability increase, and records your choices in Features &amp; traits.</p>';
     }
     html += '<div class="levelup-btns">' +
       '<button type="button" class="btn-levelup-apply"' + (cd ? '' : ' disabled') + '>Apply level up</button>' +
@@ -723,12 +798,74 @@
     el.levelupPanel.hidden = false;
   }
 
+  // Keep option descriptions and the ASI/feat toggle live as the user picks.
+  function onLevelupChange(e) {
+    var t = e.target;
+    if (t.classList.contains('levelup-pick') || t.classList.contains('levelup-feat-sel')) {
+      var opt = t.options[t.selectedIndex];
+      var box = t.parentNode.querySelector('.levelup-opt-desc') ||
+        t.closest('.levelup-choice, .levelup-asi-feat').querySelector('.levelup-opt-desc');
+      if (box && opt) box.textContent = opt.getAttribute('data-desc') || '';
+    } else if (t.classList.contains('levelup-asi-mode')) {
+      var wrap = t.closest('.levelup-asi');
+      var scores = wrap.querySelector('.levelup-asi-scores');
+      var featBox = wrap.querySelector('.levelup-asi-feat');
+      var feat = t.value === 'feat';
+      if (scores) scores.hidden = feat;
+      if (featBox) featBox.hidden = !feat;
+    }
+  }
+
   function applyLevelUp() {
     var cd = SRD.classes[active.cls];
     var cur = active.level || 1;
     if (!cd || cur >= 20) return;
     var target = cur + 1;
     var hpGain = Math.max(1, (cd.hitDie / 2 + 1) + abilMod('con'));
+
+    // Collect the choices the player made in the panel.
+    var gained = [];
+    var panel = el.levelupPanel;
+
+    // Subclass / fighting style / metamagic / invocation picks.
+    Array.prototype.forEach.call(panel.querySelectorAll('.levelup-choice[data-key]'), function (box) {
+      var sel = box.querySelector('.levelup-pick');
+      if (!sel || !sel.value) return;
+      var label = (box.getAttribute('data-feature') || '').replace(/\s*\(subclass\)/, '');
+      if (box.getAttribute('data-key') === 'subclass') active.subclass = sel.value;
+      gained.push(label + ': ' + sel.value);
+    });
+
+    // Ability Score Improvement or feat.
+    var asi = panel.querySelector('.levelup-asi');
+    if (asi) {
+      var mode = asi.querySelector('.levelup-asi-mode');
+      if (mode && mode.value === 'feat') {
+        var fsel = asi.querySelector('.levelup-feat-sel');
+        if (fsel && fsel.value) gained.push('Feat: ' + fsel.value);
+      } else {
+        [asi.querySelector('.levelup-asi-a'), asi.querySelector('.levelup-asi-b')].forEach(function (s) {
+          if (s && s.value) {
+            active.abilities[s.value] = Math.min(20, (active.abilities[s.value] || 10) + 1);
+          }
+        });
+      }
+    }
+
+    // Plain features gained (no choice) — record them too.
+    var byClass = ((window.SRD_LEVELING || {}).classes || {})[active.cls] || {};
+    (byClass[target] || []).forEach(function (name) {
+      var choice = (window.SRD_LEVELING || {}).choiceFor
+        ? window.SRD_LEVELING.choiceFor(name, active.cls) : null;
+      if (!choice) gained.push(name);
+    });
+
+    if (gained.length) {
+      var header = 'L' + target + (active.cls ? ' ' + active.cls : '') + ': ';
+      var line = header + gained.join(', ');
+      active.features = active.features ? (active.features + '\n' + line) : line;
+    }
+
     active.level = target;
     active.hp.max = (active.hp.max || 0) + hpGain;
     active.hp.current = (active.hp.current || 0) + hpGain;
@@ -1051,10 +1188,13 @@
     if (el.btnView) el.btnView.addEventListener('click', function () { applyMode('view'); });
     if (el.stName) el.stName.addEventListener('input', onNameInput);
     if (el.btnLevelup) el.btnLevelup.addEventListener('click', showLevelUp);
-    if (el.levelupPanel) el.levelupPanel.addEventListener('click', function (e) {
-      if (e.target.closest('.btn-levelup-apply')) applyLevelUp();
-      else if (e.target.closest('.btn-levelup-cancel')) { el.levelupPanel.hidden = true; }
-    });
+    if (el.levelupPanel) {
+      el.levelupPanel.addEventListener('click', function (e) {
+        if (e.target.closest('.btn-levelup-apply')) applyLevelUp();
+        else if (e.target.closest('.btn-levelup-cancel')) { el.levelupPanel.hidden = true; }
+      });
+      el.levelupPanel.addEventListener('change', onLevelupChange);
+    }
 
     el.tabs.addEventListener('click', function (e) {
       var b = e.target.closest('.tab');
