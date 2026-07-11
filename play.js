@@ -1455,8 +1455,10 @@
       wrap: document.querySelector('#battlemap-wrap'),
       distanceEl: document.querySelector('#battlemap-dist'),
       onMove: function () { scheduleSave(); },
+      onChange: function () { scheduleSave(); },   // fog paint / marker drops → save + republish
       onSelect: function (id) { selectMapToken(id); },
-      onAreaSelect: showAreaCard
+      onAreaSelect: showAreaCard,
+      onMarkerSelect: showMarkerCard
     });
     BM.setMode(viewerMode ? 'view' : 'play');
 
@@ -1478,10 +1480,89 @@
       fog.checked = BM.isFog();
       fog.addEventListener('change', function () { BM.setFog(fog.checked); persistState(); });
     }
+    var auto = document.querySelector('#reveal-auto');
+    if (auto && BM) {
+      auto.checked = BM.isAutoReveal();
+      auto.addEventListener('change', function () { BM.setAutoReveal(auto.checked); persistState(); });
+    }
     bindClick('.btn-reveal-map', function () { if (BM) BM.revealAll(); persistState(); });
     bindClick('.btn-reset-fog', function () { if (BM) BM.clearRevealed(); persistState(); });
     bindClick('.btn-hide-all', function () { setAllHidden(true); });
     bindClick('.btn-reveal-all', function () { setAllHidden(false); });
+
+    // Fog brush: Move / Reveal / Hide (drives the battlemap tool in play mode).
+    var brush = document.querySelector('#reveal-brush');
+    if (brush && BM) {
+      brush.addEventListener('click', function (ev) {
+        var b = ev.target.closest('[data-brush]');
+        if (!b) return;
+        var which = b.getAttribute('data-brush');
+        BM.setTool(which === 'select' ? 'select' : which);
+        setActiveBrush(which);
+      });
+    }
+    // Marker drop buttons: arm the marker tool with a type.
+    var markerBtns = document.querySelectorAll('.btn-marker');
+    for (var i = 0; i < markerBtns.length; i++) {
+      markerBtns[i].addEventListener('click', function (ev) {
+        if (!BM) return;
+        BM.setMarkerType(ev.currentTarget.getAttribute('data-marker'));
+        BM.setTool('marker');
+        setActiveBrush(null);   // marker mode isn't one of the brush segments
+      });
+    }
+    initMarkerCard();
+  }
+  function setActiveBrush(which) {
+    var seg = document.querySelector('#reveal-brush');
+    if (!seg) return;
+    var btns = seg.querySelectorAll('[data-brush]');
+    for (var i = 0; i < btns.length; i++) {
+      btns[i].classList.toggle('is-active', which && btns[i].getAttribute('data-brush') === which);
+    }
+  }
+
+  var activeMarker = null;
+  function initMarkerCard() {
+    el.markerCard = document.querySelector('#battlemap-marker');
+    if (!el.markerCard) return;
+    el.markerCard.querySelector('.bm-markercard__close')
+      .addEventListener('click', function () { el.markerCard.hidden = true; window.Battlemap.selectMarker && window.Battlemap.selectMarker(null); });
+    var label = el.markerCard.querySelector('#marker-label');
+    var note = el.markerCard.querySelector('#marker-note');
+    label.addEventListener('input', function () { if (activeMarker) { activeMarker.label = label.value; scheduleSave(); } });
+    note.addEventListener('input', function () { if (activeMarker) { activeMarker.note = note.value; scheduleSave(); } });
+    el.markerCard.querySelector('.btn-marker-reveal').addEventListener('click', function () {
+      if (!activeMarker) return;
+      window.Battlemap.revealMarker(activeMarker, !activeMarker.revealed);
+      renderMarkerCard();
+      persistState();
+    });
+    el.markerCard.querySelector('.btn-marker-remove').addEventListener('click', function () {
+      if (!activeMarker) return;
+      window.Battlemap.removeMarker(activeMarker);
+      activeMarker = null;
+      el.markerCard.hidden = true;
+      persistState();
+    });
+  }
+  function showMarkerCard(mk) {
+    if (!el.markerCard) return;
+    activeMarker = mk || null;
+    if (!mk) { el.markerCard.hidden = true; return; }
+    renderMarkerCard();
+    el.markerCard.hidden = false;
+  }
+  function renderMarkerCard() {
+    if (!el.markerCard || !activeMarker) return;
+    var types = window.Battlemap.markerTypes();
+    var t = types[activeMarker.type] || {};
+    el.markerCard.querySelector('.bm-markercard__title').textContent =
+      (t.glyph || '') + ' ' + (t.label || 'Marker') + (activeMarker.revealed ? ' — shown to players' : ' — hidden');
+    el.markerCard.querySelector('#marker-label').value = activeMarker.label || '';
+    el.markerCard.querySelector('#marker-note').value = activeMarker.note || '';
+    el.markerCard.querySelector('.btn-marker-reveal').textContent =
+      activeMarker.revealed ? 'Hide from players' : 'Reveal to players';
   }
   function bindClick(sel, fn) {
     var b = document.querySelector(sel);

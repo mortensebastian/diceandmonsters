@@ -128,6 +128,13 @@
       if (a.hidden || !a.revealed) return;
       out.areas.push({ n: a.n, x: a.x, y: a.y, title: a.title || '', read: a.read || '' });
     });
+    // Markers (traps / secret doors / treasure): an unrevealed one is never
+    // sent at all, and the DM's secret `note` is stripped from revealed ones.
+    out.markers = [];
+    (map.markers || []).forEach(function (mk) {
+      if (!mk.revealed) return;
+      out.markers.push({ id: mk.id, x: mk.x, y: mk.y, type: mk.type, label: mk.label || '' });
+    });
     return out;
   }
 

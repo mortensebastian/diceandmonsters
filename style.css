@@ -1909,3 +1909,33 @@ button:disabled { opacity: .4; cursor: not-allowed; box-shadow: none; }
 .item__reveal.is-shown { color: #27ae60; border-color: #27632f; }
 .item__reveal.is-hidden { color: #c0392b; border-color: #7a2318; }
 .item__reveal:hover { background: #262b36; }
+
+/* Fog brush segmented control + marker tools (DM "Players see" panel). */
+.reveal__seg { display: inline-flex; border: 1px solid #2c3140; border-radius: 6px; overflow: hidden; }
+.reveal__seg button { border: none; border-right: 1px solid #2c3140; border-radius: 0; background: #12141a; }
+.reveal__seg button:last-child { border-right: none; }
+.reveal__seg button.is-active { background: #2980b9; color: #fff; }
+.btn-marker { font-size: 13px; }
+
+/* Marker editor card (over the battlemap) */
+.bm-markercard {
+    position: relative; margin-top: 10px; padding: 12px 14px;
+    background: #1d2029; border: 1px solid #2c3140; border-radius: 10px; max-width: 460px;
+}
+.bm-markercard__close {
+    position: absolute; top: 8px; right: 8px; background: none; border: none;
+    color: #8a93a6; font-size: 15px; cursor: pointer;
+}
+.bm-markercard__title { font-size: 15px; color: #e1b12c; margin-bottom: 10px; padding-right: 20px; }
+.bm-markercard__field { display: block; color: #9aa3b2; font-size: 12px; margin-bottom: 8px; }
+.bm-markercard__input {
+    display: block; width: 100%; margin-top: 4px; box-sizing: border-box;
+    background: #12141a; color: #e6e6e6; border: 1px solid #2c3140; border-radius: 6px; padding: 7px 9px; font-size: 14px;
+}
+.bm-markercard__actions { display: flex; gap: 8px; margin-top: 6px; }
+.bm-markercard__actions button {
+    background: #12141a; color: #e6e6e6; border: 1px solid #2c3140;
+    border-radius: 6px; padding: 6px 12px; font-size: 13px; cursor: pointer;
+}
+.btn-marker-reveal { border-color: #27632f !important; color: #27ae60 !important; }
+.btn-marker-remove { border-color: #7a2318 !important; color: #c0392b !important; }

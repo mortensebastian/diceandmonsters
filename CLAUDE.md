@@ -112,9 +112,16 @@ Gameplay is split into three roles, each seeing only what it should:
   `visibility.js` for a same-device demo). Enforce new features this way.
 - **Model support:** combatants carry a `hidden` flag (`DM.setHidden`,
   serialized). The battlemap carries fog of war (`map.fog`, `map.revealed`
-  cells) + per-area `hidden`/`revealed`, with `Battlemap.setFog/revealCell/
-  revealAround/revealAll/clearRevealed/revealArea`. The DM console's "👁 Players
-  see" panel + the per-creature 👁/🙈 toggle drive these and re-publish.
+  cells) + per-area `hidden`/`revealed` + **markers** (`map.markers`:
+  trap/secret/treasure point entities, DM-only until `revealed`, with a secret
+  `note`). API: `Battlemap.setFog/revealCell/revealAround/revealAll/
+  clearRevealed/revealArea/setAutoReveal` and `setMarkerType/getMarkers/
+  revealMarker/removeMarker`. The DM paints reveal/hide with a **fog brush**
+  (the `reveal`/`hide`/`marker` tools work in `play` mode too), fog **auto-
+  reveals around player tokens** as they move (`setAutoReveal`), and the "👁
+  Players see" panel + per-creature 👁/🙈 toggle drive it all and re-publish.
+  `visibility.js` drops unrevealed markers/areas/cells and every DM `note`
+  before the projection leaves the DM's seat.
 
 ### AI layer (Play page)
 

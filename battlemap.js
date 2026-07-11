@@ -48,8 +48,18 @@
 
   function defaultMap() {
     return { v: 1, grid: 'square', cols: 16, rows: 12, terrain: {}, areas: [], starts: null, bg: null,
-      fog: false, revealed: {} };
+      fog: false, revealed: {}, markers: [] };
   }
+
+  // Point markers (traps / secret doors / hidden treasure). DM-only until
+  // `revealed`; visibility.js drops unrevealed ones from the player view.
+  var MARKER_TYPES = {
+    trap:     { glyph: '⚠', color: '#c0392b', label: 'Trap' },
+    secret:   { glyph: '⚿', color: '#9b59b6', label: 'Secret' },
+    treasure: { glyph: '✦', color: '#e1b12c', label: 'Treasure' }
+  };
+  var markerSeq = 0;
+  function newMarkerId() { return 'mk' + (++markerSeq) + '_' + Date.now().toString(36); }
 
   // Copy a { players:[], monsters:[], npcs:[] } start-zone spec (cells only).
   function copyStarts(s) {
@@ -66,9 +76,13 @@
   var combatants = [];         // live array from play.js (read x/y off each)
   var map = defaultMap();
   var bgImage = null;          // Image built from map.bg
-  var tool = 'select';         // 'select' | 'paint' | 'erase' | 'area'
+  var tool = 'select';         // 'select' | 'paint' | 'erase' | 'area' | 'reveal' | 'hide' | 'marker'
   var paintTerrain = 'wall';
+  var markerType = 'trap';     // type dropped by the 'marker' tool
+  var autoReveal = false;      // fog: auto-clear cells around player tokens
+  var autoRevealRadius = 2;
   var selectedArea = null;     // area object currently being edited (design)
+  var selectedMarker = null;   // trap/secret/treasure marker selected (DM)
   var areaEditorEl = null;     // inline area editor built by buildToolbar
   var legendEl = null;         // HTML legend element (created lazily)
   // Interaction mode:
@@ -461,8 +475,40 @@
     drawTerrain(m);
     drawGrid(m);
     drawFog(m);        // fog over unrevealed cells (opaque for players, tint for DM)
+    drawMarkers(m);    // traps/secrets (DM sees unrevealed faded; players get only revealed)
     drawAreas(m);      // revealed areas + tokens ride above the fog
     drawTokens(m);
+  }
+
+  function drawMarkers(m) {
+    var list = map.markers || [];
+    for (var i = 0; i < list.length; i++) {
+      var mk = list[i];
+      if (mk.x == null || mk.y == null || !inBounds(mk.x, mk.y)) continue;
+      var t = MARKER_TYPES[mk.type] || MARKER_TYPES.trap;
+      var c = cellCenter(mk.x, mk.y, m);
+      var r = Math.max(9, (m.grid === 'hex' ? m.size : m.cell) * 0.3);
+      var dim = (mode !== 'view' && !mk.revealed);   // DM: unrevealed = faded + dashed
+      CTX.save();
+      CTX.globalAlpha = dim ? 0.6 : 1;
+      CTX.beginPath();
+      CTX.moveTo(c.x, c.y - r); CTX.lineTo(c.x + r, c.y);
+      CTX.lineTo(c.x, c.y + r); CTX.lineTo(c.x - r, c.y); CTX.closePath();
+      CTX.fillStyle = 'rgba(18,20,26,.92)'; CTX.fill();
+      CTX.lineWidth = 2;
+      if (dim) CTX.setLineDash([4, 3]);
+      CTX.strokeStyle = t.color; CTX.stroke();
+      CTX.setLineDash([]);
+      CTX.fillStyle = t.color;
+      CTX.font = 'bold ' + Math.round(r * 1.05) + 'px "Open Sans", sans-serif';
+      CTX.textAlign = 'center'; CTX.textBaseline = 'middle';
+      CTX.fillText(t.glyph, c.x, c.y + 0.5);
+      if (selectedMarker === mk) {
+        CTX.globalAlpha = 1; CTX.lineWidth = 2; CTX.strokeStyle = '#e1b12c';
+        CTX.beginPath(); CTX.arc(c.x, c.y, r + 3, 0, Math.PI * 2); CTX.stroke();
+      }
+      CTX.restore();
+    }
   }
 
   // Fog of war: paint every cell the players have not yet discovered.
@@ -616,6 +662,58 @@
     if (cb.onAreaSelect) cb.onAreaSelect(a || null);
   }
 
+  /* ---- Markers (traps / secret doors / treasure) ---- */
+  function markerAt(col, row) {
+    var list = map.markers || [];
+    for (var i = 0; i < list.length; i++) {
+      if (list[i].x === col && list[i].y === row) return list[i];
+    }
+    return null;
+  }
+  function addMarker(col, row, type) {
+    if (!map.markers) map.markers = [];
+    var t = MARKER_TYPES[type] ? type : 'trap';
+    var mk = { id: newMarkerId(), x: col, y: row, type: t, label: '', note: '', revealed: false };
+    map.markers.push(mk);
+    selectMarker(mk);
+    render();
+    if (cb.onChange) cb.onChange();
+    return mk;
+  }
+  function removeMarker(mk) {
+    map.markers = (map.markers || []).filter(function (x) { return x !== mk; });
+    if (selectedMarker === mk) selectMarker(null);
+    render();
+    if (cb.onChange) cb.onChange();
+  }
+  function selectMarker(mk) {
+    selectedMarker = mk || null;
+    if (cb.onMarkerSelect) cb.onMarkerSelect(mk || null);
+  }
+  function revealMarker(mk, on) {
+    if (!mk) return;
+    mk.revealed = (on !== false);
+    render();
+    if (cb.onChange) cb.onChange();
+  }
+
+  // Fog: reveal a radius of cells around every placed player token.
+  function autoRevealPlayers() {
+    if (!map.fog || !autoReveal) return;
+    if (!map.revealed) map.revealed = {};
+    var changed = false;
+    combatants.forEach(function (c) {
+      if (c.kind !== 'player' || c.x == null || c.y == null) return;
+      for (var dr = -autoRevealRadius; dr <= autoRevealRadius; dr++) {
+        for (var dc = -autoRevealRadius; dc <= autoRevealRadius; dc++) {
+          var cc = c.x + dc, rr = c.y + dr, key = cc + ',' + rr;
+          if (inBounds(cc, rr) && !map.revealed[key]) { map.revealed[key] = 1; changed = true; }
+        }
+      }
+    });
+    return changed;
+  }
+
   /* ---- Pointer interaction ---- */
   function evPos(ev) {
     var rect = CV.getBoundingClientRect();
@@ -628,6 +726,8 @@
     var key = cell.col + ',' + cell.row;
     if (key === lastPaintKey) return;
     lastPaintKey = key;
+    if (tool === 'reveal') { if (!map.revealed) map.revealed = {}; map.revealed[key] = 1; render(); return; }
+    if (tool === 'hide') { if (map.revealed) delete map.revealed[key]; render(); return; }
     if (tool === 'erase') delete map.terrain[key];
     else map.terrain[key] = paintTerrain;
     render();
@@ -649,6 +749,22 @@
       return;
     }
 
+    // Fog brush: the DM paints revealed/hidden cells (also works in play mode).
+    if ((tool === 'reveal' || tool === 'hide') && mode !== 'view') {
+      lastPaintKey = null;
+      painting = true;
+      paintAt(cell);
+      try { CV.setPointerCapture(ev.pointerId); } catch (e) { /* ignore */ }
+      return;
+    }
+
+    // Marker tool: drop a trap/secret/treasure, or select an existing one.
+    if (tool === 'marker' && mode !== 'view') {
+      var mk = markerAt(cell.col, cell.row);
+      if (mk) selectMarker(mk); else addMarker(cell.col, cell.row, markerType);
+      return;
+    }
+
     if (tool === 'area' && mode === 'design') {
       var existing = areaAt(cell.col, cell.row);
       if (existing) selectArea(existing); else addArea(cell.col, cell.row);
@@ -667,7 +783,10 @@
       render();
       return;
     }
-    // no token — maybe an area pin (tap to read it, in any mode)
+    // no token — maybe a marker (traps/secrets), tap to select
+    var mk2 = markerAt(cell.col, cell.row);
+    if (mk2) { selectMarker(mk2); render(); return; }
+    // …or an area pin (tap to read it, in any mode)
     var area = areaAt(cell.col, cell.row);
     if (area) { selectArea(area); render(); return; }
     selectedId = null;
@@ -705,6 +824,7 @@
     }
     drag = null;
     showDistance(null);
+    if (moved) autoRevealPlayers();   // fog clears around a player as they move
     render();
     if (moved && cb.onMove) cb.onMove(d.id, d.x, d.y);
   }
@@ -749,7 +869,8 @@
 
   /* ---- Editing toolbar (design mode) ---- */
   function setTool(name) {
-    tool = (name === 'paint' || name === 'erase' || name === 'area') ? name : 'select';
+    var ok = { paint: 1, erase: 1, area: 1, reveal: 1, hide: 1, marker: 1 };
+    tool = ok[name] ? name : 'select';
     if (!toolbarEl) return;
     var btns = toolbarEl.querySelectorAll('.bm-tool');
     for (var i = 0; i < btns.length; i++) {
@@ -928,7 +1049,7 @@
     // Point the map at the live combatant array; places any newcomers.
     setCombatants: function (list) {
       combatants = list || [];
-      if (CTX) { ensurePlacement(); render(); }
+      if (CTX) { ensurePlacement(); autoRevealPlayers(); render(); }
     },
 
     setSelected: function (id) { selectedId = (id == null ? null : id); render(); },
@@ -980,8 +1101,13 @@
         return { n: a.n, x: a.x, y: a.y, title: a.title || '', read: a.read || '', dm: a.dm || '',
           hidden: !!a.hidden, revealed: !!a.revealed };
       });
+      var markers = (map.markers || []).map(function (mk) {
+        return { id: mk.id, x: mk.x, y: mk.y, type: mk.type, label: mk.label || '',
+          note: mk.note || '', revealed: !!mk.revealed };
+      });
       return { v: 1, grid: map.grid, cols: map.cols, rows: map.rows, terrain: terrain, areas: areas,
-        starts: copyStarts(map.starts), bg: map.bg || null, fog: !!map.fog, revealed: revealed };
+        markers: markers, starts: copyStarts(map.starts), bg: map.bg || null,
+        fog: !!map.fog, revealed: revealed };
     },
     setMap: function (data) {
       map = data ? {
@@ -994,17 +1120,23 @@
           return { n: a.n, x: a.x, y: a.y, title: a.title || '', read: a.read || '', dm: a.dm || '',
             hidden: !!a.hidden, revealed: !!a.revealed };
         }),
+        markers: (data.markers || []).map(function (mk) {
+          return { id: mk.id || newMarkerId(), x: mk.x, y: mk.y,
+            type: MARKER_TYPES[mk.type] ? mk.type : 'trap',
+            label: mk.label || '', note: mk.note || '', revealed: !!mk.revealed };
+        }),
         starts: copyStarts(data.starts),
         bg: data.bg || null,
         fog: !!data.fog,
         revealed: data.revealed || {}
       } : defaultMap();
       selectedArea = null;
+      selectedMarker = null;
       loadBg();
       syncToolbar();
       updateAreaEditor();
       renderLegend();
-      if (CTX) { ensurePlacement(); render(); }
+      if (CTX) { ensurePlacement(); autoRevealPlayers(); render(); }
     },
 
     // Areas for the AI DM context (read-aloud + secret DM notes per number).
@@ -1043,6 +1175,21 @@
       render(); if (cb.onChange) cb.onChange();
     },
     clearRevealed: function () { map.revealed = {}; render(); if (cb.onChange) cb.onChange(); },
+    // Auto-clear fog around player tokens as they move (DM preference).
+    setAutoReveal: function (on, radius) {
+      autoReveal = !!on;
+      if (radius != null) autoRevealRadius = Math.max(0, radius | 0);
+      if (autoRevealPlayers()) { render(); if (cb.onChange) cb.onChange(); }
+    },
+    isAutoReveal: function () { return autoReveal; },
+    // Markers (traps / secret doors / treasure).
+    setMarkerType: function (t) { if (MARKER_TYPES[t]) markerType = t; },
+    getMarkers: function () { return (map.markers || []).slice(); },
+    selectedMarker: function () { return selectedMarker; },
+    selectMarker: function (mk) { selectMarker(mk || null); render(); },
+    revealMarker: revealMarker,
+    removeMarker: removeMarker,
+    markerTypes: function () { return MARKER_TYPES; },
     // Mark a numbered area revealed (shown to players) — or hide it again.
     revealArea: function (n, on) {
       (map.areas || []).forEach(function (a) { if (a.n === n) a.revealed = (on !== false); });
