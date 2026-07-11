@@ -15,7 +15,8 @@
   // numbered pins { n, x, y, title, read, dm } (read-aloud + secret DM notes).
   var LEGEND = {
     '#': 'wall', '~': 'water', ':': 'rapids', '"': 'grass', '=': 'wood',
-    '&': 'briars', 'A': 'stalagmite', 'S': 'steps', '.': 'difficult', '^': 'lava'
+    '&': 'briars', 'A': 'stalagmite', 'S': 'steps', '+': 'road',
+    '.': 'difficult', '^': 'lava'
   };
   function bmap(grid, rows, areas) {
     var cols = 0, terrain = {};
@@ -42,24 +43,24 @@
           title: '1. The Drowned Stair',
           battlemap: bmap('square', [
             '##############',
-            '#SS.......AA.#',
-            '#SS...~~...A..',
-            '#....~~~~....#',
-            '#..~~~~~~~~..#',
-            '#.:~~~~~~~~:.#',
-            '#.:~~~~~~~~:.#',
-            '#..~~~~~~~~..#',
-            '#..A.~~~~..A.#',
-            '#.AA......AA.#',
-            '#SS........SS#',
+            '#    #..#    #',
+            '#    #..#    #',
+            '#     SS     #',
+            '#     SS     #',
+            '#    ~~~~    #',
+            '#   ~~~~~~   #',
+            '#  ~~~~~~~~  #',
+            '#  ~~~~~~~~  #',
+            '#   ~~~~~~   #',
+            '#    ~~~~    #',
             '##############'
           ], [
-            { n: 1, x: 1, y: 1, title: 'The Drowned Stair',
-              read: 'A stone stair spirals down into black water that swallows your torchlight whole.',
-              dm: 'Flooded steps are difficult terrain (waist-deep). Submerged pit at the halfway landing: DC 12 Dex or drop 10 ft (1d6, start drowning).' },
+            { n: 1, x: 6, y: 3, title: 'The Drowned Stair',
+              read: 'Past the collapsed altar, a stone stair spirals down into black water that swallows your torchlight whole.',
+              dm: 'The flooded steps are difficult terrain (waist-deep). A submerged pit hides at the halfway landing: DC 12 Dex save or drop 10 ft into deeper water (1d6, start drowning).' },
             { n: 2, x: 11, y: 8, title: 'Submerged Alcove',
-              read: 'A niche lies just under the surface, something pale glinting within.',
-              dm: 'DC 12 Investigation: a silver holy symbol worth 25 gp, still oddly warm. The rats burst out when the party reaches here.' }
+              read: 'A niche in the far wall lies just under the surface, something pale glinting within.',
+              dm: 'The rats nest here and burst out when the party reaches the landing. DC 12 Investigation finds a silver holy symbol worth 25 gp, still oddly warm.' }
           ]),
           text: 'Rain hammers the ruined chapel until the whole hillside seems to weep. Past the ' +
             'collapsed altar, a stone stair spirals down into black water that swallows your torchlight ' +
@@ -142,25 +143,25 @@
         {
           title: "2. Gallows' Bridge",
           battlemap: bmap('square', [
-            '"""""&&""""""&"""',
-            '""&""""""""""""""',
-            '"""""""===""""&""',
-            '::::::=====:::::::',
-            '~~~~~~~===~~~~~~~~',
-            '~~~~~~~===~~~~~~~~',
-            '~~~~~~~===~~~~~~~~',
-            '~~~~~~~===~~~~~~~~',
-            '::::::=====::::::.',
-            '"""&"""===""""""."',
-            '""""""""""""&""..',
-            '"""""&"""""""""""'
+            '"""&""..==..&""""',
+            '""""""."==."""&""',
+            '::::::::==:::::::',
+            '~~~~~~~~==~~~~~~~',
+            '~~~~~~~~==~~~~~~~',
+            '~~~~~~~~==~~~~~~~',
+            '~~~~~~~~==~~~~~~~',
+            '::::::::==:::::::',
+            '""""&"."==.""""""',
+            '""""""..==..&""""',
+            '"""""""++++"""""',
+            '""""""++"""++""""'
           ], [
-            { n: 1, x: 8, y: 2, title: 'North Approach',
-              read: 'The old toll bridge sags across a deep ravine, its timbers grey and its name carved into a leaning post.',
-              dm: 'Goblins wait in ambush at the far bank. The middle planks are rotten: DC 10 Dex if you run across, or fall prone.' },
-            { n: 2, x: 8, y: 9, title: 'South Bank',
-              read: 'White water roars through the rapids far below.',
-              dm: 'A worg is chained here as a guard. Anyone knocked off the bridge lands in the rapids: DC 12 Str or swept 20 ft downstream.' }
+            { n: 2, x: 8, y: 1, title: 'The Far Bank',
+              read: 'On the far side a wolf the size of a pony paces with a rider on its back, beside a fresh stack of boulders.',
+              dm: 'The worg + goblin rider hold the far bank. A rigged rockfall (rubble) sits at this end: cutting its rope (DC 13) drops it — anyone on the marked squares makes DC 13 Dex or 2d6 and prone.' },
+            { n: 1, x: 8, y: 9, title: 'The Toll Gate',
+              read: 'The bridge sags before you, its name carved into a gatepost above a row of very fresh nooses. The road behind you climbs up from the river.',
+              dm: 'Near end: a second rigged rockfall and the tripwire (DC 13 to spot/cut). Halfway across the planks groan — DC 10 Dex if you run, or fall prone.' }
           ]),
           text: 'The old toll bridge sags across a deep ravine, its timbers grey and its name carved ' +
             'into the gatepost above a row of very fresh-looking nooses. The goblins have been busy: ' +
@@ -213,22 +214,22 @@
           title: '1. The Welcome Hall',
           battlemap: bmap('square', [
             '##############',
-            '#....####....#',
-            '#....#..#....#',
-            '#.SS.#..#.SS.#',
-            '#.SS.####.SS.#',
-            '#............#',
-            '#....##.##...#',
-            '#............#',
-            '#####....#####',
-            '#####....#####'
+            '#            #',
+            '#   #    #   #',
+            '#            #',
+            '#     SS     #',
+            '#     SS     #',
+            '#   #    #   #',
+            '#            #',
+            '#            #',
+            '######==######'
           ], [
-            { n: 1, x: 6, y: 3, title: 'The Statue',
-              read: 'A suit of ancient armor stands on a dais at the hall\'s centre, visor down.',
-              dm: 'Animated Armor. It attacks when anyone steps onto the dais (row with the ## pillars) or touches the far door.' },
-            { n: 2, x: 6, y: 9, title: 'The Doors',
+            { n: 1, x: 6, y: 4, title: 'The Suit of Armor',
+              read: 'A suit of ancient armor stands in the middle of the welcome hall, visor down, oddly clean.',
+              dm: 'Animated Armor. It clanks to life and attacks the moment the doors slam shut behind the party, or if anyone touches it.' },
+            { n: 2, x: 6, y: 9, title: 'The Front Doors',
               read: 'The manor\'s front doors swing inward at your approach, though no hand touches them.',
-              dm: 'The doors slam and lock (DC 15 Str to force) once the last character is inside — the house wants them to stay.' }
+              dm: 'Once the last character is inside, the doors slam and lock themselves (DC 15 Str to force) — the house wants them to stay.' }
           ]),
           text: 'The manor\'s front doors swing inward at your approach, though no hand touches them. ' +
             'Dust lies thick on a grand staircase, the chandeliers hang dark, and a single suit of ' +

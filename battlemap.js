@@ -37,11 +37,12 @@
     briars:     { label: 'Briars',     base: 'rgba(34,78,40,.6)',    swatch: '#1e6b3a' },
     stalagmite: { label: 'Stalagmites', base: 'rgba(90,96,110,.5)',  swatch: '#9aa0ad' },
     steps:      { label: 'Steps',      base: 'rgba(120,104,70,.45)', swatch: '#b8a06a' },
+    road:       { label: 'Road / path', base: 'rgba(154,122,74,.5)', swatch: '#b8946a' },
     difficult:  { label: 'Rubble',     base: 'rgba(140,112,72,.4)',  swatch: '#a1866a' },
     lava:       { label: 'Lava',       base: 'rgba(150,40,26,.6)',   swatch: '#e25822' }
   };
   var TERRAIN_ORDER = ['wall', 'water', 'rapids', 'grass', 'wood',
-    'briars', 'stalagmite', 'steps', 'difficult', 'lava'];
+    'briars', 'stalagmite', 'steps', 'road', 'difficult', 'lava'];
 
   var KIND_COLOR = { monster: '#c0392b', npc: '#9b59b6', player: '#4aa3df' };
 
@@ -256,6 +257,16 @@
       CTX.strokeStyle = 'rgba(40,34,22,.7)'; CTX.lineWidth = 1.5;
       for (i = 1; i < 5; i++) {
         CTX.beginPath(); CTX.moveTo(x, y + h * i / 5); CTX.lineTo(x + w, y + h * i / 5); CTX.stroke();
+      }
+    } else if (type === 'road') {
+      // Dirt path: faint wheel-ruts + a few pebbles.
+      CTX.strokeStyle = 'rgba(90,70,40,.4)'; CTX.lineWidth = 1;
+      CTX.beginPath(); CTX.moveTo(x + w * 0.34, y); CTX.lineTo(x + w * 0.34, y + h);
+      CTX.moveTo(x + w * 0.66, y); CTX.lineTo(x + w * 0.66, y + h); CTX.stroke();
+      CTX.fillStyle = 'rgba(70,54,30,.5)';
+      for (i = 0; i < 4; i++) {
+        rx = x + rand(col, row, i) * w; ry = y + rand(col, row, i + 2) * h;
+        CTX.beginPath(); CTX.arc(rx, ry, 1.2, 0, Math.PI * 2); CTX.fill();
       }
     } else if (type === 'lava') {
       CTX.strokeStyle = 'rgba(255,180,60,.75)'; CTX.lineWidth = 1.5;
