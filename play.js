@@ -34,6 +34,8 @@
   var cloudSessionTitle = '';
   var cloudTimer = null;
   var cloudGroups = [];          // groups I belong to
+  var cloudShareOn = false;      // is the active session shared with players?
+  var cloudShareGroupId = null;  // which group it's shared with
   var viewerMode = false;        // watching someone else's shared session (read-only)
   var liveChannel = null;        // active realtime subscription
 
@@ -83,9 +85,25 @@
   }
   function persistState() {
     if (viewerMode) return;   // viewers never write
-    try { window.localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(snapshot())); }
+    var snap = snapshot();
+    try { window.localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(snap)); }
     catch (e) { /* storage full / blocked — stays in memory */ }
+    publishPlayerView(snap);
     cloudAutosave();
+  }
+  // Publish the role-scoped PLAYER projection — the only combat state a
+  // player client is ever given. Hidden creatures, DM notes, monster
+  // stats, the raw log and AI transcript are stripped here, before this
+  // leaves the DM's seat (localStorage now; a player-readable Supabase
+  // column later). This is where the "hidden info is never sent" rule
+  // is enforced at the data layer, not in the player UI.
+  var PLAYER_VIEW_KEY = 'diceAndMonsters.playerProjection';
+  function publishPlayerView(snap) {
+    if (!window.Visibility) return;
+    try {
+      window.localStorage.setItem(PLAYER_VIEW_KEY,
+        JSON.stringify(window.Visibility.playerView(snap, {})));
+    } catch (e) { /* ignore */ }
   }
   function clearAutosave() {
     try { window.localStorage.removeItem(AUTOSAVE_KEY); } catch (e) { /* ignore */ }
@@ -239,6 +257,17 @@
       '<button class="btn-remove" data-action="remove">Remove</button>' +
     '</div>';
   }
+  // Per-creature visibility toggle. Players never receive a hidden
+  // creature (it's stripped in visibility.js before the projection is
+  // published) — this is not a UI hide, it controls what's sent.
+  function revealToggleHtml(c) {
+    if (c.kind === 'player') return '';
+    var shown = !c.hidden;
+    return '<button class="item__reveal ' + (shown ? 'is-shown' : 'is-hidden') +
+      '" data-action="toggle-hidden" title="' +
+      (shown ? 'Visible to players — click to hide' : 'Hidden from players — click to reveal') +
+      '">' + (shown ? '👁 shown' : '🙈 hidden') + '</button>';
+  }
   function cardHtml(c) {
     var active = c.id === state.activeId ? ' item--active' : '';
     var dead = c.dead ? ' item--dead' : '';
@@ -251,7 +280,7 @@
       '<div class="item' + kindCls + active + dead + '" data-id="' + c.id + '">' +
         '<div class="item__head">' +
           '<span class="item__name">#' + c.id + ' ' + esc(c.name) + '</span>' +
-          metaHtml(c) +
+          metaHtml(c) + revealToggleHtml(c) +
         '</div>' +
         hpBarHtml(c) + statsHtml(c) + controls +
       '</div>';
@@ -511,6 +540,11 @@
       DM.removeCondition(c, btn.getAttribute('data-cond'));
       rerenderCard(c);
       renderTurnOrder();
+    } else if (action === 'toggle-hidden') {
+      DM.setHidden(c, !c.hidden);
+      logLine(label(c) + (c.hidden ? ' is now hidden from players.' : ' is revealed to players.'), 'spawn');
+      rerenderCard(c);
+      persistState();   // republish the player projection immediately
     } else if (action === 'remove') {
       removeCombatant(id);
     }
@@ -1189,10 +1223,25 @@
     if (!window.Cloud || !Cloud.available() || !Cloud.user() || !cloudSessionId) return;
     clearTimeout(cloudTimer);
     cloudTimer = setTimeout(function () {
-      Cloud.saveSession({ id: cloudSessionId, title: cloudSessionTitle, state: snapshot() })
+      var snap = snapshot();
+      Cloud.saveSession({ id: cloudSessionId, title: cloudSessionTitle, state: snap })
         .then(function (res) { if (res && res.error) cloudStatus('Cloud save failed: ' + res.error.message); })
         .catch(function (e) { cloudStatus('Cloud save failed.'); });
+      pushPlayerView(snap);   // the sanitized projection players actually receive
     }, 2000);
+  }
+  // Publish the role-scoped player projection to the cloud (the ONLY thing
+  // players read). Full state goes to play_sessions (owner-only); this goes
+  // to play_player_views (group-readable). Enforces "hidden info never sent".
+  function pushPlayerView(snap) {
+    if (!cloudShareOn || !cloudShareGroupId || !cloudSessionId) return;
+    if (!Cloud.available() || !Cloud.user() || !window.Visibility) return;
+    Cloud.savePlayerView({
+      session_id: cloudSessionId,
+      group_id: cloudShareGroupId,
+      title: cloudSessionTitle,
+      view: window.Visibility.playerView(snap, {})
+    }).catch(function () { /* transient; next autosave retries */ });
   }
 
   function refreshCloudList() {
@@ -1216,7 +1265,7 @@
     el.cloudPanel.hidden = !signedIn;
     if (el.cloudSigninHint) el.cloudSigninHint.hidden = signedIn;
     if (signedIn) { refreshCloudList(); refreshGroups(); cloudActiveLabel(); }
-    else { cloudSessionId = null; cloudSessionTitle = ''; leaveViewerMode(); }
+    else { cloudSessionId = null; cloudSessionTitle = ''; cloudShareOn = false; cloudShareGroupId = null; leaveViewerMode(); }
   }
 
   function doSaveToCloud() {
@@ -1253,8 +1302,12 @@
         cloudSessionId = row.id;
         cloudSessionTitle = row.title;
         // reflect this session's share state in the controls
+        cloudShareOn = !!row.shared;
+        cloudShareGroupId = row.shared ? (row.group_id || null) : null;
         if (el.cloudShared) el.cloudShared.checked = !!row.shared;
-        if (row.group_id && el.cloudGroups) { el.cloudGroups.value = row.group_id; updateInviteDisplay(); }
+        if (row.group_id && el.cloudGroups) { el.cloudGroups.value = row.group_id; }
+        updateInviteDisplay();
+        if (cloudShareOn) pushPlayerView(row.state || {});
         persistState();
         cloudActiveLabel();
         logLine('Opened cloud session “' + row.title + '”.', 'spawn');
@@ -1275,7 +1328,7 @@
     if (!window.confirm('Delete this cloud session permanently?')) return;
     Cloud.deleteSession(id).then(function (res) {
       if (res.error) { cloudStatus('Delete failed: ' + res.error.message); return; }
-      if (id === cloudSessionId) { cloudSessionId = null; cloudSessionTitle = ''; cloudActiveLabel(); }
+      if (id === cloudSessionId) { cloudSessionId = null; cloudSessionTitle = ''; cloudShareOn = false; cloudShareGroupId = null; cloudActiveLabel(); }
       cloudStatus('Deleted.');
       refreshCloudList();
     });
@@ -1300,8 +1353,15 @@
     return null;
   }
   function updateInviteDisplay() {
+    if (!el.cloudInvite) return;
     var g = selectedGroup();
-    if (el.cloudInvite) el.cloudInvite.textContent = g ? ('Invite code: ' + g.invite_code) : '';
+    if (cloudShareOn && g && cloudSessionId) {
+      var link = playerJoinLink();
+      el.cloudInvite.innerHTML = 'Invite code <b>' + esc(g.invite_code) + '</b> · ' +
+        '<a href="' + esc(link) + '" target="_blank" rel="noopener">Player link ↗</a>';
+    } else {
+      el.cloudInvite.textContent = g ? ('Invite code: ' + g.invite_code) : '';
+    }
   }
   function doCreateGroup() {
     var name = window.prompt('Name this group / party:');
@@ -1330,10 +1390,22 @@
     if (shared && !g) { cloudStatus('Select or create a group to share with.'); el.cloudShared.checked = false; return; }
     Cloud.setSessionShare(cloudSessionId, g ? g.id : null, shared).then(function (res) {
       if (res.error) { cloudStatus('Share failed: ' + res.error.message); el.cloudShared.checked = !shared; return; }
-      cloudStatus(shared
-        ? ('Shared live with “' + g.name + '”. Players open it from their Cloud saves.')
-        : 'Sharing turned off.');
+      cloudShareOn = shared;
+      cloudShareGroupId = shared ? g.id : null;
+      if (shared) {
+        pushPlayerView(snapshot());   // publish the projection right away
+        cloudStatus('Shared live with “' + g.name + '”. Send players the invite link + code below.');
+      } else {
+        Cloud.deletePlayerView(cloudSessionId).catch(function () { /* ignore */ });
+        cloudStatus('Sharing turned off.');
+      }
+      updateInviteDisplay();
     });
+  }
+  function playerJoinLink() {
+    if (!cloudSessionId) return '';
+    var base = window.location.href.replace(/[^\/]*(\?.*)?$/, '');
+    return base + 'player.html?s=' + cloudSessionId;
   }
 
   function subscribeLive(id) {
@@ -1423,8 +1495,10 @@
       wrap: document.querySelector('#battlemap-wrap'),
       distanceEl: document.querySelector('#battlemap-dist'),
       onMove: function () { scheduleSave(); },
+      onChange: function () { scheduleSave(); },   // fog paint / marker drops → save + republish
       onSelect: function (id) { selectMapToken(id); },
-      onAreaSelect: showAreaCard
+      onAreaSelect: showAreaCard,
+      onMarkerSelect: showMarkerCard
     });
     BM.setMode(viewerMode ? 'view' : 'play');
 
@@ -1435,6 +1509,115 @@
       el.areaCard.querySelector('.bm-areacard__close')
         .addEventListener('click', function () { el.areaCard.hidden = true; });
     }
+  }
+
+  // DM visibility controls (fog of war + reveal/hide creatures). Each
+  // action re-publishes the player projection so player screens update.
+  function initRevealPanel() {
+    var BM = window.Battlemap;
+    var fog = document.querySelector('#reveal-fog');
+    if (fog && BM) {
+      fog.checked = BM.isFog();
+      fog.addEventListener('change', function () { BM.setFog(fog.checked); persistState(); });
+    }
+    var auto = document.querySelector('#reveal-auto');
+    if (auto && BM) {
+      auto.checked = BM.isAutoReveal();
+      auto.addEventListener('change', function () { BM.setAutoReveal(auto.checked); persistState(); });
+    }
+    bindClick('.btn-reveal-map', function () { if (BM) BM.revealAll(); persistState(); });
+    bindClick('.btn-reset-fog', function () { if (BM) BM.clearRevealed(); persistState(); });
+    bindClick('.btn-hide-all', function () { setAllHidden(true); });
+    bindClick('.btn-reveal-all', function () { setAllHidden(false); });
+
+    // Fog brush: Move / Reveal / Hide (drives the battlemap tool in play mode).
+    var brush = document.querySelector('#reveal-brush');
+    if (brush && BM) {
+      brush.addEventListener('click', function (ev) {
+        var b = ev.target.closest('[data-brush]');
+        if (!b) return;
+        var which = b.getAttribute('data-brush');
+        BM.setTool(which === 'select' ? 'select' : which);
+        setActiveBrush(which);
+      });
+    }
+    // Marker drop buttons: arm the marker tool with a type.
+    var markerBtns = document.querySelectorAll('.btn-marker');
+    for (var i = 0; i < markerBtns.length; i++) {
+      markerBtns[i].addEventListener('click', function (ev) {
+        if (!BM) return;
+        BM.setMarkerType(ev.currentTarget.getAttribute('data-marker'));
+        BM.setTool('marker');
+        setActiveBrush(null);   // marker mode isn't one of the brush segments
+      });
+    }
+    initMarkerCard();
+  }
+  function setActiveBrush(which) {
+    var seg = document.querySelector('#reveal-brush');
+    if (!seg) return;
+    var btns = seg.querySelectorAll('[data-brush]');
+    for (var i = 0; i < btns.length; i++) {
+      btns[i].classList.toggle('is-active', which && btns[i].getAttribute('data-brush') === which);
+    }
+  }
+
+  var activeMarker = null;
+  function initMarkerCard() {
+    el.markerCard = document.querySelector('#battlemap-marker');
+    if (!el.markerCard) return;
+    el.markerCard.querySelector('.bm-markercard__close')
+      .addEventListener('click', function () { el.markerCard.hidden = true; window.Battlemap.selectMarker && window.Battlemap.selectMarker(null); });
+    var label = el.markerCard.querySelector('#marker-label');
+    var note = el.markerCard.querySelector('#marker-note');
+    label.addEventListener('input', function () { if (activeMarker) { activeMarker.label = label.value; scheduleSave(); } });
+    note.addEventListener('input', function () { if (activeMarker) { activeMarker.note = note.value; scheduleSave(); } });
+    el.markerCard.querySelector('.btn-marker-reveal').addEventListener('click', function () {
+      if (!activeMarker) return;
+      window.Battlemap.revealMarker(activeMarker, !activeMarker.revealed);
+      renderMarkerCard();
+      persistState();
+    });
+    el.markerCard.querySelector('.btn-marker-remove').addEventListener('click', function () {
+      if (!activeMarker) return;
+      window.Battlemap.removeMarker(activeMarker);
+      activeMarker = null;
+      el.markerCard.hidden = true;
+      persistState();
+    });
+  }
+  function showMarkerCard(mk) {
+    if (!el.markerCard) return;
+    activeMarker = mk || null;
+    if (!mk) { el.markerCard.hidden = true; return; }
+    renderMarkerCard();
+    el.markerCard.hidden = false;
+  }
+  function renderMarkerCard() {
+    if (!el.markerCard || !activeMarker) return;
+    var types = window.Battlemap.markerTypes();
+    var t = types[activeMarker.type] || {};
+    el.markerCard.querySelector('.bm-markercard__title').textContent =
+      (t.glyph || '') + ' ' + (t.label || 'Marker') + (activeMarker.revealed ? ' — shown to players' : ' — hidden');
+    el.markerCard.querySelector('#marker-label').value = activeMarker.label || '';
+    el.markerCard.querySelector('#marker-note').value = activeMarker.note || '';
+    el.markerCard.querySelector('.btn-marker-reveal').textContent =
+      activeMarker.revealed ? 'Hide from players' : 'Reveal to players';
+  }
+  function bindClick(sel, fn) {
+    var b = document.querySelector(sel);
+    if (b) b.addEventListener('click', fn);
+  }
+  function setAllHidden(hidden) {
+    if (viewerMode) return;
+    var n = 0;
+    state.combatants.forEach(function (c) {
+      if (c.kind !== 'player') { DM.setHidden(c, hidden); n++; }
+    });
+    if (!n) return;
+    logLine(hidden ? 'All creatures hidden from players.' : 'All creatures revealed to players.', 'spawn');
+    renderAll();
+    persistState();
   }
 
   function showAreaCard(area) {
@@ -1452,7 +1635,40 @@
     el.areaCard.hidden = false;
   }
 
+  // Which seat is this: 'ai' (AI DM runs the game) or 'dm' (a human DM).
+  // The two share this game session; the role only toggles the AI panel
+  // and the page's framing. The player screen is the separate player.html.
+  function currentRole() {
+    try {
+      return (new URLSearchParams(window.location.search).get('role') === 'dm') ? 'dm' : 'ai';
+    } catch (e) { return 'ai'; }
+  }
+  function applyRole() {
+    var role = currentRole();
+    var h1 = document.querySelector('.topbar h1');
+    var tag = document.querySelector('.topbar .tagline');
+    // A body class drives the per-role layout in CSS, so each seat shows
+    // only its own components (no shared DOM peeking through).
+    document.body.classList.add('role-' + role);
+    // Highlight the matching gameplay nav entry.
+    var navLink = document.querySelector('.nav__link[data-role-link="' + role + '"]');
+    if (navLink) navLink.classList.add('nav__link--active');
+
+    if (role === 'dm') {
+      if (h1) h1.textContent = 'DM Console';
+      if (tag) tag.textContent = 'You run the world. Reveal the map and creatures as the players discover them.';
+      document.title = 'DM Console — Dice & Monsters';
+    } else {
+      // AI is the DM: the human is a player, so the DM reveal controls
+      // (hidden via CSS) don't apply here; the AI DM panel does.
+      if (h1) h1.textContent = 'Play vs AI DM';
+      if (tag) tag.textContent = 'The AI is your Dungeon Master — it sees the whole map; you see only what your party has found.';
+      document.title = 'Play vs AI DM — Dice & Monsters';
+    }
+  }
+
   function init() {
+    applyRole();
     el.loadSelect = document.querySelector('#play-load');
     el.loadBtn    = document.querySelector('.btn-play-load');
     el.clearBtn   = document.querySelector('.btn-play-clear');
@@ -1503,6 +1719,7 @@
     initAi();
     initCloud();
     initBattlemap();
+    initRevealPanel();
 
     // If the planner or an adventure scene handed off a session, load it.
     var handoff = readSessionHandoff();

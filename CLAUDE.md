@@ -86,6 +86,43 @@ Supabase cloud sync.
     the top. In `adventures-data.js`, `bmap()` reads `P`/`M`/`N` ASCII markers
     or takes an explicit `starts` 4th arg (for starts that sit on water/terrain).
 
+### Role-based visibility (three play modes)
+
+Gameplay is split into three roles, each seeing only what it should:
+
+- **Play vs AI DM** (`play-ai.html` → `play.html?role=ai`) — single-player; the
+  AI is the DM (sees all via `ai-context.js`, which already hides player HP).
+- **DM Console** (`dm.html` → `play.html?role=dm`) — a human DM; same game
+  session as AI mode with the AI panel hidden. Both share `play.js`.
+- **Player** (`player.html` + `player.js`) — the separate player client.
+
+- **`visibility.js` → `window.Visibility`** — pure, the **keystone**.
+  `playerView(snapshot, opts)` returns a snapshot containing ONLY what a player
+  may know: revealed combatants (hidden ones removed), revealed non-secret map
+  areas (DM notes stripped), the fog-limited map (unrevealed terrain + the
+  background image not included), the player's own token, and DM narration. It
+  drops the raw combat log, the AI transcript, monster statistics (HP/AC/attacks
+  → a coarse `health` band only), start zones and DM notes.
+- **FUNDAMENTAL RULE:** hidden info is never *sent* to a player client and then
+  hidden in the UI — it must not leave the DM's seat. The DM side computes the
+  player projection (`Visibility.playerView`) and publishes only that
+  (`localStorage 'diceAndMonsters.playerProjection'` now; a player-readable
+  Supabase column later — never the full `state` blob). `player.js` consumes
+  only that projection (falling back to projecting the local autosave *through*
+  `visibility.js` for a same-device demo). Enforce new features this way.
+- **Model support:** combatants carry a `hidden` flag (`DM.setHidden`,
+  serialized). The battlemap carries fog of war (`map.fog`, `map.revealed`
+  cells) + per-area `hidden`/`revealed` + **markers** (`map.markers`:
+  trap/secret/treasure point entities, DM-only until `revealed`, with a secret
+  `note`). API: `Battlemap.setFog/revealCell/revealAround/revealAll/
+  clearRevealed/revealArea/setAutoReveal` and `setMarkerType/getMarkers/
+  revealMarker/removeMarker`. The DM paints reveal/hide with a **fog brush**
+  (the `reveal`/`hide`/`marker` tools work in `play` mode too), fog **auto-
+  reveals around player tokens** as they move (`setAutoReveal`), and the "👁
+  Players see" panel + per-creature 👁/🙈 toggle drive it all and re-publish.
+  `visibility.js` drops unrevealed markers/areas/cells and every DM `note`
+  before the projection leaves the DM's seat.
+
 ### AI layer (Play page)
 
 - **`ai-context.js` → `window.AIContext.build(state, opts)`** — pure. Serializes
@@ -156,13 +193,19 @@ shape used for local autosave **and** cloud `play_sessions.state`.
 
 - Schema in `supabase/schema.sql` (run once in the SQL Editor). Tables:
   `profiles`, `groups`, `group_members`, `character_sheets` (legacy, unused by
-  the frontend), `play_sessions` (live game state + Realtime), `user_collections`
-  (characters/adventures/encounters blobs). RLS throughout; owner-writes /
-  group-members-read for shared sessions.
+  the frontend), `play_sessions` (full DM state — **owner-only**),
+  `play_player_views` (the sanitized projection players read — group-readable),
+  `user_collections` (characters/adventures/encounters blobs). RLS throughout.
 - Setup steps and the new-dashboard locations for URL + key are in `SUPABASE.md`.
-- **Sharing model:** single-writer. The DM owns and writes a `play_sessions` row;
-  when `shared=true` + attached to a group, group members open it read-only and
-  get live Realtime updates (~2s cadence, the cloud-autosave debounce).
+- **Sharing model:** single-writer, **two rows per live session**. The DM owns
+  and writes the full `play_sessions.state` (owner-only RLS — players can't read
+  it). When sharing to a group, the DM also upserts `play_player_views.view` =
+  `Visibility.playerView(snapshot)`; group members read/subscribe to *that* row
+  only (Realtime, ~2s cadence). This is the multiplayer half of the fundamental
+  rule: because Postgres RLS can't hide a single column, the hidden state and the
+  player projection are **separate tables**, and player clients never touch the
+  full-state table. Players join via the group invite code and open the DM's
+  `player.html?s=<sessionId>` link (a lobby in `player.js`).
 
 ## Running & testing locally
 

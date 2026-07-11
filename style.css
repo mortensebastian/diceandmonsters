@@ -1821,3 +1821,151 @@ button:disabled { opacity: .4; cursor: not-allowed; box-shadow: none; }
     line-height: 1;
 }
 .bm-modal__close:hover { background: #4a5162; }
+
+/* ============================================================
+   Player Gameplay view (player.html) — role-scoped, fog of war.
+   Reuses .nav/.topbar/.card/.turn/.ai__msg; adds the player bits.
+   ============================================================ */
+.player-who {
+    max-width: 960px; margin: 0 auto 14px; padding: 0 16px;
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+}
+.player-who__label { color: #cfd6e2; font-size: 14px; }
+.player-who__select {
+    margin-left: 8px; background: #12141a; color: #e6e6e6;
+    border: 1px solid #2c3140; border-radius: 6px; padding: 6px 10px; font-size: 14px;
+}
+.player-conn { font-size: 13px; color: #7a8090; }
+.player-conn.is-live { color: #27ae60; }
+
+.player-scene { max-width: 960px; margin: 0 auto 14px; }
+.player-scene p { color: #cfd6e2; line-height: 1.55; white-space: pre-wrap; }
+
+.player-self { max-width: 960px; margin: 0 auto 14px; }
+.player-self__head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.player-self__name { font-size: 20px; color: #fff; }
+.player-self__sheet { color: #4aa3df; font-size: 13px; text-decoration: none; }
+.player-self__sheet:hover { text-decoration: underline; }
+.player-self__stats { display: flex; gap: 22px; align-items: center; margin: 12px 0; flex-wrap: wrap; }
+.player-stat { display: flex; flex-direction: column; gap: 4px; min-width: 54px; }
+.player-stat--hp { flex: 1; min-width: 200px; }
+.player-stat__label { font-size: 11px; text-transform: uppercase; letter-spacing: .6px; color: #8a93a6; }
+.player-stat__val { font-size: 22px; font-weight: 700; color: #fff; }
+.player-hp { display: flex; align-items: center; gap: 10px; }
+.player-hp__bar { flex: 1; height: 14px; background: #12141a; border: 1px solid #2c3140; border-radius: 8px; overflow: hidden; }
+.player-hp__fill { height: 100%; width: 0; background: #27ae60; transition: width .3s ease; }
+.player-hp__fill.is-mid { background: #e1b12c; }
+.player-hp__fill.is-low { background: #c0392b; }
+.player-hp__text { font-size: 14px; color: #cfd6e2; white-space: nowrap; }
+.player-self__conds { display: flex; flex-wrap: wrap; gap: 6px; }
+.player-none { color: #6c7589; font-style: italic; font-size: 13px; }
+.player-you { font-size: 11px; color: #4aa3df; text-transform: uppercase; letter-spacing: .5px; }
+
+.player-foes { display: flex; flex-direction: column; gap: 8px; }
+.player-foe {
+    display: flex; align-items: center; gap: 10px;
+    background: #12141a; border: 1px solid #2c3140; border-radius: 8px; padding: 8px 12px;
+}
+.player-foe.is-down { opacity: .5; text-decoration: line-through; }
+.player-foe__dot { width: 12px; height: 12px; border-radius: 50%; flex: none; }
+.player-foe__dot--monster { background: #c0392b; }
+.player-foe__dot--npc { background: #9b59b6; }
+.player-foe__name { flex: 1; color: #fff; font-weight: 600; }
+.player-foe__band { font-size: 12px; text-transform: uppercase; letter-spacing: .5px; color: #8a93a6; }
+.player-foe__band--healthy { color: #27ae60; }
+.player-foe__band--wounded { color: #e1b12c; }
+.player-foe__band--bloodied { color: #e67e22; }
+.player-foe__band--near-death { color: #c0392b; }
+.player-foe__band--down { color: #6c7589; }
+.player-chat__empty { color: #6c7589; font-style: italic; font-size: 13px; }
+.player-chat__empty[hidden] { display: none; }
+
+/* ============================================================
+   DM visibility controls (play.html "Players see" panel) +
+   per-creature reveal toggle.
+   ============================================================ */
+.reveal {
+    max-width: 960px; margin: 0 auto 18px; padding: 14px 16px;
+    background: #1d2029; border: 1px solid #2c3140; border-radius: 12px;
+}
+.reveal__head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.reveal__title { font-size: 16px; color: #e1b12c; }
+.reveal__open { color: #4aa3df; font-size: 13px; text-decoration: none; }
+.reveal__open:hover { text-decoration: underline; }
+.reveal__row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
+.reveal__toggle { color: #cfd6e2; font-size: 14px; display: flex; align-items: center; gap: 6px; }
+.reveal__label { color: #8a93a6; font-size: 13px; text-transform: uppercase; letter-spacing: .5px; }
+.reveal__hint { color: #6c7589; font-size: 12px; font-style: italic; }
+.reveal button {
+    background: #12141a; color: #e6e6e6; border: 1px solid #2c3140;
+    border-radius: 6px; padding: 6px 12px; font-size: 13px; cursor: pointer;
+}
+.reveal button:hover { background: #262b36; border-color: #3b4150; }
+
+.item__reveal {
+    margin-left: auto; background: #12141a; border: 1px solid #2c3140;
+    border-radius: 6px; padding: 3px 9px; font-size: 12px; cursor: pointer; white-space: nowrap;
+}
+.item__reveal.is-shown { color: #27ae60; border-color: #27632f; }
+.item__reveal.is-hidden { color: #c0392b; border-color: #7a2318; }
+.item__reveal:hover { background: #262b36; }
+
+/* Fog brush segmented control + marker tools (DM "Players see" panel). */
+.reveal__seg { display: inline-flex; border: 1px solid #2c3140; border-radius: 6px; overflow: hidden; }
+.reveal__seg button { border: none; border-right: 1px solid #2c3140; border-radius: 0; background: #12141a; }
+.reveal__seg button:last-child { border-right: none; }
+.reveal__seg button.is-active { background: #2980b9; color: #fff; }
+.btn-marker { font-size: 13px; }
+
+/* Marker editor card (over the battlemap) */
+.bm-markercard {
+    position: relative; margin-top: 10px; padding: 12px 14px;
+    background: #1d2029; border: 1px solid #2c3140; border-radius: 10px; max-width: 460px;
+}
+.bm-markercard__close {
+    position: absolute; top: 8px; right: 8px; background: none; border: none;
+    color: #8a93a6; font-size: 15px; cursor: pointer;
+}
+.bm-markercard__title { font-size: 15px; color: #e1b12c; margin-bottom: 10px; padding-right: 20px; }
+.bm-markercard__field { display: block; color: #9aa3b2; font-size: 12px; margin-bottom: 8px; }
+.bm-markercard__input {
+    display: block; width: 100%; margin-top: 4px; box-sizing: border-box;
+    background: #12141a; color: #e6e6e6; border: 1px solid #2c3140; border-radius: 6px; padding: 7px 9px; font-size: 14px;
+}
+.bm-markercard__actions { display: flex; gap: 8px; margin-top: 6px; }
+.bm-markercard__actions button {
+    background: #12141a; color: #e6e6e6; border: 1px solid #2c3140;
+    border-radius: 6px; padding: 6px 12px; font-size: 13px; cursor: pointer;
+}
+.btn-marker-reveal { border-color: #27632f !important; color: #27ae60 !important; }
+.btn-marker-remove { border-color: #7a2318 !important; color: #c0392b !important; }
+
+/* ============================================================
+   Role-driven layout: each seat shows only its own components.
+   role-ai  = Play vs AI DM (AI is the DM; human is a player)
+   role-dm  = human DM console
+   ============================================================ */
+.role-dm #ai-dm { display: none; }                 /* human DM: no AI DM panel */
+.role-ai #reveal-panel { display: none; }          /* AI is the DM: no manual reveal panel */
+.role-ai .item__reveal { display: none; }          /* …nor per-creature reveal toggles */
+
+/* Player cloud lobby (player.html) */
+.player-cloud {
+    max-width: 960px; margin: 0 auto 14px; padding: 14px 16px;
+    background: #1d2029; border: 1px solid #2c3140; border-radius: 12px;
+}
+.player-cloud__title { font-size: 16px; color: #4aa3df; margin-bottom: 8px; }
+.player-cloud__hint { color: #9aa3b2; font-size: 13px; }
+.player-cloud__row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; align-items: center; }
+.player-cloud__input, .player-cloud__select {
+    background: #12141a; color: #e6e6e6; border: 1px solid #2c3140;
+    border-radius: 6px; padding: 7px 10px; font-size: 14px;
+}
+.player-cloud__select { min-width: 200px; }
+.player-cloud__row button {
+    background: #2980b9; color: #fff; border: none; border-radius: 6px;
+    padding: 7px 14px; font-size: 13px; cursor: pointer;
+}
+.player-cloud__row button:hover { background: #3a91cc; }
+.btn-player-leave { background: #12141a !important; border: 1px solid #2c3140 !important; color: #cfd6e2 !important; }
+.player-cloud__status { display: block; margin-top: 8px; color: #8a93a6; font-size: 13px; }

@@ -12,7 +12,9 @@
         <nav class="nav">
             <a href="index.html" class="nav__link">Home</a>
             <a href="encounter.html" class="nav__link">Encounter</a>
-            <a href="play.html" class="nav__link nav__link--active">Game Session</a>
+            <a href="play-ai.html" class="nav__link" data-role-link="ai">Play vs AI</a>
+            <a href="dm.html" class="nav__link" data-role-link="dm">DM</a>
+            <a href="player.html" class="nav__link">Player</a>
             <a href="character.html" class="nav__link">Characters</a>
             <a href="groups.html" class="nav__link">Groups</a>
             <a href="adventure.html" class="nav__link">Adventure</a>
@@ -133,6 +135,20 @@
                 <p class="bm-areacard__read"></p>
                 <p class="bm-areacard__dm"></p>
             </div>
+            <div id="battlemap-marker" class="bm-markercard" hidden>
+                <button class="bm-markercard__close" type="button" aria-label="Close">✕</button>
+                <h3 class="bm-markercard__title"></h3>
+                <label class="bm-markercard__field">Label (players see this when revealed)
+                    <input type="text" id="marker-label" class="bm-markercard__input" placeholder="e.g. Pressure plate">
+                </label>
+                <label class="bm-markercard__field">Secret DM note (never sent to players)
+                    <input type="text" id="marker-note" class="bm-markercard__input" placeholder="e.g. DC 15 Dex, 2d10 darts">
+                </label>
+                <div class="bm-markercard__actions">
+                    <button class="btn-marker-reveal" type="button">Reveal to players</button>
+                    <button class="btn-marker-remove" type="button">Remove</button>
+                </div>
+            </div>
             <p class="battlemap__hint">Drag tokens to move them (distance shows in feet). Tap a numbered area to read its notes. Add players and monsters above. The map is set up in the Encounter Planner or Adventure.</p>
         </section>
 
@@ -143,6 +159,48 @@
                 <span id="encounter-meta" class="encounter__meta"></span>
             </div>
             <div class="monster__list"></div>
+        </section>
+
+        <!-- DM visibility controls: what the players' screens receive.
+             Hidden creatures / unrevealed map cells are stripped before
+             the player projection is published (see visibility.js). -->
+        <section class="reveal" id="reveal-panel">
+            <div class="reveal__head">
+                <h2 class="reveal__title">👁 Players see</h2>
+                <a class="reveal__open" href="player.html" target="_blank" rel="noopener">Open the Player view ↗</a>
+            </div>
+            <div class="reveal__row">
+                <label class="reveal__toggle">
+                    <input type="checkbox" id="reveal-fog"> Fog of war (players see only what they've explored)
+                </label>
+                <label class="reveal__toggle">
+                    <input type="checkbox" id="reveal-auto"> Auto-reveal around players
+                </label>
+                <button class="btn-reveal-map" type="button">Reveal whole map</button>
+                <button class="btn-reset-fog" type="button">Reset fog</button>
+            </div>
+            <div class="reveal__row" id="reveal-brush-row">
+                <span class="reveal__label">Fog brush:</span>
+                <span class="reveal__seg" id="reveal-brush">
+                    <button type="button" class="is-active" data-brush="select">Move tokens</button>
+                    <button type="button" data-brush="reveal">Reveal ▢</button>
+                    <button type="button" data-brush="hide">Hide ▢</button>
+                </span>
+                <span class="reveal__hint">Draw on the map to reveal or re-hide cells.</span>
+            </div>
+            <div class="reveal__row">
+                <span class="reveal__label">Drop marker:</span>
+                <button class="btn-marker" type="button" data-marker="trap">⚠ Trap</button>
+                <button class="btn-marker" type="button" data-marker="secret">⚿ Secret</button>
+                <button class="btn-marker" type="button" data-marker="treasure">✦ Treasure</button>
+                <span class="reveal__hint">Then click a cell. Tap a marker to reveal / edit it.</span>
+            </div>
+            <div class="reveal__row">
+                <span class="reveal__label">Creatures:</span>
+                <button class="btn-hide-all" type="button">Hide all from players</button>
+                <button class="btn-reveal-all" type="button">Reveal all to players</button>
+                <span class="reveal__hint">Use 👁/🙈 on each creature below to reveal it one at a time.</span>
+            </div>
         </section>
 
         <!-- AI Dungeon Master -->
@@ -227,6 +285,7 @@
         <script src="monsters-data.js"></script>
         <script src="combat-engine.js"></script>
         <script src="battlemap.js"></script>
+        <script src="visibility.js"></script>
         <script src="ai-context.js"></script>
         <script src="ai-client.js"></script>
         <script src="ai-dm.js"></script>

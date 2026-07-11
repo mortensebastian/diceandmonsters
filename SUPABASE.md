@@ -14,6 +14,10 @@ Supabase's free tier, with no server to run yourself.
   - A **group** is a play party. Anyone with the invite code can join.
   - A sheet attached to a group and marked **shared** is readable by
     every member of that group (DM included).
+  - A **live session's full state is owner-only** (it holds hidden
+    monsters, DM notes and traps). When a DM shares a session, players
+    read a *separate* `play_player_views` row that contains only the
+    sanitized projection — hidden info never reaches a player client.
 - The site keeps working offline via `localStorage`; when you're
   signed in, data syncs to the cloud too.
 
@@ -25,7 +29,9 @@ Supabase's free tier, with no server to run yourself.
 2. Open **SQL Editor** → **New query**, paste the whole contents of
    [`supabase/schema.sql`](supabase/schema.sql), and click **Run**.
    This creates the tables, the sharing rules, and the join/group
-   helper functions.
+   helper functions. (Re-run it after updating the app — it's
+   idempotent — to add the `play_player_views` table and tighten the
+   session policy for the live-multiplayer split.)
 3. Open **Authentication → Providers** and enable **Email** (and
    optionally **Google** for one-click login).
 4. Open **Project Settings → API** and copy two values:
