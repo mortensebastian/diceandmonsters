@@ -684,13 +684,13 @@
   }
 
   /* ---- Battlemap (design mode: paint terrain, place tokens) ---- */
+  // Highlight only — never scroll on token-grab, or the page jumps away from
+  // the map mid-drag.
   function selectMapToken(id) {
     var nodes = el.list.querySelectorAll('.item');
     for (var i = 0; i < nodes.length; i++) {
       var nid = parseInt(nodes[i].getAttribute('data-id'), 10);
-      var on = (id != null && nid === id);
-      nodes[i].classList.toggle('item--selected', on);
-      if (on) nodes[i].scrollIntoView({ block: 'nearest' });
+      nodes[i].classList.toggle('item--selected', id != null && nid === id);
     }
   }
 

@@ -89,15 +89,23 @@
     "start combat (the engine rolls the whole table and sets the first turn). Then run " +
     "monsters/NPCs on their turns and ask the players what they do on theirs.\n" +
     "• Use set_condition, apply_damage, apply_heal and advance_turn as the fight needs.\n" +
+    "• BATTLEMAP: if the state has a battlemap (token \"pos\" cells and \"mapGrid\"), use " +
+    "move_token to reposition creatures — move a monster when it advances/retreats, and " +
+    "move a player's token to where THEY say they go (e.g. \"I move behind the crates\"). " +
+    "1 cell = 5 ft; give absolute x,y (top-left is 0,0). Read out the right numbered area " +
+    "as the party reaches it. With no battlemap, keep positioning narrative.\n" +
     "• You control ONLY monsters and NPCs. Never make attacks, ability checks, or " +
     "decisions for the player characters (rolling initiative for the whole table via " +
-    "roll_initiative is fine). On a player's turn, ask the table what they do.\n" +
+    "roll_initiative is fine) — but you MAY move a player's token with move_token when the " +
+    "player tells you where they go. On a player's turn, ask the table what they do.\n" +
     "• Act when asked to run the fight or a creature's turn. Don't invent extra rounds " +
     "or attacks nobody asked for. A monster with several attacks may call monster_action " +
     "more than once in its turn.\n\n" +
 
-    "SECRECY: never reveal the scene's dmNotes, secret DCs, hidden solutions, or an " +
-    "enemy's exact HP. Describe enemy health vaguely (\"bloodied\", \"barely standing\").\n\n" +
+    "SECRECY: never reveal the dmNotes on the scene or on any numbered area, secret DCs, " +
+    "hidden solutions, or an enemy's exact HP. Describe enemy health vaguely (\"bloodied\", " +
+    "\"barely standing\"). You MAY read an area's read-aloud text freely and let its dmNotes " +
+    "shape what happens without stating them.\n\n" +
 
     "STYLE — terse and evocative:\n" +
     "• Default to 1–3 sentences. Only a brand-new scene may run to 4–5; a reaction or a " +
@@ -115,7 +123,7 @@
     "it fits, NOT every message, and skip it when the moment calls for open exploration or there is no " +
     "real choice to make. Keep each option to a single line. A lone \"1\" or \"2\" (or \"one\"/\"two\") in " +
     "the next message means they chose that option; act on it.\n" +
-    "• No battle map yet — keep positioning and range narrative, never precise squares or feet.";
+    "• Speak of distance in feet only when it matters (1 cell = 5 ft); otherwise keep positioning natural.";
 
   var TOOLS = [
     {
@@ -224,6 +232,24 @@
           note: { type: 'string' }
         },
         required: ['combatantId', 'amount']
+      }
+    },
+    {
+      name: 'move_token',
+      description: "Move a combatant's token to a battlemap cell (1 cell = 5 ft). Use this " +
+        "when a monster/NPC repositions, or to reflect where a player says they move to. Only " +
+        "works when the context has a battlemap (token \"pos\" / \"mapGrid\"); give the target " +
+        "as absolute cell coordinates x,y (top-left is 0,0). Prefer moving toward a numbered " +
+        "area or another token when the player is vague.",
+      input_schema: {
+        type: 'object',
+        properties: {
+          combatantId: { type: 'integer', description: 'id of the combatant to move' },
+          x: { type: 'integer', description: 'target column (0-based)' },
+          y: { type: 'integer', description: 'target row (0-based)' },
+          say: { type: 'string', description: 'optional short flavour of the movement' }
+        },
+        required: ['combatantId', 'x', 'y']
       }
     },
     {

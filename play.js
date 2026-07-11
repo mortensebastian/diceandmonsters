@@ -905,6 +905,23 @@
         logLine(sh, 'heal'); refreshCard(h);
         return toolResult(id, sh);
       }
+      if (block.name === 'move_token') {
+        var mv = findCombatant(input.combatantId);
+        if (!mv) return toolResult(id, 'No combatant with id ' + input.combatantId + '.', true);
+        if (!window.Battlemap) return toolResult(id, 'There is no battlemap in this session.', true);
+        var sz = window.Battlemap.size();
+        var nx = parseInt(input.x, 10), ny = parseInt(input.y, 10);
+        if (isNaN(nx) || isNaN(ny) || nx < 0 || ny < 0 || nx >= sz.cols || ny >= sz.rows) {
+          return toolResult(id, 'Cell ' + input.x + ',' + input.y + ' is off the ' + sz.cols + '×' + sz.rows + ' map.', true);
+        }
+        var from = (mv.x != null && mv.y != null) ? (mv.x + ',' + mv.y) : 'off-map';
+        mv.x = nx; mv.y = ny;
+        if (input.say) renderChat('dm', input.say);
+        renderAll();   // re-syncs the battlemap
+        logLine(label(mv) + ' moves to ' + nx + ',' + ny + '.', 'spawn');
+        scheduleSave();
+        return toolResult(id, label(mv) + ' moved from ' + from + ' to ' + nx + ',' + ny + '.');
+      }
       if (block.name === 'advance_turn') {
         nextTurn();
         var act = state.activeId != null ? findCombatant(state.activeId) : null;
@@ -1384,13 +1401,13 @@
 
   /* ---- Init ---- */
   /* ---- Battlemap wiring ---- */
+  // Highlight the matching combatant card WITHOUT scrolling — grabbing a token
+  // must not yank the page up to the card list (that broke dragging).
   function selectMapToken(id) {
     var nodes = el.list.querySelectorAll('.item');
     for (var i = 0; i < nodes.length; i++) {
       var nid = parseInt(nodes[i].getAttribute('data-id'), 10);
-      var on = (id != null && nid === id);
-      nodes[i].classList.toggle('item--selected', on);
-      if (on) nodes[i].scrollIntoView({ block: 'nearest' });
+      nodes[i].classList.toggle('item--selected', id != null && nid === id);
     }
   }
 
