@@ -956,7 +956,11 @@
 
     var sceneText = (el.aiScene && el.aiScene.value.trim()) || '';
     state.scene = sceneText ? { text: sceneText } : null;
-    var ctx = window.AIContext.build(state, { scene: state.scene });
+    var ctx = window.AIContext.build(state, {
+      scene: state.scene,
+      areas: window.Battlemap ? window.Battlemap.getAreas() : null,
+      grid: window.Battlemap ? window.Battlemap.grid() : null
+    });
 
     renderChat('user', displayLabel || userText);
     aiMessages.push({ role: 'user', content: window.AIDM.stateBlock(ctx) + '\n\n' + userText });
@@ -1402,9 +1406,33 @@
       wrap: document.querySelector('#battlemap-wrap'),
       distanceEl: document.querySelector('#battlemap-dist'),
       onMove: function () { scheduleSave(); },
-      onSelect: function (id) { selectMapToken(id); }
+      onSelect: function (id) { selectMapToken(id); },
+      onAreaSelect: showAreaCard
     });
     BM.setMode(viewerMode ? 'view' : 'play');
+
+    // Tapping a numbered area shows its notes locally (never logged or synced,
+    // so DM secrets stay on the DM's screen). Viewers see only read-aloud text.
+    el.areaCard = document.querySelector('#battlemap-area');
+    if (el.areaCard) {
+      el.areaCard.querySelector('.bm-areacard__close')
+        .addEventListener('click', function () { el.areaCard.hidden = true; });
+    }
+  }
+
+  function showAreaCard(area) {
+    if (!el.areaCard) return;
+    if (!area) { el.areaCard.hidden = true; return; }
+    el.areaCard.querySelector('.bm-areacard__title').textContent =
+      'Area ' + area.n + (area.title ? ' — ' + area.title : '');
+    var read = el.areaCard.querySelector('.bm-areacard__read');
+    read.textContent = area.read || '';
+    read.hidden = !area.read;
+    var dm = el.areaCard.querySelector('.bm-areacard__dm');
+    // Viewers (shared session) never see the secret DM notes.
+    dm.textContent = (!viewerMode && area.dm) ? ('DM: ' + area.dm) : '';
+    dm.hidden = viewerMode || !area.dm;
+    el.areaCard.hidden = false;
   }
 
   function init() {

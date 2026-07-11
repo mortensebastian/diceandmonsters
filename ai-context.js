@@ -54,7 +54,22 @@
       // No HP counter (a human player in AI-DM mode): never invent one.
       v.health = 'unknown (player tracks their own)';
     }
+    // Battlemap cell, so the DM can reason about position and range.
+    if (c.x != null && c.y != null) v.pos = { x: c.x, y: c.y };
     return v;
+  }
+
+  // Numbered map areas → the DM's private key (read-aloud + secret notes).
+  function areaViews(areas) {
+    if (!areas || !areas.length) return null;
+    return areas.map(function (a) {
+      return {
+        n: a.n, title: a.title || '',
+        readAloud: a.read || '',
+        dmNotes: a.dm || '',
+        pos: (a.x != null && a.y != null) ? { x: a.x, y: a.y } : null
+      };
+    });
   }
 
   // Split a scene's text into read-aloud vs. DM-only notes.
@@ -93,6 +108,9 @@
       combatants: state.combatants.map(function (c) { return combatantView(c, opts); }),
       recentLog: recentLog(state, opts.logLines)
     };
+    var areas = areaViews(opts.areas);
+    if (areas) ctx.areas = areas;
+    if (opts.grid) ctx.mapGrid = opts.grid;
     if (opts.selfId != null) {
       var self = DM.findCombatant(state.combatants, opts.selfId);
       if (self) ctx.self = combatantView(self, { hideEnemyHp: false });

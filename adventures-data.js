@@ -10,13 +10,14 @@
   'use strict';
 
   // Build a battlemap from ASCII art so the pre-made maps stay readable.
-  // Each string is a row; legend maps a character to a terrain type
-  // (wall/water/difficult/grass/wood/lava). Any other char = open floor.
+  // Each string is a row; legend maps a character to a terrain type.
+  // Any other char (space) = open floor. `areas` is an optional list of
+  // numbered pins { n, x, y, title, read, dm } (read-aloud + secret DM notes).
   var LEGEND = {
-    '#': 'wall', '~': 'water', '.': 'difficult',
-    '"': 'grass', '=': 'wood', '^': 'lava'
+    '#': 'wall', '~': 'water', ':': 'rapids', '"': 'grass', '=': 'wood',
+    '&': 'briars', 'A': 'stalagmite', 'S': 'steps', '.': 'difficult', '^': 'lava'
   };
-  function bmap(grid, rows) {
+  function bmap(grid, rows, areas) {
     var cols = 0, terrain = {};
     rows.forEach(function (line, r) {
       if (line.length > cols) cols = line.length;
@@ -25,7 +26,7 @@
         if (type) terrain[c + ',' + r] = type;
       }
     });
-    return { v: 1, grid: grid, cols: cols, rows: rows.length, terrain: terrain, bg: null };
+    return { v: 1, grid: grid, cols: cols, rows: rows.length, terrain: terrain, areas: areas || [], bg: null };
   }
 
   window.ADVENTURES = [
@@ -41,17 +42,24 @@
           title: '1. The Drowned Stair',
           battlemap: bmap('square', [
             '##############',
-            '#............#',
-            '#.##......##.#',
-            '#.##..~~..##.#',
-            '#...~~~~~~...#',
+            '#SS.......AA.#',
+            '#SS...~~...A..',
+            '#....~~~~....#',
             '#..~~~~~~~~..#',
+            '#.:~~~~~~~~:.#',
+            '#.:~~~~~~~~:.#',
             '#..~~~~~~~~..#',
-            '#..~~~~~~~~..#',
-            '#...~~~~~~...#',
-            '#.##......##.#',
-            '#.##......##.#',
+            '#..A.~~~~..A.#',
+            '#.AA......AA.#',
+            '#SS........SS#',
             '##############'
+          ], [
+            { n: 1, x: 1, y: 1, title: 'The Drowned Stair',
+              read: 'A stone stair spirals down into black water that swallows your torchlight whole.',
+              dm: 'Flooded steps are difficult terrain (waist-deep). Submerged pit at the halfway landing: DC 12 Dex or drop 10 ft (1d6, start drowning).' },
+            { n: 2, x: 11, y: 8, title: 'Submerged Alcove',
+              read: 'A niche lies just under the surface, something pale glinting within.',
+              dm: 'DC 12 Investigation: a silver holy symbol worth 25 gp, still oddly warm. The rats burst out when the party reaches here.' }
           ]),
           text: 'Rain hammers the ruined chapel until the whole hillside seems to weep. Past the ' +
             'collapsed altar, a stone stair spirals down into black water that swallows your torchlight ' +
@@ -134,18 +142,25 @@
         {
           title: "2. Gallows' Bridge",
           battlemap: bmap('square', [
-            '""""""""""""""""',
-            '""""""""""""""""',
-            '"""""""===""""""',
-            '~~~~~~~===~~~~~~~',
-            '~~~~~~~===~~~~~~~',
-            '~~~~~~~===~~~~~~~',
-            '~~~~~~~===~~~~~~~',
-            '~~~~~~~===~~~~~~~',
-            '~~~~~~~===~~~~~~~',
-            '"""""""===""""""',
-            '""""""""""""""""',
-            '""""""""""""""""'
+            '"""""&&""""""&"""',
+            '""&""""""""""""""',
+            '"""""""===""""&""',
+            '::::::=====:::::::',
+            '~~~~~~~===~~~~~~~~',
+            '~~~~~~~===~~~~~~~~',
+            '~~~~~~~===~~~~~~~~',
+            '~~~~~~~===~~~~~~~~',
+            '::::::=====::::::.',
+            '"""&"""===""""""."',
+            '""""""""""""&""..',
+            '"""""&"""""""""""'
+          ], [
+            { n: 1, x: 8, y: 2, title: 'North Approach',
+              read: 'The old toll bridge sags across a deep ravine, its timbers grey and its name carved into a leaning post.',
+              dm: 'Goblins wait in ambush at the far bank. The middle planks are rotten: DC 10 Dex if you run across, or fall prone.' },
+            { n: 2, x: 8, y: 9, title: 'South Bank',
+              read: 'White water roars through the rapids far below.',
+              dm: 'A worg is chained here as a guard. Anyone knocked off the bridge lands in the rapids: DC 12 Str or swept 20 ft downstream.' }
           ]),
           text: 'The old toll bridge sags across a deep ravine, its timbers grey and its name carved ' +
             'into the gatepost above a row of very fresh-looking nooses. The goblins have been busy: ' +
@@ -198,15 +213,22 @@
           title: '1. The Welcome Hall',
           battlemap: bmap('square', [
             '##############',
-            '#............#',
             '#....####....#',
             '#....#..#....#',
-            '#....#..#....#',
-            '#....####....#',
+            '#.SS.#..#.SS.#',
+            '#.SS.####.SS.#',
             '#............#',
+            '#....##.##...#',
             '#............#',
             '#####....#####',
             '#####....#####'
+          ], [
+            { n: 1, x: 6, y: 3, title: 'The Statue',
+              read: 'A suit of ancient armor stands on a dais at the hall\'s centre, visor down.',
+              dm: 'Animated Armor. It attacks when anyone steps onto the dais (row with the ## pillars) or touches the far door.' },
+            { n: 2, x: 6, y: 9, title: 'The Doors',
+              read: 'The manor\'s front doors swing inward at your approach, though no hand touches them.',
+              dm: 'The doors slam and lock (DC 15 Str to force) once the last character is inside — the house wants them to stay.' }
           ]),
           text: 'The manor\'s front doors swing inward at your approach, though no hand touches them. ' +
             'Dust lies thick on a grand staircase, the chandeliers hang dark, and a single suit of ' +

@@ -21,13 +21,17 @@
     "HARD RULES — never break these:\n" +
     "• Never invent or state dice rolls, to-hit numbers, damage, or exact HP. " +
     "Only describe events that have ALREADY happened (given in the context/log).\n" +
-    "• Never reveal DM-only information: the scene's \"dmNotes\", secret DCs, " +
-    "hidden solutions, monster tactics, or enemies' exact HP. Describe enemy " +
-    "health only in vague terms (\"bloodied\", \"barely standing\").\n" +
+    "• Never reveal DM-only information: the \"dmNotes\" on the scene or on any " +
+    "numbered area, secret DCs, hidden solutions, monster tactics, or enemies' " +
+    "exact HP. Describe enemy health only in vague terms (\"bloodied\", " +
+    "\"barely standing\"). You MAY use area read-aloud text freely, and let the " +
+    "area's dmNotes inform what happens without stating them.\n" +
     "• Never decide what the player characters do or say. You run the world and " +
     "the monsters/NPCs, not the heroes.\n" +
-    "• You have no map yet: keep positioning and distances vague and narrative, " +
-    "never precise squares or feet.";
+    "• If the context has \"areas\" or token \"pos\" (battlemap cells), use them to " +
+    "keep positioning consistent — read out the right numbered area as the party " +
+    "reaches it. Speak of distance in feet only when it matters (1 cell = 5 ft). " +
+    "With no map data, keep positioning vague and narrative.";
 
   // Compact JSON of the situation the DM can see.
   function contextBlock(context) {

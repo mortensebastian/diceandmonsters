@@ -69,6 +69,16 @@ Supabase cloud sync.
   - **The canvas pins its CSS width/height to its backing pixel size each
     render** — otherwise `max-width` shrinks width but not height and clicks map
     to the wrong cell.
+  - **Terrain is textured** (procedural canvas, no images): wall/water/rapids/
+    grass/wood/briars/stalagmite/steps/rubble/lava, drawn on a dark-parchment
+    floor, with an HTML **legend** of the types present. Old terrain keys still
+    render.
+  - **Numbered areas** (`map.areas: [{ n, x, y, title, read, dm }]`) — the
+    "Area" design tool drops LMoP-style numbered pins with **read-aloud** +
+    **secret DM notes**. In the Game Session tapping a pin shows a local card
+    (viewers never see `dm`), and areas + token `pos` are fed to the AI DM via
+    `ai-context.js` so it reads the right area out and reasons about position
+    (1 cell = 5 ft). `getAreas()` exposes them.
 
 ### AI layer (Play page)
 

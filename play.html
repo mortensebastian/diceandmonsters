@@ -127,7 +127,13 @@
             <div class="battlemap__wrap" id="battlemap-wrap">
                 <canvas id="battlemap-canvas" class="battlemap__canvas"></canvas>
             </div>
-            <p class="battlemap__hint">Drag tokens to move them (distance shows in feet). Add players and monsters above. The map is set up in the Encounter Planner or Adventure.</p>
+            <div id="battlemap-area" class="bm-areacard" hidden>
+                <button class="bm-areacard__close" type="button" aria-label="Close">✕</button>
+                <h3 class="bm-areacard__title"></h3>
+                <p class="bm-areacard__read"></p>
+                <p class="bm-areacard__dm"></p>
+            </div>
+            <p class="battlemap__hint">Drag tokens to move them (distance shows in feet). Tap a numbered area to read its notes. Add players and monsters above. The map is set up in the Encounter Planner or Adventure.</p>
         </section>
 
         <!-- The combatants in play -->

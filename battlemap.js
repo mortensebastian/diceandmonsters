@@ -24,21 +24,29 @@
 (function () {
   'use strict';
 
-  /* ---- Terrain palette (drawn under the grid) ---- */
+  /* ---- Terrain palette (drawn under the grid) ----
+     `base` fills the cell; a per-type texture is drawn on top (see
+     drawTerrainCell). `swatch` is the legend dot. Old keys are kept so
+     previously-saved maps still render. */
   var TERRAIN = {
-    wall:      { label: 'Wall',      fill: '#3b4150', swatch: '#3b4150', block: true },
-    water:     { label: 'Water',     fill: 'rgba(41,128,185,.45)',  swatch: '#2980b9' },
-    difficult: { label: 'Difficult', fill: 'rgba(230,126,34,.32)',  swatch: '#e67e22' },
-    grass:     { label: 'Grass',     fill: 'rgba(39,174,96,.30)',   swatch: '#27ae60' },
-    wood:      { label: 'Wood',      fill: 'rgba(120,72,40,.45)',   swatch: '#8a5a2b' },
-    lava:      { label: 'Lava',      fill: 'rgba(192,57,43,.45)',   swatch: '#c0392b' }
+    wall:       { label: 'Stone wall', base: '#4b5162', swatch: '#6b7280' },
+    water:      { label: 'Water',      base: 'rgba(38,110,170,.55)', swatch: '#2980b9' },
+    rapids:     { label: 'Rapids',     base: 'rgba(52,140,200,.55)', swatch: '#5dade2' },
+    grass:      { label: 'Grass',      base: 'rgba(46,120,58,.42)',  swatch: '#27ae60' },
+    wood:       { label: 'Wood / bridge', base: 'rgba(120,78,42,.6)', swatch: '#8a5a2b' },
+    briars:     { label: 'Briars',     base: 'rgba(34,78,40,.6)',    swatch: '#1e6b3a' },
+    stalagmite: { label: 'Stalagmites', base: 'rgba(90,96,110,.5)',  swatch: '#9aa0ad' },
+    steps:      { label: 'Steps',      base: 'rgba(120,104,70,.45)', swatch: '#b8a06a' },
+    difficult:  { label: 'Rubble',     base: 'rgba(140,112,72,.4)',  swatch: '#a1866a' },
+    lava:       { label: 'Lava',       base: 'rgba(150,40,26,.6)',   swatch: '#e25822' }
   };
-  var TERRAIN_ORDER = ['wall', 'water', 'difficult', 'grass', 'wood', 'lava'];
+  var TERRAIN_ORDER = ['wall', 'water', 'rapids', 'grass', 'wood',
+    'briars', 'stalagmite', 'steps', 'difficult', 'lava'];
 
   var KIND_COLOR = { monster: '#c0392b', npc: '#9b59b6', player: '#4aa3df' };
 
   function defaultMap() {
-    return { v: 1, grid: 'square', cols: 16, rows: 12, terrain: {}, bg: null };
+    return { v: 1, grid: 'square', cols: 16, rows: 12, terrain: {}, areas: [], bg: null };
   }
 
   /* ---- Module state ---- */
@@ -47,8 +55,11 @@
   var combatants = [];         // live array from play.js (read x/y off each)
   var map = defaultMap();
   var bgImage = null;          // Image built from map.bg
-  var tool = 'select';         // 'select' | 'paint' | 'erase'
+  var tool = 'select';         // 'select' | 'paint' | 'erase' | 'area'
   var paintTerrain = 'wall';
+  var selectedArea = null;     // area object currently being edited (design)
+  var areaEditorEl = null;     // inline area editor built by buildToolbar
+  var legendEl = null;         // HTML legend element (created lazily)
   // Interaction mode:
   //   'design' — full editing (Encounter Planner / Adventure editor)
   //   'play'   — move/add tokens only, no map editing (Game Session)
@@ -151,21 +162,166 @@
     CTX.drawImage(img, dx, dy, dw, dh);
   }
 
+  // Deterministic 0..1 from a cell + salt, so textures don't flicker between
+  // renders (same cell always draws the same speckles).
+  function rand(col, row, salt) {
+    var h = ((col + 1) * 73856093) ^ ((row + 1) * 19349663) ^ ((salt + 1) * 83492791);
+    h = (h ^ (h >>> 13)) >>> 0;
+    h = (h * 1274126177) >>> 0;
+    return (h >>> 0) / 4294967296;
+  }
+
+  // A warm dark-parchment floor under everything (unless a bg image is set),
+  // with faint grain so open ground reads as a map, not a black void.
+  function drawFloor(m) {
+    CTX.fillStyle = '#211c15';
+    CTX.fillRect(0, 0, CV.width, CV.height);
+    CTX.fillStyle = 'rgba(120,104,74,.05)';
+    var step = Math.max(10, Math.round((m.cell || m.size || 24) / 2));
+    for (var y = 0; y < CV.height; y += step) {
+      for (var x = 0; x < CV.width; x += step) {
+        if (rand(x, y, 7) > 0.6) CTX.fillRect(x + (rand(x, y, 1) * step | 0), y + (rand(x, y, 2) * step | 0), 2, 2);
+      }
+    }
+  }
+
+  // Draw one square cell's terrain texture within (x,y,w,h).
+  function drawTerrainCell(type, col, row, x, y, w, h) {
+    var t = TERRAIN[type];
+    if (!t) return;
+    CTX.save();
+    CTX.beginPath(); CTX.rect(x, y, w, h); CTX.clip();
+    CTX.fillStyle = t.base;
+    CTX.fillRect(x, y, w, h);
+    var i, n, rx, ry;
+    if (type === 'water' || type === 'rapids') {
+      CTX.strokeStyle = type === 'rapids' ? 'rgba(255,255,255,.55)' : 'rgba(255,255,255,.18)';
+      CTX.lineWidth = type === 'rapids' ? 1.5 : 1;
+      for (i = 0; i < 3; i++) {
+        var wy = y + h * (0.25 + i * 0.28) + rand(col, row, i) * 4;
+        CTX.beginPath();
+        CTX.moveTo(x + 2, wy);
+        CTX.bezierCurveTo(x + w * 0.33, wy - 3, x + w * 0.66, wy + 3, x + w - 2, wy);
+        CTX.stroke();
+      }
+    } else if (type === 'wall') {
+      CTX.fillStyle = 'rgba(0,0,0,.28)';
+      CTX.fillRect(x, y, w, h);
+      CTX.fillStyle = 'rgba(150,158,175,.5)';
+      CTX.strokeStyle = 'rgba(20,22,28,.9)'; CTX.lineWidth = 1;
+      var bh = h / 2;
+      for (var br = 0; br < 2; br++) {
+        var off = (br % 2) ? w * 0.25 : -w * 0.25;
+        for (var bx = -1; bx < 2; bx++) {
+          var rxx = x + bx * (w / 2) + off;
+          CTX.fillRect(rxx + 1, y + br * bh + 1, w / 2 - 2, bh - 2);
+          CTX.strokeRect(rxx + 1, y + br * bh + 1, w / 2 - 2, bh - 2);
+        }
+      }
+    } else if (type === 'wood') {
+      CTX.strokeStyle = 'rgba(60,38,18,.7)'; CTX.lineWidth = 1;
+      for (i = 1; i < 4; i++) {
+        CTX.beginPath(); CTX.moveTo(x, y + h * i / 4); CTX.lineTo(x + w, y + h * i / 4); CTX.stroke();
+      }
+      CTX.strokeStyle = 'rgba(60,38,18,.35)';
+      CTX.beginPath(); CTX.moveTo(x + w / 2, y); CTX.lineTo(x + w / 2, y + h); CTX.stroke();
+    } else if (type === 'grass') {
+      CTX.strokeStyle = 'rgba(120,190,120,.5)'; CTX.lineWidth = 1;
+      for (i = 0; i < 6; i++) {
+        rx = x + rand(col, row, i) * w; ry = y + h - rand(col, row, i + 10) * (h * 0.4);
+        CTX.beginPath(); CTX.moveTo(rx, ry); CTX.lineTo(rx - 1.5, ry - 4); CTX.stroke();
+        CTX.beginPath(); CTX.moveTo(rx, ry); CTX.lineTo(rx + 1.5, ry - 4); CTX.stroke();
+      }
+    } else if (type === 'briars') {
+      CTX.strokeStyle = 'rgba(30,60,32,.85)'; CTX.lineWidth = 1;
+      for (i = 0; i < 5; i++) {
+        rx = x + rand(col, row, i) * w; ry = y + rand(col, row, i + 5) * h;
+        CTX.beginPath();
+        CTX.moveTo(rx - 3, ry - 3); CTX.lineTo(rx + 3, ry + 3);
+        CTX.moveTo(rx + 3, ry - 3); CTX.lineTo(rx - 3, ry + 3);
+        CTX.stroke();
+      }
+    } else if (type === 'stalagmite') {
+      CTX.fillStyle = 'rgba(160,166,180,.7)';
+      CTX.strokeStyle = 'rgba(20,22,28,.7)'; CTX.lineWidth = 1;
+      for (i = 0; i < 3; i++) {
+        rx = x + (0.25 + rand(col, row, i) * 0.5) * w;
+        ry = y + (0.35 + rand(col, row, i + 4) * 0.5) * h;
+        var s = 3 + rand(col, row, i + 8) * 3;
+        CTX.beginPath();
+        CTX.moveTo(rx, ry - s); CTX.lineTo(rx - s * 0.7, ry + s); CTX.lineTo(rx + s * 0.7, ry + s);
+        CTX.closePath(); CTX.fill(); CTX.stroke();
+      }
+    } else if (type === 'steps') {
+      CTX.strokeStyle = 'rgba(40,34,22,.7)'; CTX.lineWidth = 1.5;
+      for (i = 1; i < 5; i++) {
+        CTX.beginPath(); CTX.moveTo(x, y + h * i / 5); CTX.lineTo(x + w, y + h * i / 5); CTX.stroke();
+      }
+    } else if (type === 'lava') {
+      CTX.strokeStyle = 'rgba(255,180,60,.75)'; CTX.lineWidth = 1.5;
+      for (i = 0; i < 3; i++) {
+        var ly = y + h * (0.3 + i * 0.3);
+        CTX.beginPath();
+        CTX.moveTo(x, ly); CTX.bezierCurveTo(x + w * 0.4, ly + 4, x + w * 0.6, ly - 4, x + w, ly);
+        CTX.stroke();
+      }
+    } else { // difficult / rubble and any unknown extra
+      CTX.fillStyle = 'rgba(90,72,44,.75)';
+      for (i = 0; i < 7; i++) {
+        rx = x + rand(col, row, i) * w; ry = y + rand(col, row, i + 3) * h;
+        n = 1 + rand(col, row, i + 6) * 2;
+        CTX.beginPath(); CTX.arc(rx, ry, n, 0, Math.PI * 2); CTX.fill();
+      }
+    }
+    CTX.restore();
+  }
+
   function drawTerrain(m) {
     for (var key in map.terrain) {
       if (!map.terrain.hasOwnProperty(key)) continue;
-      var t = TERRAIN[map.terrain[key]];
+      var type = map.terrain[key];
+      var t = TERRAIN[type];
       if (!t) continue;
       var parts = key.split(',');
       var col = +parts[0], row = +parts[1];
       if (!inBounds(col, row)) continue;
-      CTX.fillStyle = t.fill;
-      fillCellShape(col, row, m);
+      if (m.grid === 'hex') {
+        CTX.fillStyle = t.base;
+        fillCellShape(col, row, m);
+      } else {
+        drawTerrainCell(type, col, row, col * m.cell, row * m.cell, m.cell, m.cell);
+      }
+    }
+  }
+
+  // Numbered encounter-area pins (like the LMoP maps): a ringed circle with
+  // the area number, drawn on top of the map.
+  function drawAreas(m) {
+    var list = map.areas || [];
+    for (var i = 0; i < list.length; i++) {
+      var a = list[i];
+      if (a.x == null || a.y == null || !inBounds(a.x, a.y)) continue;
+      var c = cellCenter(a.x, a.y, m);
+      var r = (m.grid === 'hex' ? m.size : m.cell) * 0.34;
+      r = Math.max(10, r);
+      var sel = (selectedArea && selectedArea === a);
+      CTX.save();
+      CTX.beginPath(); CTX.arc(c.x, c.y, r, 0, Math.PI * 2);
+      CTX.fillStyle = 'rgba(245,238,220,.95)';
+      CTX.fill();
+      CTX.lineWidth = sel ? 3 : 2;
+      CTX.strokeStyle = sel ? '#e1b12c' : '#7a2318';
+      CTX.stroke();
+      CTX.fillStyle = '#7a2318';
+      CTX.font = 'bold ' + Math.round(r * 1.05) + 'px "Open Sans", sans-serif';
+      CTX.textAlign = 'center'; CTX.textBaseline = 'middle';
+      CTX.fillText(String(a.n), c.x, c.y + 0.5);
+      CTX.restore();
     }
   }
 
   function drawGrid(m) {
-    CTX.strokeStyle = 'rgba(230,230,230,.16)';
+    CTX.strokeStyle = 'rgba(226,210,168,.16)';
     CTX.lineWidth = 1;
     var col, row;
     if (m.grid === 'hex') {
@@ -279,11 +435,11 @@
     if (bgImage && bgImage.complete && bgImage.naturalWidth) {
       drawCover(bgImage, m);
     } else {
-      CTX.fillStyle = '#12141a';
-      CTX.fillRect(0, 0, CV.width, CV.height);
+      drawFloor(m);
     }
     drawTerrain(m);
     drawGrid(m);
+    drawAreas(m);
     drawTokens(m);
   }
 
@@ -338,6 +494,41 @@
     return hit;
   }
 
+  /* ---- Numbered areas ---- */
+  function areaAt(col, row) {
+    var list = map.areas || [];
+    for (var i = 0; i < list.length; i++) {
+      if (list[i].x === col && list[i].y === row) return list[i];
+    }
+    return null;
+  }
+  function nextAreaNumber() {
+    var max = 0, list = map.areas || [];
+    for (var i = 0; i < list.length; i++) if (list[i].n > max) max = list[i].n;
+    return max + 1;
+  }
+  function addArea(col, row) {
+    if (!map.areas) map.areas = [];
+    var a = { n: nextAreaNumber(), x: col, y: row, title: '', read: '', dm: '' };
+    map.areas.push(a);
+    selectArea(a);
+    render();
+    if (cb.onChange) cb.onChange();
+  }
+  function removeArea(a) {
+    map.areas = (map.areas || []).filter(function (x) { return x !== a; });
+    // renumber so pins stay 1..n
+    map.areas.forEach(function (x, i) { x.n = i + 1; });
+    if (selectedArea === a) selectArea(null);
+    render();
+    if (cb.onChange) cb.onChange();
+  }
+  function selectArea(a) {
+    selectedArea = a || null;
+    if (mode === 'design') updateAreaEditor();
+    if (cb.onAreaSelect) cb.onAreaSelect(a || null);
+  }
+
   /* ---- Pointer interaction ---- */
   function evPos(ev) {
     var rect = CV.getBoundingClientRect();
@@ -353,6 +544,7 @@
     if (tool === 'erase') delete map.terrain[key];
     else map.terrain[key] = paintTerrain;
     render();
+    renderLegend();
   }
 
   function onDown(ev) {
@@ -370,20 +562,31 @@
       return;
     }
 
+    if (tool === 'area' && mode === 'design') {
+      var existing = areaAt(cell.col, cell.row);
+      if (existing) selectArea(existing); else addArea(cell.col, cell.row);
+      return;
+    }
+
     // select tool: grab a token if one is here
     var c = tokenAt(cell.col, cell.row);
     if (c) {
       selectedId = c.id;
+      selectArea(null);
       if (cb.onSelect) cb.onSelect(c.id);
       drag = { id: c.id, fromCol: c.x, fromRow: c.y, px: p.x, py: p.y, col: cell.col, row: cell.row };
       try { CV.setPointerCapture(ev.pointerId); } catch (e) { /* ignore */ }
       showDistance(0);
       render();
-    } else {
-      selectedId = null;
-      if (cb.onSelect) cb.onSelect(null);
-      render();
+      return;
     }
+    // no token — maybe an area pin (tap to read it, in any mode)
+    var area = areaAt(cell.col, cell.row);
+    if (area) { selectArea(area); render(); return; }
+    selectedId = null;
+    selectArea(null);
+    if (cb.onSelect) cb.onSelect(null);
+    render();
   }
 
   function onMove(ev) {
@@ -459,7 +662,7 @@
 
   /* ---- Editing toolbar (design mode) ---- */
   function setTool(name) {
-    tool = (name === 'paint' || name === 'erase') ? name : 'select';
+    tool = (name === 'paint' || name === 'erase' || name === 'area') ? name : 'select';
     if (!toolbarEl) return;
     var btns = toolbarEl.querySelectorAll('.bm-tool');
     for (var i = 0; i < btns.length; i++) {
@@ -493,6 +696,7 @@
         '<button class="bm-tool bm-tool--active" data-tool="select" title="Move &amp; select tokens">✥ Move</button>' +
         '<button class="bm-tool" data-tool="paint" title="Paint terrain">🖌 Paint</button>' +
         '<button class="bm-tool" data-tool="erase" title="Erase terrain">⌫ Erase</button>' +
+        '<button class="bm-tool" data-tool="area" title="Place a numbered area with DM notes">① Area</button>' +
       '</div>' +
       '<div class="bm-group bm-terrain">' + swatches + '</div>' +
       '<div class="bm-group">' +
@@ -506,7 +710,22 @@
           '<input type="file" accept="image/*" class="bm-bg" hidden></label>' +
         '<button class="bm-btn bm-bg-clear" hidden>Clear image</button>' +
         '<button class="bm-btn bm-terrain-clear">Clear terrain</button>' +
+      '</div>' +
+      '<div class="bm-area-editor" hidden>' +
+        '<div class="bm-area-editor__head"><span class="bm-area-editor__title">Area</span>' +
+          '<button class="bm-btn bm-area-del" type="button">Delete area</button></div>' +
+        '<input type="text" class="bm-area-title" placeholder="Area title (e.g. “Cave Mouth”)">' +
+        '<textarea class="bm-area-read" rows="2" placeholder="Read-aloud text (players hear this)…"></textarea>' +
+        '<textarea class="bm-area-dm" rows="2" placeholder="DM notes (secret: traps, DCs, tactics)…"></textarea>' +
       '</div>';
+
+    areaEditorEl = container.querySelector('.bm-area-editor');
+    areaEditorEl.querySelector('.bm-area-title').addEventListener('input', onAreaFieldInput);
+    areaEditorEl.querySelector('.bm-area-read').addEventListener('input', onAreaFieldInput);
+    areaEditorEl.querySelector('.bm-area-dm').addEventListener('input', onAreaFieldInput);
+    areaEditorEl.querySelector('.bm-area-del').addEventListener('click', function () {
+      if (selectedArea) removeArea(selectedArea);
+    });
 
     var terrainBar = container.querySelector('.bm-terrain');
     container.addEventListener('click', function (ev) {
@@ -544,6 +763,49 @@
     var first = terrainBar.querySelector('.bm-swatch[data-terrain="' + paintTerrain + '"]');
     if (first) first.classList.add('bm-swatch--active');
     syncToolbar();
+    updateAreaEditor();
+  }
+
+  function onAreaFieldInput() {
+    if (!selectedArea || !areaEditorEl) return;
+    selectedArea.title = areaEditorEl.querySelector('.bm-area-title').value;
+    selectedArea.read = areaEditorEl.querySelector('.bm-area-read').value;
+    selectedArea.dm = areaEditorEl.querySelector('.bm-area-dm').value;
+    if (cb.onChange) cb.onChange();
+  }
+
+  // Show/fill the inline area editor for the selected pin (design mode only).
+  function updateAreaEditor() {
+    if (!areaEditorEl) return;
+    if (mode !== 'design' || !selectedArea) { areaEditorEl.hidden = true; return; }
+    areaEditorEl.hidden = false;
+    areaEditorEl.querySelector('.bm-area-editor__title').textContent = 'Area ' + selectedArea.n;
+    areaEditorEl.querySelector('.bm-area-title').value = selectedArea.title || '';
+    areaEditorEl.querySelector('.bm-area-read').value = selectedArea.read || '';
+    areaEditorEl.querySelector('.bm-area-dm').value = selectedArea.dm || '';
+  }
+
+  /* ---- Legend (tegnforklaring): shows terrain types present on the map ---- */
+  function renderLegend() {
+    if (!legendEl) {
+      if (!wrap || !wrap.parentNode) return;
+      legendEl = document.createElement('div');
+      legendEl.className = 'bm-legend';
+      wrap.parentNode.insertBefore(legendEl, wrap.nextSibling);
+    }
+    var present = {}, k;
+    for (k in map.terrain) if (map.terrain.hasOwnProperty(k)) present[map.terrain[k]] = true;
+    var items = TERRAIN_ORDER.filter(function (t) { return present[t]; }).map(function (t) {
+      return '<span class="bm-legend__item"><span class="bm-legend__dot" style="background:' +
+        TERRAIN[t].swatch + '"></span>' + TERRAIN[t].label + '</span>';
+    });
+    var nAreas = (map.areas || []).length;
+    if (nAreas) items.push('<span class="bm-legend__item"><span class="bm-legend__dot bm-legend__dot--area">①</span>' +
+      nAreas + ' area' + (nAreas === 1 ? '' : 's') + '</span>');
+    legendEl.innerHTML = items.length
+      ? '<span class="bm-legend__label">Legend</span>' + items.join('')
+      : '';
+    legendEl.hidden = !items.length;
   }
 
   /* ---- Public API ---- */
@@ -559,7 +821,8 @@
       cb = {
         onMove: opts.onMove || null,
         onSelect: opts.onSelect || null,
-        onChange: opts.onChange || null
+        onChange: opts.onChange || null,
+        onAreaSelect: opts.onAreaSelect || null
       };
       if (!CV || !CV.getContext) return false;
       CTX = CV.getContext('2d');
@@ -571,6 +834,7 @@
         resizeTimer = setTimeout(render, 120);
       });
       render();
+      renderLegend();
       return true;
     },
 
@@ -602,6 +866,7 @@
     clearTerrain: function () {
       map.terrain = {};
       render();
+      renderLegend();
       if (cb.onChange) cb.onChange();
     },
 
@@ -622,7 +887,10 @@
     getMap: function () {
       var terrain = {};
       for (var k in map.terrain) if (map.terrain.hasOwnProperty(k)) terrain[k] = map.terrain[k];
-      return { v: 1, grid: map.grid, cols: map.cols, rows: map.rows, terrain: terrain, bg: map.bg || null };
+      var areas = (map.areas || []).map(function (a) {
+        return { n: a.n, x: a.x, y: a.y, title: a.title || '', read: a.read || '', dm: a.dm || '' };
+      });
+      return { v: 1, grid: map.grid, cols: map.cols, rows: map.rows, terrain: terrain, areas: areas, bg: map.bg || null };
     },
     setMap: function (data) {
       map = data ? {
@@ -631,15 +899,25 @@
         cols: Math.max(4, Math.min(60, (data.cols | 0) || 16)),
         rows: Math.max(4, Math.min(60, (data.rows | 0) || 12)),
         terrain: data.terrain || {},
+        areas: (data.areas || []).map(function (a) {
+          return { n: a.n, x: a.x, y: a.y, title: a.title || '', read: a.read || '', dm: a.dm || '' };
+        }),
         bg: data.bg || null
       } : defaultMap();
+      selectedArea = null;
       loadBg();
       syncToolbar();
+      updateAreaEditor();
+      renderLegend();
       if (CTX) { ensurePlacement(); render(); }
     },
 
+    // Areas for the AI DM context (read-aloud + secret DM notes per number).
+    getAreas: function () { return (map.areas || []).slice(); },
+    selectedArea: function () { return selectedArea; },
+
     grid: function () { return map.grid; },
     size: function () { return { cols: map.cols, rows: map.rows }; },
-    render: render
+    render: render, renderLegend: renderLegend
   };
 })();
