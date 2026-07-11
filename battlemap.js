@@ -47,7 +47,8 @@
   var KIND_COLOR = { monster: '#c0392b', npc: '#9b59b6', player: '#4aa3df' };
 
   function defaultMap() {
-    return { v: 1, grid: 'square', cols: 16, rows: 12, terrain: {}, areas: [], starts: null, bg: null };
+    return { v: 1, grid: 'square', cols: 16, rows: 12, terrain: {}, areas: [], starts: null, bg: null,
+      fog: false, revealed: {} };
   }
 
   // Copy a { players:[], monsters:[], npcs:[] } start-zone spec (cells only).
@@ -459,8 +460,30 @@
     }
     drawTerrain(m);
     drawGrid(m);
-    drawAreas(m);
+    drawFog(m);        // fog over unrevealed cells (opaque for players, tint for DM)
+    drawAreas(m);      // revealed areas + tokens ride above the fog
     drawTokens(m);
+  }
+
+  // Fog of war: paint every cell the players have not yet discovered.
+  // In 'view' mode (the player client) fog is opaque — the terrain and
+  // background under it were never sent anyway (see visibility.js). In
+  // 'design'/'play' (the DM at the table) it's a light tint so the DM
+  // sees the whole map but knows what remains hidden.
+  function drawFog(m) {
+    if (!map.fog) return;
+    var occlude = (mode === 'view');
+    var revealed = map.revealed || {};
+    CTX.save();
+    CTX.fillStyle = occlude ? 'rgba(8,9,12,0.98)' : 'rgba(8,9,12,0.42)';
+    for (var row = 0; row < map.rows; row++) {
+      for (var col = 0; col < map.cols; col++) {
+        if (revealed[col + ',' + row]) continue;
+        if (m.grid === 'hex') fillCellShape(col, row, m);
+        else CTX.fillRect(col * m.cell, row * m.cell, m.cell, m.cell);
+      }
+    }
+    CTX.restore();
   }
 
   /* ---- Placement ---- */
@@ -951,10 +974,14 @@
     getMap: function () {
       var terrain = {};
       for (var k in map.terrain) if (map.terrain.hasOwnProperty(k)) terrain[k] = map.terrain[k];
+      var revealed = {};
+      for (var rk in (map.revealed || {})) if (map.revealed.hasOwnProperty(rk)) revealed[rk] = 1;
       var areas = (map.areas || []).map(function (a) {
-        return { n: a.n, x: a.x, y: a.y, title: a.title || '', read: a.read || '', dm: a.dm || '' };
+        return { n: a.n, x: a.x, y: a.y, title: a.title || '', read: a.read || '', dm: a.dm || '',
+          hidden: !!a.hidden, revealed: !!a.revealed };
       });
-      return { v: 1, grid: map.grid, cols: map.cols, rows: map.rows, terrain: terrain, areas: areas, starts: copyStarts(map.starts), bg: map.bg || null };
+      return { v: 1, grid: map.grid, cols: map.cols, rows: map.rows, terrain: terrain, areas: areas,
+        starts: copyStarts(map.starts), bg: map.bg || null, fog: !!map.fog, revealed: revealed };
     },
     setMap: function (data) {
       map = data ? {
@@ -964,10 +991,13 @@
         rows: Math.max(4, Math.min(60, (data.rows | 0) || 12)),
         terrain: data.terrain || {},
         areas: (data.areas || []).map(function (a) {
-          return { n: a.n, x: a.x, y: a.y, title: a.title || '', read: a.read || '', dm: a.dm || '' };
+          return { n: a.n, x: a.x, y: a.y, title: a.title || '', read: a.read || '', dm: a.dm || '',
+            hidden: !!a.hidden, revealed: !!a.revealed };
         }),
         starts: copyStarts(data.starts),
-        bg: data.bg || null
+        bg: data.bg || null,
+        fog: !!data.fog,
+        revealed: data.revealed || {}
       } : defaultMap();
       selectedArea = null;
       loadBg();
@@ -980,6 +1010,44 @@
     // Areas for the AI DM context (read-aloud + secret DM notes per number).
     getAreas: function () { return (map.areas || []).slice(); },
     selectedArea: function () { return selectedArea; },
+
+    /* ---- Fog of war / progressive reveal (DM controls) ----
+       The DM reveals parts of the map; visibility.js strips everything
+       still hidden before the player projection is synced. */
+    setFog: function (on) { map.fog = !!on; render(); if (cb.onChange) cb.onChange(); },
+    isFog: function () { return !!map.fog; },
+    isRevealed: function (col, row) { return !!(map.revealed && map.revealed[col + ',' + row]); },
+    revealCell: function (col, row) {
+      if (!inBounds(col, row)) return;
+      if (!map.revealed) map.revealed = {};
+      map.revealed[col + ',' + row] = 1;
+      render(); if (cb.onChange) cb.onChange();
+    },
+    // Reveal a cell and its neighbourhood (radius in cells; default 1).
+    revealAround: function (col, row, radius) {
+      radius = (radius == null ? 1 : radius | 0);
+      if (!map.revealed) map.revealed = {};
+      for (var dr = -radius; dr <= radius; dr++) {
+        for (var dc = -radius; dc <= radius; dc++) {
+          var cc = col + dc, rr = row + dr;
+          if (inBounds(cc, rr)) map.revealed[cc + ',' + rr] = 1;
+        }
+      }
+      render(); if (cb.onChange) cb.onChange();
+    },
+    revealAll: function () {
+      if (!map.revealed) map.revealed = {};
+      for (var row = 0; row < map.rows; row++) {
+        for (var col = 0; col < map.cols; col++) map.revealed[col + ',' + row] = 1;
+      }
+      render(); if (cb.onChange) cb.onChange();
+    },
+    clearRevealed: function () { map.revealed = {}; render(); if (cb.onChange) cb.onChange(); },
+    // Mark a numbered area revealed (shown to players) — or hide it again.
+    revealArea: function (n, on) {
+      (map.areas || []).forEach(function (a) { if (a.n === n) a.revealed = (on !== false); });
+      render(); if (cb.onChange) cb.onChange();
+    },
 
     grid: function () { return map.grid; },
     size: function () { return { cols: map.cols, rows: map.rows }; },

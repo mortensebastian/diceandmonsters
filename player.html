@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <link href="https://fonts.googleapis.com/css?family=Open+Sans:100,300,400,600,700" rel="stylesheet" type="text/css">
+        <link type="text/css" rel="stylesheet" href="style.css">
+        <title>Player — Dice &amp; Monsters</title>
+    </head>
+
+    <body class="player-page">
+        <nav class="nav">
+            <a href="index.html" class="nav__link">Home</a>
+            <a href="play-ai.html" class="nav__link">Play vs AI</a>
+            <a href="dm.html" class="nav__link">DM</a>
+            <a href="player.html" class="nav__link nav__link--active">Player</a>
+            <a href="character.html" class="nav__link">Characters</a>
+        </nav>
+        <header class="topbar">
+            <h1>Player</h1>
+            <p class="tagline">Your seat at the table — you see only what your character can see.</p>
+        </header>
+
+        <!-- Which character am I playing? -->
+        <section class="player-who">
+            <label class="player-who__label">Play as:
+                <select id="player-self-select" class="player-who__select"></select>
+            </label>
+            <span id="player-conn" class="player-conn"></span>
+        </section>
+
+        <!-- Read-aloud from the DM (scene) -->
+        <section class="card player-scene" id="player-scene" hidden>
+            <h2 id="player-scene-title">Scene</h2>
+            <p id="player-scene-text"></p>
+        </section>
+
+        <!-- Your own character: full detail, only you see it -->
+        <section class="card player-self" id="player-self" hidden>
+            <div class="player-self__head">
+                <h2 id="player-self-name" class="player-self__name">Your character</h2>
+                <a id="player-self-sheet" class="player-self__sheet" href="character.html">Open sheet ↗</a>
+            </div>
+            <div class="player-self__stats">
+                <div class="player-stat player-stat--hp">
+                    <span class="player-stat__label">HP</span>
+                    <div class="player-hp">
+                        <div class="player-hp__bar"><div id="player-hp-fill" class="player-hp__fill"></div></div>
+                        <span id="player-hp-text" class="player-hp__text"></span>
+                    </div>
+                </div>
+                <div class="player-stat"><span class="player-stat__label">AC</span><span id="player-self-ac" class="player-stat__val">—</span></div>
+                <div class="player-stat"><span class="player-stat__label">Init</span><span id="player-self-init" class="player-stat__val">—</span></div>
+            </div>
+            <div class="player-self__conds" id="player-self-conds"></div>
+        </section>
+
+        <!-- The map you have explored (fog of war) -->
+        <section class="battlemap" id="battlemap">
+            <div class="battlemap__head">
+                <h2 class="battlemap__title">Map</h2>
+                <span id="battlemap-dist" class="battlemap__dist"></span>
+            </div>
+            <div class="battlemap__wrap" id="battlemap-wrap">
+                <canvas id="battlemap-canvas" class="battlemap__canvas"></canvas>
+            </div>
+            <div id="battlemap-area" class="bm-areacard" hidden>
+                <button class="bm-areacard__close" type="button" aria-label="Close">✕</button>
+                <h3 class="bm-areacard__title"></h3>
+                <p class="bm-areacard__read"></p>
+            </div>
+            <p class="battlemap__hint">Only the areas your party has discovered are shown. The DM reveals more as you explore.</p>
+        </section>
+
+        <!-- Initiative — appears when combat starts -->
+        <section class="tracker" id="player-tracker" hidden>
+            <div class="tracker__head">
+                <h2 class="tracker__title">Initiative</h2>
+            </div>
+            <div id="player-turn" class="turn"></div>
+        </section>
+
+        <!-- Creatures the DM has revealed (no stats — just what you can see) -->
+        <section class="encounter" id="player-foes-wrap" hidden>
+            <div class="encounter__head">
+                <h2 class="encounter__title">In view</h2>
+            </div>
+            <div id="player-foes" class="player-foes"></div>
+        </section>
+
+        <!-- Messages from the DM -->
+        <section class="ai">
+            <div class="ai__head">
+                <h2 class="ai__title">From the DM</h2>
+            </div>
+            <div id="player-chat" class="ai__output" aria-live="polite"></div>
+            <p class="player-chat__empty" id="player-chat-empty">The DM's narration will appear here.</p>
+        </section>
+
+        <script src="battlemap.js"></script>
+        <script src="visibility.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+        <script src="supabase-config.js"></script>
+        <script src="cloud.js"></script>
+        <script src="auth-ui.js"></script>
+        <script src="player.js"></script>
+    </body>
+</html>

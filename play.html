@@ -13,6 +13,7 @@
             <a href="index.html" class="nav__link">Home</a>
             <a href="encounter.html" class="nav__link">Encounter</a>
             <a href="play.html" class="nav__link nav__link--active">Game Session</a>
+            <a href="player.html" class="nav__link">Player</a>
             <a href="character.html" class="nav__link">Characters</a>
             <a href="groups.html" class="nav__link">Groups</a>
             <a href="adventure.html" class="nav__link">Adventure</a>
@@ -145,6 +146,29 @@
             <div class="monster__list"></div>
         </section>
 
+        <!-- DM visibility controls: what the players' screens receive.
+             Hidden creatures / unrevealed map cells are stripped before
+             the player projection is published (see visibility.js). -->
+        <section class="reveal" id="reveal-panel">
+            <div class="reveal__head">
+                <h2 class="reveal__title">👁 Players see</h2>
+                <a class="reveal__open" href="player.html" target="_blank" rel="noopener">Open the Player view ↗</a>
+            </div>
+            <div class="reveal__row">
+                <label class="reveal__toggle">
+                    <input type="checkbox" id="reveal-fog"> Fog of war (players see only what they've explored)
+                </label>
+                <button class="btn-reveal-map" type="button">Reveal whole map</button>
+                <button class="btn-reset-fog" type="button">Reset fog</button>
+            </div>
+            <div class="reveal__row">
+                <span class="reveal__label">Creatures:</span>
+                <button class="btn-hide-all" type="button">Hide all from players</button>
+                <button class="btn-reveal-all" type="button">Reveal all to players</button>
+                <span class="reveal__hint">Use 👁/🙈 on each creature below to reveal it one at a time.</span>
+            </div>
+        </section>
+
         <!-- AI Dungeon Master -->
         <section class="ai" id="ai-dm">
             <div class="ai__head">
@@ -227,6 +251,7 @@
         <script src="monsters-data.js"></script>
         <script src="combat-engine.js"></script>
         <script src="battlemap.js"></script>
+        <script src="visibility.js"></script>
         <script src="ai-context.js"></script>
         <script src="ai-client.js"></script>
         <script src="ai-dm.js"></script>

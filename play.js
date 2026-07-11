@@ -83,9 +83,25 @@
   }
   function persistState() {
     if (viewerMode) return;   // viewers never write
-    try { window.localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(snapshot())); }
+    var snap = snapshot();
+    try { window.localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(snap)); }
     catch (e) { /* storage full / blocked — stays in memory */ }
+    publishPlayerView(snap);
     cloudAutosave();
+  }
+  // Publish the role-scoped PLAYER projection — the only combat state a
+  // player client is ever given. Hidden creatures, DM notes, monster
+  // stats, the raw log and AI transcript are stripped here, before this
+  // leaves the DM's seat (localStorage now; a player-readable Supabase
+  // column later). This is where the "hidden info is never sent" rule
+  // is enforced at the data layer, not in the player UI.
+  var PLAYER_VIEW_KEY = 'diceAndMonsters.playerProjection';
+  function publishPlayerView(snap) {
+    if (!window.Visibility) return;
+    try {
+      window.localStorage.setItem(PLAYER_VIEW_KEY,
+        JSON.stringify(window.Visibility.playerView(snap, {})));
+    } catch (e) { /* ignore */ }
   }
   function clearAutosave() {
     try { window.localStorage.removeItem(AUTOSAVE_KEY); } catch (e) { /* ignore */ }
@@ -239,6 +255,17 @@
       '<button class="btn-remove" data-action="remove">Remove</button>' +
     '</div>';
   }
+  // Per-creature visibility toggle. Players never receive a hidden
+  // creature (it's stripped in visibility.js before the projection is
+  // published) — this is not a UI hide, it controls what's sent.
+  function revealToggleHtml(c) {
+    if (c.kind === 'player') return '';
+    var shown = !c.hidden;
+    return '<button class="item__reveal ' + (shown ? 'is-shown' : 'is-hidden') +
+      '" data-action="toggle-hidden" title="' +
+      (shown ? 'Visible to players — click to hide' : 'Hidden from players — click to reveal') +
+      '">' + (shown ? '👁 shown' : '🙈 hidden') + '</button>';
+  }
   function cardHtml(c) {
     var active = c.id === state.activeId ? ' item--active' : '';
     var dead = c.dead ? ' item--dead' : '';
@@ -251,7 +278,7 @@
       '<div class="item' + kindCls + active + dead + '" data-id="' + c.id + '">' +
         '<div class="item__head">' +
           '<span class="item__name">#' + c.id + ' ' + esc(c.name) + '</span>' +
-          metaHtml(c) +
+          metaHtml(c) + revealToggleHtml(c) +
         '</div>' +
         hpBarHtml(c) + statsHtml(c) + controls +
       '</div>';
@@ -511,6 +538,11 @@
       DM.removeCondition(c, btn.getAttribute('data-cond'));
       rerenderCard(c);
       renderTurnOrder();
+    } else if (action === 'toggle-hidden') {
+      DM.setHidden(c, !c.hidden);
+      logLine(label(c) + (c.hidden ? ' is now hidden from players.' : ' is revealed to players.'), 'spawn');
+      rerenderCard(c);
+      persistState();   // republish the player projection immediately
     } else if (action === 'remove') {
       removeCombatant(id);
     }
@@ -1437,6 +1469,36 @@
     }
   }
 
+  // DM visibility controls (fog of war + reveal/hide creatures). Each
+  // action re-publishes the player projection so player screens update.
+  function initRevealPanel() {
+    var BM = window.Battlemap;
+    var fog = document.querySelector('#reveal-fog');
+    if (fog && BM) {
+      fog.checked = BM.isFog();
+      fog.addEventListener('change', function () { BM.setFog(fog.checked); persistState(); });
+    }
+    bindClick('.btn-reveal-map', function () { if (BM) BM.revealAll(); persistState(); });
+    bindClick('.btn-reset-fog', function () { if (BM) BM.clearRevealed(); persistState(); });
+    bindClick('.btn-hide-all', function () { setAllHidden(true); });
+    bindClick('.btn-reveal-all', function () { setAllHidden(false); });
+  }
+  function bindClick(sel, fn) {
+    var b = document.querySelector(sel);
+    if (b) b.addEventListener('click', fn);
+  }
+  function setAllHidden(hidden) {
+    if (viewerMode) return;
+    var n = 0;
+    state.combatants.forEach(function (c) {
+      if (c.kind !== 'player') { DM.setHidden(c, hidden); n++; }
+    });
+    if (!n) return;
+    logLine(hidden ? 'All creatures hidden from players.' : 'All creatures revealed to players.', 'spawn');
+    renderAll();
+    persistState();
+  }
+
   function showAreaCard(area) {
     if (!el.areaCard) return;
     if (!area) { el.areaCard.hidden = true; return; }
@@ -1452,7 +1514,33 @@
     el.areaCard.hidden = false;
   }
 
+  // Which seat is this: 'ai' (AI DM runs the game) or 'dm' (a human DM).
+  // The two share this game session; the role only toggles the AI panel
+  // and the page's framing. The player screen is the separate player.html.
+  function currentRole() {
+    try {
+      return (new URLSearchParams(window.location.search).get('role') === 'dm') ? 'dm' : 'ai';
+    } catch (e) { return 'ai'; }
+  }
+  function applyRole() {
+    var role = currentRole();
+    var h1 = document.querySelector('.topbar h1');
+    var tag = document.querySelector('.topbar .tagline');
+    if (role === 'dm') {
+      var aiPanel = document.querySelector('#ai-dm');
+      if (aiPanel) aiPanel.hidden = true;           // human DM: no AI DM panel
+      if (h1) h1.textContent = 'DM Console';
+      if (tag) tag.textContent = 'You run the world. Reveal the map and creatures as the players discover them.';
+      document.title = 'DM Console — Dice & Monsters';
+    } else {
+      if (h1) h1.textContent = 'Play vs AI DM';
+      if (tag) tag.textContent = 'The AI is your Dungeon Master — it sees the whole map; you see only what your party has found.';
+      document.title = 'Play vs AI DM — Dice & Monsters';
+    }
+  }
+
   function init() {
+    applyRole();
     el.loadSelect = document.querySelector('#play-load');
     el.loadBtn    = document.querySelector('.btn-play-load');
     el.clearBtn   = document.querySelector('.btn-play-clear');
@@ -1503,6 +1591,7 @@
     initAi();
     initCloud();
     initBattlemap();
+    initRevealPanel();
 
     // If the planner or an adventure scene handed off a session, load it.
     var handoff = readSessionHandoff();

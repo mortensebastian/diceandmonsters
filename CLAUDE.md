@@ -86,6 +86,36 @@ Supabase cloud sync.
     the top. In `adventures-data.js`, `bmap()` reads `P`/`M`/`N` ASCII markers
     or takes an explicit `starts` 4th arg (for starts that sit on water/terrain).
 
+### Role-based visibility (three play modes)
+
+Gameplay is split into three roles, each seeing only what it should:
+
+- **Play vs AI DM** (`play-ai.html` → `play.html?role=ai`) — single-player; the
+  AI is the DM (sees all via `ai-context.js`, which already hides player HP).
+- **DM Console** (`dm.html` → `play.html?role=dm`) — a human DM; same game
+  session as AI mode with the AI panel hidden. Both share `play.js`.
+- **Player** (`player.html` + `player.js`) — the separate player client.
+
+- **`visibility.js` → `window.Visibility`** — pure, the **keystone**.
+  `playerView(snapshot, opts)` returns a snapshot containing ONLY what a player
+  may know: revealed combatants (hidden ones removed), revealed non-secret map
+  areas (DM notes stripped), the fog-limited map (unrevealed terrain + the
+  background image not included), the player's own token, and DM narration. It
+  drops the raw combat log, the AI transcript, monster statistics (HP/AC/attacks
+  → a coarse `health` band only), start zones and DM notes.
+- **FUNDAMENTAL RULE:** hidden info is never *sent* to a player client and then
+  hidden in the UI — it must not leave the DM's seat. The DM side computes the
+  player projection (`Visibility.playerView`) and publishes only that
+  (`localStorage 'diceAndMonsters.playerProjection'` now; a player-readable
+  Supabase column later — never the full `state` blob). `player.js` consumes
+  only that projection (falling back to projecting the local autosave *through*
+  `visibility.js` for a same-device demo). Enforce new features this way.
+- **Model support:** combatants carry a `hidden` flag (`DM.setHidden`,
+  serialized). The battlemap carries fog of war (`map.fog`, `map.revealed`
+  cells) + per-area `hidden`/`revealed`, with `Battlemap.setFog/revealCell/
+  revealAround/revealAll/clearRevealed/revealArea`. The DM console's "👁 Players
+  see" panel + the per-creature 👁/🙈 toggle drive these and re-publish.
+
 ### AI layer (Play page)
 
 - **`ai-context.js` → `window.AIContext.build(state, opts)`** — pure. Serializes

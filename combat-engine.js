@@ -76,7 +76,8 @@
       conditions: [],
       attacks: [],
       x: null,             // battlemap column (null = not placed yet)
-      y: null              // battlemap row
+      y: null,             // battlemap row
+      hidden: false        // DM-only: not yet revealed to players (role-based visibility)
     };
   }
 
@@ -184,6 +185,9 @@
   function combatantLabel(c) { return '#' + c.id + ' ' + c.name; }
   function hasHp(c) { return c.maxHp != null; }
   function canBeTargeted(c) { return c.ac != null; }
+  // Role-based visibility: is this combatant currently visible to players?
+  function isHidden(c) { return !!c.hidden; }
+  function setHidden(c, hidden) { c.hidden = !!hidden; return c; }
 
   /* ---- Conditions ---- */
   var CONDITION_INFO = {
@@ -318,11 +322,12 @@
   /* ---- 5. (De)serialization ---- */
   function serializeCombatant(c) {
     var o = {
-      kind: c.kind, name: c.name, hp: c.hp, maxHp: c.maxHp, ac: c.ac,
+      id: c.id, kind: c.kind, name: c.name, hp: c.hp, maxHp: c.maxHp, ac: c.ac,
       dead: c.dead, initiative: c.initiative, initRoll: c.initRoll,
       initMod: c.initMod, conditions: c.conditions.slice(),
       x: (c.x == null ? null : c.x), y: (c.y == null ? null : c.y)
     };
+    if (c.hidden) o.hidden = true;   // only carried when set (keeps old saves compatible)
     if (c.kind === 'monster' && c.template) o.templateSlug = c.template.slug;
     else if (c.kind === 'monster') o.attacks = c.attacks;   // custom monster (no library template)
     if (c.kind === 'npc') o.attacks = c.attacks;
@@ -330,6 +335,8 @@
   }
   function deserializeCombatant(o) {
     var c = baseCombatant(o.kind, o.name);
+    if (o.id != null) { c.id = o.id; bumpIdPast(o.id); }  // stable ids across a synced snapshot
+    c.hidden = !!o.hidden;
     c.hp = (o.hp == null ? null : o.hp);
     c.maxHp = (o.maxHp == null ? null : o.maxHp);
     c.ac = (o.ac == null ? null : o.ac);
@@ -367,6 +374,7 @@
     parseSheetAttack: parseSheetAttack, sheetInitMod: sheetInitMod,
     findCombatant: findCombatant, combatantLabel: combatantLabel,
     hasHp: hasHp, canBeTargeted: canBeTargeted,
+    isHidden: isHidden, setHidden: setHidden,
     // conditions
     CONDITION_INFO: CONDITION_INFO, conditionInfo: conditionInfo,
     addCondition: addCondition, removeCondition: removeCondition,
