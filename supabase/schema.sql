@@ -241,8 +241,14 @@ create policy play_delete on play_sessions
   for delete to authenticated using (owner = auth.uid());
 
 -- Realtime: let the DM's own devices watch their session update live.
--- (Safe to run once; if it says the table is already a member, ignore it.)
-alter publication supabase_realtime add table play_sessions;
+-- Idempotent: adding a table that's already in the publication raises
+-- 42710 (duplicate_object), which would abort the whole script on a
+-- re-run, so we swallow just that error.
+do $$
+begin
+  alter publication supabase_realtime add table play_sessions;
+exception when duplicate_object then null;
+end $$;
 
 -- ---- Player projection (the role-scoped view players receive) ----
 -- The DM writes `view` from Visibility.playerView(): revealed combatants
@@ -287,7 +293,12 @@ create policy ppv_delete on play_player_views
   for delete to authenticated using (owner = auth.uid());
 
 -- Realtime: players watch the projection update live as the DM plays.
-alter publication supabase_realtime add table play_player_views;
+-- Idempotent (see the note on play_sessions above).
+do $$
+begin
+  alter publication supabase_realtime add table play_player_views;
+exception when duplicate_object then null;
+end $$;
 
 -- ============================================================
 -- User collections — your characters / adventures / encounters
