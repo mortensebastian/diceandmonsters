@@ -184,7 +184,7 @@
         sceneMonsHtml(s, i, false) +
         '<div class="scene__actions">' +
           (s.battlemap ? '<button class="btn-view-map" data-viewmap="' + i + '">🗺 View map</button>' : '') +
-          '<button class="btn-play-scene" data-play="' + i + '">🎲 Play this scene</button>' +
+          '<button class="btn-play-scene" data-play="' + i + '"><span class="d20-ico"></span> Play this scene</button>' +
           '<button class="btn-send" data-send="' + i + '">▶ Send encounter to planner</button>' +
         '</div>' +
       '</div>';
@@ -212,7 +212,7 @@
           '<input class="mon-count" type="number" min="1" value="1">' +
           '<button class="btn-add-mon" data-add-mon="' + i + '">+ Monster</button>' +
           '<button class="btn-edit-map" data-editmap="' + i + '">🗺 ' + (s.battlemap ? 'Edit' : 'Add') + ' map</button>' +
-          '<button class="btn-play-scene" data-play="' + i + '">🎲 Play scene</button>' +
+          '<button class="btn-play-scene" data-play="' + i + '"><span class="d20-ico"></span> Play scene</button>' +
           '<button class="btn-send" data-send="' + i + '">▶ Send to planner</button>' +
           '<button class="btn-del-scene" data-del-scene="' + i + '">Delete scene</button>' +
         '</div>' +

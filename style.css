@@ -1546,6 +1546,16 @@ button:disabled { opacity: .4; cursor: not-allowed; box-shadow: none; }
 }
 .cb-dice:hover { background: #4a5162; box-shadow: none; }
 
+/* Reusable d20 icon (replaces the plain 🎲 die). Scales with the surrounding
+   text via em units, so it fits inline in buttons and sentences alike. */
+.d20-ico {
+    display: inline-block;
+    width: 1.15em;
+    height: 1.15em;
+    vertical-align: -0.22em;
+    background: url("d20.svg") center/contain no-repeat;
+}
+
 .cb-toggle { display: flex; gap: 10px; }
 .cb-radio {
     display: flex;

@@ -143,7 +143,7 @@
         '<div class="cb-progress"></div>' +
         '<div class="cb-body"></div>' +
         '<div class="cb-foot">' +
-          '<button type="button" class="cb-btn-random" title="Fill everything with random choices">🎲 Roll everything random</button>' +
+          '<button type="button" class="cb-btn-random" title="Fill everything with random choices"><span class="d20-ico"></span> Roll everything random</button>' +
           '<span class="cb-foot-spacer"></span>' +
           '<button type="button" class="cb-btn-back">Back</button>' +
           '<button type="button" class="cb-btn-next">Next ▶</button>' +
@@ -292,7 +292,7 @@
       '<label>' + esc(label) + '</label>' +
       '<div class="cb-inline">' +
         '<input type="text" class="cb-text" data-cb="' + key + '" value="' + esc(state[key]) + '">' +
-        '<button type="button" class="cb-dice" data-roll="' + roll + '" title="Roll random">🎲</button>' +
+        '<button type="button" class="cb-dice" data-roll="' + roll + '" title="Roll random"><span class="d20-ico"></span></button>' +
       '</div>' +
     '</div>';
   }
@@ -302,7 +302,7 @@
       '<label>' + esc(label) + '</label>' +
       '<div class="cb-inline">' +
         '<select data-cb="' + key + '">' + options(list, state[key], blank) + '</select>' +
-        '<button type="button" class="cb-dice" data-roll="' + roll + '" title="Roll random">🎲</button>' +
+        '<button type="button" class="cb-dice" data-roll="' + roll + '" title="Roll random"><span class="d20-ico"></span></button>' +
       '</div>' +
     '</div>';
   }
@@ -316,7 +316,7 @@
           (state.category === 'npc' ? ' checked' : '') + '> NPC</label>' +
       '</div></div>';
 
-    return '<p class="cb-lead">Start with the essentials. Use 🎲 on any field to roll it — ' +
+    return '<p class="cb-lead">Start with the essentials. Use <span class="d20-ico"></span> on any field to roll it — ' +
       'or hit <b>Roll everything random</b> below for an instant character.</p>' +
       '<div class="cb-grid">' +
         cats +
@@ -341,7 +341,7 @@
     return '<p class="cb-lead">Set the six ability scores. Roll them, drop in the standard array, ' +
       'or type your own. Racial bonuses are added when you finish.</p>' +
       '<div class="cb-abil-btns">' +
-        '<button type="button" class="cb-btn-alt" data-roll="abilities">🎲 Roll 4d6 (drop lowest)</button>' +
+        '<button type="button" class="cb-btn-alt" data-roll="abilities"><span class="d20-ico"></span> Roll 4d6 (drop lowest)</button>' +
         '<button type="button" class="cb-btn-alt" data-array="standard">Standard array (15,14,13,12,10,8)</button>' +
       '</div>' +
       '<div class="cb-abil-grid">' + grid + '</div>' +
@@ -353,7 +353,7 @@
       '<label>' + esc(label) + '</label>' +
       '<div class="cb-inline">' +
         '<select class="cb-pick" data-pick="' + key + '">' + options(list, '', '— choose from the list —') + '</select>' +
-        '<button type="button" class="cb-dice" data-roll="' + key + '" title="Roll random">🎲</button>' +
+        '<button type="button" class="cb-dice" data-roll="' + key + '" title="Roll random"><span class="d20-ico"></span></button>' +
       '</div>' +
       '<input type="text" class="cb-text" data-cb="' + key + '" value="' + esc(state[key]) + '" placeholder="' + esc(hint) + '">' +
     '</div>';
