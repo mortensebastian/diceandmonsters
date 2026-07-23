@@ -262,6 +262,42 @@
       '<div class="spell-ref__body">' + body + '</div>' +
     '</details>';
   }
+  // Quick-reference roll modifiers for a sheet-imported player/NPC: ability
+  // checks, saving throws and skills, so when the AI DM asks for (say) an
+  // Investigation check the number is right there on the card. Open by
+  // default for players — this is exactly what they reach for. The engine
+  // never rolls these; the player reads the modifier and rolls their dice.
+  function checksHtml(c) {
+    var ch = c.checks;
+    if (!ch) return '';
+    function chip(label, m, prof) {
+      return '<span class="chk-ref__chip' + (prof ? ' chk-ref__chip--on' : '') + '">' +
+        esc(label) + ' <b>' + signed(m) + '</b></span>';
+    }
+    var abils = ch.abilities.map(function (a) {
+      return chip(a.key.toUpperCase(), a.mod, false);
+    }).join('');
+    var saves = ch.saves.map(function (s) {
+      return chip(s.key.toUpperCase(), s.mod, s.prof);
+    }).join('');
+    var skills = ch.skills.map(function (s) {
+      return chip(s.label, s.mod, s.prof);
+    }).join('');
+    var open = c.kind === 'player' ? ' open' : '';
+    return '<details class="chk-ref"' + open + '>' +
+      '<summary>🎲 Checks &amp; saves' +
+        '<span class="chk-ref__pp">Prof ' + signed(ch.prof) +
+        ' &middot; Passive Perc ' + ch.passive + '</span></summary>' +
+      '<div class="chk-ref__body">' +
+        '<div class="chk-ref__grp"><div class="chk-ref__lbl">Ability checks</div>' +
+          '<div class="chk-ref__chips">' + abils + '</div></div>' +
+        '<div class="chk-ref__grp"><div class="chk-ref__lbl">Saving throws</div>' +
+          '<div class="chk-ref__chips">' + saves + '</div></div>' +
+        '<div class="chk-ref__grp"><div class="chk-ref__lbl">Skills</div>' +
+          '<div class="chk-ref__chips">' + skills + '</div></div>' +
+      '</div>' +
+    '</details>';
+  }
   function conditionsHtml(c) {
     var chips = c.conditions.map(function (cond) {
       var info = DM.conditionInfo(cond);
@@ -317,7 +353,7 @@
           '<span class="item__name">#' + c.id + ' ' + esc(c.name) + '</span>' +
           metaHtml(c) + revealToggleHtml(c) +
         '</div>' +
-        hpBarHtml(c) + statsHtml(c) + spellsHtml(c) + controls +
+        hpBarHtml(c) + statsHtml(c) + checksHtml(c) + spellsHtml(c) + controls +
       '</div>';
   }
 

@@ -154,10 +154,63 @@
     };
   }
 
+  // 5e skills keyed to their ability — so a sheet imported here carries its
+  // roll modifiers through the handoff and the Game Session can show them as
+  // a quick reference (e.g. when the AI DM asks for an Investigation check).
+  var SHEET_SKILLS = [
+    { key: 'acrobatics', label: 'Acrobatics', ability: 'dex' },
+    { key: 'animalHandling', label: 'Animal Handling', ability: 'wis' },
+    { key: 'arcana', label: 'Arcana', ability: 'int' },
+    { key: 'athletics', label: 'Athletics', ability: 'str' },
+    { key: 'deception', label: 'Deception', ability: 'cha' },
+    { key: 'history', label: 'History', ability: 'int' },
+    { key: 'insight', label: 'Insight', ability: 'wis' },
+    { key: 'intimidation', label: 'Intimidation', ability: 'cha' },
+    { key: 'investigation', label: 'Investigation', ability: 'int' },
+    { key: 'medicine', label: 'Medicine', ability: 'wis' },
+    { key: 'nature', label: 'Nature', ability: 'int' },
+    { key: 'perception', label: 'Perception', ability: 'wis' },
+    { key: 'performance', label: 'Performance', ability: 'cha' },
+    { key: 'persuasion', label: 'Persuasion', ability: 'cha' },
+    { key: 'religion', label: 'Religion', ability: 'int' },
+    { key: 'sleightOfHand', label: 'Sleight of Hand', ability: 'dex' },
+    { key: 'stealth', label: 'Stealth', ability: 'dex' },
+    { key: 'survival', label: 'Survival', ability: 'wis' }
+  ];
+  var ABIL_KEYS = ['str', 'dex', 'con', 'int', 'wis', 'cha'];
+
+  // Precompute d20 roll modifiers (ability checks, saves, skills, passive
+  // Perception) from a sheet. Prep only carries this data; the Game Session
+  // renders it. Mirrors the engine's sheetChecks so both entry paths match.
+  function sheetChecks(sheet) {
+    var abilities = sheet.abilities || {};
+    var skillProf = sheet.skillProf || {};
+    var saveProf = sheet.saveProf || {};
+    var pb = 2 + Math.floor(((sheet.level || 1) - 1) / 4);
+    function mod(k) { return abilityMod(abilities[k] == null ? 10 : abilities[k]); }
+    return {
+      prof: pb, init: sheetInitMod(sheet),
+      passive: 10 + mod('wis') + (skillProf['perception'] ? pb : 0),
+      abilities: ABIL_KEYS.map(function (k) {
+        return { key: k, score: (abilities[k] == null ? 10 : abilities[k]), mod: mod(k) };
+      }),
+      saves: ABIL_KEYS.map(function (k) {
+        var prof = !!saveProf[k];
+        return { key: k, prof: prof, mod: mod(k) + (prof ? pb : 0) };
+      }),
+      skills: SHEET_SKILLS.map(function (s) {
+        var prof = !!skillProf[s.key];
+        return { key: s.key, label: s.label, ability: s.ability, prof: prof, mod: mod(s.ability) + (prof ? pb : 0) };
+      })
+    };
+  }
+
   // PC sheet -> player combatant (AC + initiative only; no HP).
   function createPlayerFromSheet(sheet) {
-    return createPlayer(sheet.name || 'Player', sheetInitMod(sheet),
+    var c = createPlayer(sheet.name || 'Player', sheetInitMod(sheet),
       (sheet.ac != null && sheet.ac !== '' ? sheet.ac : null));
+    c.checks = sheetChecks(sheet);
+    return c;
   }
 
   // NPC sheet -> DM-controlled combatant with HP, AC and attacks.
@@ -169,6 +222,7 @@
     c.ac = (sheet.ac != null && sheet.ac !== '') ? sheet.ac : 10;
     c.initMod = sheetInitMod(sheet);
     c.attacks = (sheet.attacks || []).map(parseSheetAttack);
+    c.checks = sheetChecks(sheet);
     return c;
   }
 
@@ -536,6 +590,8 @@
     if (c.kind === 'monster' && c.template) o.templateSlug = c.template.slug;
     // NPCs have no library template, so keep their attacks inline.
     if (c.kind === 'npc') o.attacks = c.attacks;
+    // Player/NPC roll-modifier reference (from a sheet) rides the handoff.
+    if (c.checks) o.checks = c.checks;
     return o;
   }
 
@@ -557,6 +613,7 @@
     } else if (o.kind === 'npc') {
       c.attacks = o.attacks || [];
     }
+    if (o.checks) c.checks = o.checks;
     return c;
   }
 
