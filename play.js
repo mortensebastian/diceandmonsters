@@ -1046,9 +1046,56 @@
     scheduleSave();
   }
 
+  // Remove the state block from all earlier turns before a new one is added.
+  // Only the newest turn carries the full JSON snapshot; the narration and
+  // tool results (which stay) preserve the story, and the system prompt tells
+  // the model the latest block is authoritative. Turns the old O(n²) growth
+  // (one full state block per turn, resent forever) into O(n).
+  function stripStaleState() {
+    var marker = window.AIDM.STATE_MARKER;
+    for (var i = 0; i < aiMessages.length; i++) {
+      var m = aiMessages[i];
+      if (!m || m.role !== 'user' || !Array.isArray(m.content)) continue;
+      var kept = m.content.filter(function (b) {
+        return !(b && b.type === 'text' && typeof b.text === 'string' &&
+                 b.text.lastIndexOf(marker, 0) === 0);
+      });
+      if (kept.length !== m.content.length && kept.length) m.content = kept;
+    }
+  }
+
+  // Keep exactly one ephemeral cache breakpoint in the message history, on the
+  // very last content block. Within a turn's tool loop the history is
+  // append-only, so each follow-up call re-reads the prior prefix from cache
+  // (~0.1x) instead of paying full price for the whole transcript again.
+  function markCacheBreakpoint() {
+    for (var i = 0; i < aiMessages.length; i++) {
+      var c = aiMessages[i].content;
+      if (!Array.isArray(c)) continue;
+      for (var j = 0; j < c.length; j++) {
+        if (c[j] && c[j].cache_control) delete c[j].cache_control;
+      }
+    }
+    var last = aiMessages[aiMessages.length - 1];
+    if (!last) return;
+    if (typeof last.content === 'string') {
+      last.content = [{ type: 'text', text: last.content }];
+    }
+    if (Array.isArray(last.content) && last.content.length) {
+      last.content[last.content.length - 1].cache_control = { type: 'ephemeral' };
+    }
+  }
+
   function runLoop(iter) {
     var noTools = iter > MAX_TOOL_ITERS;   // hard stop: last call is text-only
-    var req = { system: window.AIDM.CHAT_SYSTEM, messages: aiMessages, max_tokens: 1024 };
+    markCacheBreakpoint();
+    // System + tools are static across the whole session; cache them so only
+    // the first call pays full price for that fixed prefix.
+    var req = {
+      system: [{ type: 'text', text: window.AIDM.CHAT_SYSTEM, cache_control: { type: 'ephemeral' } }],
+      messages: aiMessages,
+      max_tokens: 1024
+    };
     if (!noTools) req.tools = window.AIDM.TOOLS;
 
     window.AIClient.complete(req).then(function (res) {
@@ -1085,7 +1132,11 @@
     });
 
     renderChat('user', displayLabel || userText);
-    aiMessages.push({ role: 'user', content: window.AIDM.stateBlock(ctx) + '\n\n' + userText });
+    stripStaleState();
+    aiMessages.push({ role: 'user', content: [
+      { type: 'text', text: window.AIDM.stateBlock(ctx) },
+      { type: 'text', text: userText }
+    ] });
 
     setAiBusy(true);
     aiStatus('The DM is thinking…');

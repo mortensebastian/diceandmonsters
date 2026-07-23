@@ -33,10 +33,11 @@
     "reaches it. Speak of distance in feet only when it matters (1 cell = 5 ft). " +
     "With no map data, keep positioning vague and narrative.";
 
-  // Compact JSON of the situation the DM can see.
+  // Compact JSON of the situation the DM can see. Minified (no indentation) —
+  // the whitespace of a pretty-printed block is pure token cost.
   function contextBlock(context) {
     return "Current situation (JSON):\n```json\n" +
-      JSON.stringify(context, null, 2) + "\n```";
+      JSON.stringify(context) + "\n```";
   }
 
   // mode: 'scene' (set the scene now) | 'round' (narrate recent events)
@@ -259,9 +260,15 @@
     }
   ];
 
+  // Prefix that opens every state block. Play strips older state blocks from
+  // the history by matching this marker — the model is told the latest block
+  // is authoritative and to ignore earlier state numbers, so re-sending stale
+  // snapshots every turn is pure waste (O(n²) token growth). JSON is minified.
+  var STATE_MARKER = 'CURRENT STATE (authoritative):';
+
   function stateBlock(context) {
-    return "CURRENT STATE (authoritative):\n```json\n" +
-      JSON.stringify(context, null, 2) + "\n```";
+    return STATE_MARKER + "\n```json\n" +
+      JSON.stringify(context) + "\n```";
   }
 
   window.AIDM = {
@@ -269,6 +276,7 @@
     buildNarration: buildNarration,
     CHAT_SYSTEM: CHAT_SYSTEM,
     TOOLS: TOOLS,
-    stateBlock: stateBlock
+    stateBlock: stateBlock,
+    STATE_MARKER: STATE_MARKER
   };
 })();

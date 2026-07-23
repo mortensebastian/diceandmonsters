@@ -23,6 +23,45 @@
 
   var cfg = { mode: 'direct', endpoint: ANTHROPIC_URL };
 
+  // ---- Usage tracking (measurement, no behaviour change) ----
+  // Running tally for the session so the effect of caching/stripping is
+  // visible in the console. Read live via AIClient.sessionUsage.
+  var sessionUsage = { calls: 0, input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
+
+  // Rough USD estimate at the default model's (claude-opus-4-8) list price:
+  // input $5/M, output $25/M, cache read $0.5/M, cache write (5m) $6.25/M.
+  function estCost(u) {
+    return ((u.input || 0) * 5 + (u.output || 0) * 25 +
+            (u.cacheRead || 0) * 0.5 + (u.cacheWrite || 0) * 6.25) / 1e6;
+  }
+
+  function trackUsage(u) {
+    if (!u) return;
+    var call = {
+      input: u.input_tokens || 0,
+      output: u.output_tokens || 0,
+      cacheRead: u.cache_read_input_tokens || 0,
+      cacheWrite: u.cache_creation_input_tokens || 0
+    };
+    sessionUsage.calls++;
+    sessionUsage.input += call.input;
+    sessionUsage.output += call.output;
+    sessionUsage.cacheRead += call.cacheRead;
+    sessionUsage.cacheWrite += call.cacheWrite;
+    try {
+      console.log('[AI usage] call in=' + call.input + ' out=' + call.output +
+        ' cacheRead=' + call.cacheRead + ' cacheWrite=' + call.cacheWrite +
+        ' ~$' + estCost(call).toFixed(4) +
+        '  | session: ' + sessionUsage.calls + ' calls, ~$' +
+        estCost(sessionUsage).toFixed(3));
+    } catch (e) { /* console unavailable */ }
+  }
+
+  function resetUsage() {
+    sessionUsage.calls = sessionUsage.input = sessionUsage.output =
+      sessionUsage.cacheRead = sessionUsage.cacheWrite = 0;
+  }
+
   function configure(o) {
     if (o.mode) cfg.mode = o.mode;
     if (o.endpoint) cfg.endpoint = o.endpoint;
@@ -67,7 +106,9 @@
           try { var j = JSON.parse(txt); if (j.error && j.error.message) msg = j.error.message; } catch (e) { /* keep raw */ }
           throw new Error('Claude API ' + res.status + ': ' + msg);
         }
-        return JSON.parse(txt);
+        var parsed = JSON.parse(txt);
+        trackUsage(parsed.usage);
+        return parsed;
       });
     });
   }
@@ -92,6 +133,7 @@
     configure: configure,
     getKey: getKey, setKey: setKey, hasKey: hasKey,
     getModel: getModel, setModel: setModel, DEFAULT_MODEL: DEFAULT_MODEL,
-    complete: complete, textOf: textOf, toolCallsOf: toolCallsOf
+    complete: complete, textOf: textOf, toolCallsOf: toolCallsOf,
+    sessionUsage: sessionUsage, resetUsage: resetUsage
   };
 })();
