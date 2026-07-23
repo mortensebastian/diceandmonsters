@@ -2117,3 +2117,61 @@ button:disabled { opacity: .4; cursor: not-allowed; box-shadow: none; }
 }
 .spell-ref__desc { display: block; font-size: 12px; color: #c2c9d6; line-height: 1.4; margin-top: 2px; }
 .player-self__spells { margin-top: 12px; }
+
+/* Quick-reference roll modifiers (ability checks / saves / skills) on a
+   sheet-imported combatant card — mirrors the spell reference styling. */
+.chk-ref {
+    margin-top: 10px;
+    background: #12141a;
+    border: 1px solid #2c3140;
+    border-radius: 8px;
+    padding: 4px 10px;
+}
+.chk-ref > summary {
+    cursor: pointer;
+    font-size: 13px;
+    color: #4aa3df;
+    padding: 4px 2px;
+    list-style: none;
+    user-select: none;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 8px;
+}
+.chk-ref > summary::-webkit-details-marker { display: none; }
+.chk-ref > summary::before { content: '▸ '; color: #6c7589; }
+.chk-ref[open] > summary::before { content: '▾ '; }
+.chk-ref__pp {
+    color: #8a93a6;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: .3px;
+}
+.chk-ref__body { padding: 6px 2px 4px; }
+.chk-ref__grp { margin-bottom: 8px; }
+.chk-ref__lbl {
+    font-size: 11px;
+    color: #4aa3df;
+    text-transform: uppercase;
+    letter-spacing: .5px;
+    font-weight: 700;
+    margin-bottom: 4px;
+}
+.chk-ref__chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.chk-ref__chip {
+    display: inline-block;
+    font-size: 12px;
+    color: #c2c9d6;
+    background: #1d2029;
+    border: 1px solid #2c3140;
+    border-radius: 6px;
+    padding: 2px 7px;
+    line-height: 1.5;
+}
+.chk-ref__chip b { color: #e6e6e6; font-weight: 700; }
+.chk-ref__chip--on {
+    border-color: #2980b9;
+    background: #172634;
+}
+.chk-ref__chip--on b { color: #4aa3df; }

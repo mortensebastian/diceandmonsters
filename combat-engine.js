@@ -152,11 +152,65 @@
     return { spells: spells, casting: casting };
   }
 
+  // 5e skills, keyed to the ability they use. Kept here (not just on the
+  // character page) so a sheet imported into the Game Session can carry its
+  // roll modifiers for quick reference when the AI DM asks for a check.
+  var SHEET_SKILLS = [
+    { key: 'acrobatics', label: 'Acrobatics', ability: 'dex' },
+    { key: 'animalHandling', label: 'Animal Handling', ability: 'wis' },
+    { key: 'arcana', label: 'Arcana', ability: 'int' },
+    { key: 'athletics', label: 'Athletics', ability: 'str' },
+    { key: 'deception', label: 'Deception', ability: 'cha' },
+    { key: 'history', label: 'History', ability: 'int' },
+    { key: 'insight', label: 'Insight', ability: 'wis' },
+    { key: 'intimidation', label: 'Intimidation', ability: 'cha' },
+    { key: 'investigation', label: 'Investigation', ability: 'int' },
+    { key: 'medicine', label: 'Medicine', ability: 'wis' },
+    { key: 'nature', label: 'Nature', ability: 'int' },
+    { key: 'perception', label: 'Perception', ability: 'wis' },
+    { key: 'performance', label: 'Performance', ability: 'cha' },
+    { key: 'persuasion', label: 'Persuasion', ability: 'cha' },
+    { key: 'religion', label: 'Religion', ability: 'int' },
+    { key: 'sleightOfHand', label: 'Sleight of Hand', ability: 'dex' },
+    { key: 'stealth', label: 'Stealth', ability: 'dex' },
+    { key: 'survival', label: 'Survival', ability: 'wis' }
+  ];
+  var ABIL_KEYS = ['str', 'dex', 'con', 'int', 'wis', 'cha'];
+
+  // Precompute the d20 modifiers a sheet rolls with (ability checks, saving
+  // throws, skills, initiative, passive Perception) so the Game Session can
+  // show them as a quick-reference panel. Pure data; the engine never rolls
+  // these — it's a lookup the player reads when the DM asks for a check.
+  function sheetChecks(sheet) {
+    var abilities = sheet.abilities || {};
+    var skillProf = sheet.skillProf || {};
+    var saveProf = sheet.saveProf || {};
+    var level = sheet.level || 1;
+    var pb = 2 + Math.floor((level - 1) / 4);
+    function mod(k) { return abilityMod(abilities[k] == null ? 10 : abilities[k]); }
+
+    var abils = ABIL_KEYS.map(function (k) {
+      return { key: k, score: (abilities[k] == null ? 10 : abilities[k]), mod: mod(k) };
+    });
+    var saves = ABIL_KEYS.map(function (k) {
+      var prof = !!saveProf[k];
+      return { key: k, prof: prof, mod: mod(k) + (prof ? pb : 0) };
+    });
+    var skills = SHEET_SKILLS.map(function (s) {
+      var prof = !!skillProf[s.key];
+      return { key: s.key, label: s.label, ability: s.ability, prof: prof, mod: mod(s.ability) + (prof ? pb : 0) };
+    });
+    var passive = 10 + mod('wis') + (skillProf['perception'] ? pb : 0);
+    return { prof: pb, init: sheetInitMod(sheet), passive: passive,
+      abilities: abils, saves: saves, skills: skills };
+  }
+
   function createPlayerFromSheet(sheet) {
     var c = createPlayer(sheet.name || 'Player', sheetInitMod(sheet),
       (sheet.ac != null && sheet.ac !== '' ? sheet.ac : null));
     var sc = sheetSpellcasting(sheet);
     c.spells = sc.spells; c.spellcasting = sc.casting;
+    c.checks = sheetChecks(sheet);
     return c;
   }
 
@@ -170,6 +224,7 @@
     c.attacks = (sheet.attacks || []).map(parseSheetAttack);
     var sc = sheetSpellcasting(sheet);
     c.spells = sc.spells; c.spellcasting = sc.casting;
+    c.checks = sheetChecks(sheet);
     return c;
   }
 
@@ -357,6 +412,7 @@
     if (c.kind === 'npc') o.attacks = c.attacks;
     if (c.spells && c.spells.length) o.spells = c.spells;
     if (c.spellcasting) o.spellcasting = c.spellcasting;
+    if (c.checks) o.checks = c.checks;
     return o;
   }
   function deserializeCombatant(o) {
@@ -382,6 +438,7 @@
     }
     c.spells = o.spells || [];
     c.spellcasting = o.spellcasting || null;
+    c.checks = o.checks || null;
     return c;
   }
 
