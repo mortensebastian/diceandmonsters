@@ -1987,6 +1987,108 @@ button:disabled { opacity: .4; cursor: not-allowed; box-shadow: none; }
 .role-ai #reveal-panel { display: none; }          /* AI is the DM: no manual reveal panel */
 .role-ai .item__reveal { display: none; }          /* …nor per-creature reveal toggles */
 
+/* ============================================================
+   Floating dice roller (Play vs AI) — a pinned die you tap to
+   open a small tray: pick a die, how many, roll and read the
+   result. Hidden on the human DM console.
+   ============================================================ */
+.dice-fab {
+    position: fixed; right: 20px; bottom: 20px; z-index: 60;
+    display: flex; flex-direction: column; align-items: flex-end; gap: 12px;
+}
+.role-dm .dice-fab { display: none; }              /* human DM console: no floating roller */
+.dice-fab__btn {
+    width: 60px; height: 60px; border-radius: 50%;
+    background: #c0392b; color: #fff; border: 2px solid #e1b12c;
+    font-size: 28px; line-height: 1; cursor: pointer;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+    transition: transform 0.12s ease, background 0.12s ease;
+}
+.dice-fab__btn:hover { background: #d0453a; transform: translateY(-2px); }
+.dice-fab__btn:active { transform: scale(0.94); }
+
+.dice-tray {
+    width: 260px; padding: 14px;
+    background: #1d2029; border: 1px solid #2c3140; border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
+}
+.dice-tray__head {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 10px;
+}
+.dice-tray__title { font-size: 15px; color: #e1b12c; margin: 0; }
+.dice-tray__close {
+    background: none; border: none; color: #9aa3b2; font-size: 16px;
+    cursor: pointer; line-height: 1; padding: 2px 4px;
+}
+.dice-tray__close:hover { color: #e6e6e6; }
+
+.dice-tray__dice {
+    display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px;
+}
+.dice-chip {
+    flex: 1 0 auto; min-width: 44px; padding: 7px 0;
+    background: #12141a; color: #e6e6e6; border: 1px solid #2c3140;
+    border-radius: 6px; font-size: 13px; cursor: pointer;
+    transition: border-color 0.12s ease, background 0.12s ease;
+}
+.dice-chip:hover { border-color: #4aa3df; }
+.dice-chip.is-active {
+    background: #2980b9; border-color: #4aa3df; color: #fff; font-weight: 600;
+}
+
+.dice-tray__count {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 12px;
+}
+.dice-tray__label { flex: 1; color: #9aa3b2; font-size: 13px; }
+.dice-count__btn {
+    width: 30px; height: 30px; border-radius: 6px;
+    background: #12141a; color: #e6e6e6; border: 1px solid #2c3140;
+    font-size: 18px; line-height: 1; cursor: pointer;
+}
+.dice-count__btn:hover { border-color: #4aa3df; }
+.dice-count__input {
+    width: 48px; text-align: center;
+    background: #12141a; color: #e6e6e6; border: 1px solid #2c3140;
+    border-radius: 6px; padding: 6px 4px; font-size: 14px;
+}
+
+.dice-tray__roll {
+    width: 100%; padding: 10px; margin-bottom: 4px;
+    background: #c0392b; color: #fff; border: none; border-radius: 8px;
+    font-size: 15px; font-weight: 600; cursor: pointer;
+    transition: background 0.12s ease;
+}
+.dice-tray__roll:hover { background: #d0453a; }
+
+.dice-tray__result:empty { display: none; }
+.dice-tray__result {
+    margin-top: 12px; padding-top: 12px; border-top: 1px solid #2c3140;
+    text-align: center;
+}
+.dice-result__expr { color: #9aa3b2; font-size: 12px; margin-bottom: 6px; }
+.dice-result__faces {
+    display: flex; flex-wrap: wrap; gap: 6px; justify-content: center;
+}
+.dice-face {
+    min-width: 30px; padding: 5px 8px;
+    background: #12141a; border: 1px solid #2c3140; border-radius: 6px;
+    color: #e6e6e6; font-size: 15px; font-weight: 600;
+}
+.dice-face--crit { border-color: #27ae60; color: #2ecc71; }
+.dice-face--fumble { border-color: #c0392b; color: #ff6b5e; }
+.dice-result__total {
+    margin-top: 10px; color: #e6e6e6; font-size: 14px;
+}
+.dice-result__total strong { color: #e1b12c; font-size: 20px; }
+
+.log__line--roll { color: #e1b12c; }
+
+@media (max-width: 640px) {
+    .dice-fab { right: 12px; bottom: 12px; }
+    .dice-tray { width: min(80vw, 260px); }
+}
+
 /* Player cloud lobby (player.html) */
 .player-cloud {
     max-width: 960px; margin: 0 auto 14px; padding: 14px 16px;

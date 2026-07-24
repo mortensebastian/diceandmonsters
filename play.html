@@ -264,6 +264,36 @@
             <div id="log" class="log"></div>
         </section>
 
+        <!-- Floating dice roller (Play vs AI): tap the die to pick a type,
+             how many, roll and read the result. Uses the engine's dice so
+             rolls stay impartial; each roll is written to the combat log. -->
+        <div class="dice-fab" id="dice-fab">
+            <div class="dice-tray" id="dice-tray" hidden>
+                <div class="dice-tray__head">
+                    <h3 class="dice-tray__title">Roll dice</h3>
+                    <button class="dice-tray__close" type="button" aria-label="Close">✕</button>
+                </div>
+                <div class="dice-tray__dice">
+                    <button type="button" class="dice-chip" data-sides="4">d4</button>
+                    <button type="button" class="dice-chip" data-sides="6">d6</button>
+                    <button type="button" class="dice-chip" data-sides="8">d8</button>
+                    <button type="button" class="dice-chip" data-sides="10">d10</button>
+                    <button type="button" class="dice-chip" data-sides="12">d12</button>
+                    <button type="button" class="dice-chip is-active" data-sides="20">d20</button>
+                    <button type="button" class="dice-chip" data-sides="100">d100</button>
+                </div>
+                <div class="dice-tray__count">
+                    <span class="dice-tray__label">How many</span>
+                    <button class="dice-count__btn" type="button" data-step="-1" aria-label="Fewer dice">−</button>
+                    <input id="dice-count" class="dice-count__input" type="number" min="1" max="20" value="1">
+                    <button class="dice-count__btn" type="button" data-step="1" aria-label="More dice">+</button>
+                </div>
+                <button class="dice-tray__roll" type="button">Roll <span id="dice-roll-label">1d20</span></button>
+                <div class="dice-tray__result" id="dice-result" aria-live="polite"></div>
+            </div>
+            <button class="dice-fab__btn" id="dice-fab-btn" type="button" aria-expanded="false" aria-controls="dice-tray" title="Roll dice">🎲</button>
+        </div>
+
         <!-- Standard 5e conditions as suggestions (free text is also allowed) -->
         <datalist id="conditions-list">
             <option value="Blinded"></option>

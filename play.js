@@ -1757,6 +1757,90 @@
     el.areaCard.hidden = false;
   }
 
+  /* ---- Floating dice roller (Play vs AI) ----
+     A pinned die in the corner: tap to open a tray, pick a die type and how
+     many, roll and read the result. Rolls go through the engine (DM.rollDie)
+     so they stay impartial, and each roll is written to the combat log. */
+  function initDiceRoller() {
+    var fab = document.querySelector('#dice-fab');
+    if (!fab) return;
+    var toggleBtn = fab.querySelector('#dice-fab-btn');
+    var tray      = fab.querySelector('#dice-tray');
+    var closeBtn  = fab.querySelector('.dice-tray__close');
+    var chips     = fab.querySelectorAll('.dice-chip');
+    var countInput = fab.querySelector('#dice-count');
+    var stepBtns  = fab.querySelectorAll('.dice-count__btn');
+    var rollBtn   = fab.querySelector('.dice-tray__roll');
+    var rollLabel = fab.querySelector('#dice-roll-label');
+    var result    = fab.querySelector('#dice-result');
+    var sides = 20;
+
+    function count() {
+      var n = parseInt(countInput.value, 10);
+      if (!n || n < 1) n = 1;
+      if (n > 20) n = 20;
+      return n;
+    }
+    function updateLabel() { rollLabel.textContent = count() + 'd' + sides; }
+
+    function openTray(open) {
+      tray.hidden = !open;
+      toggleBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
+
+    toggleBtn.addEventListener('click', function () { openTray(tray.hidden); });
+    closeBtn.addEventListener('click', function () { openTray(false); });
+
+    Array.prototype.forEach.call(chips, function (chip) {
+      chip.addEventListener('click', function () {
+        Array.prototype.forEach.call(chips, function (c) { c.classList.remove('is-active'); });
+        chip.classList.add('is-active');
+        sides = parseInt(chip.getAttribute('data-sides'), 10) || 20;
+        updateLabel();
+      });
+    });
+
+    Array.prototype.forEach.call(stepBtns, function (b) {
+      b.addEventListener('click', function () {
+        var step = parseInt(b.getAttribute('data-step'), 10) || 0;
+        countInput.value = Math.min(20, Math.max(1, count() + step));
+        updateLabel();
+      });
+    });
+    countInput.addEventListener('input', updateLabel);
+
+    rollBtn.addEventListener('click', function () {
+      var n = count();
+      var rolls = [];
+      var total = 0;
+      for (var i = 0; i < n; i++) {
+        var r = window.DM.rollDie(sides);
+        rolls.push(r);
+        total += r;
+      }
+      renderRoll(n, rolls, total);
+      logLine('🎲 ' + n + 'd' + sides + ': [' + rolls.join(', ') + '] = ' + total, 'roll');
+    });
+
+    function renderRoll(n, rolls, total) {
+      var faces = rolls.map(function (r) {
+        var cls = 'dice-face';
+        if (sides === 20 && r === 20) cls += ' dice-face--crit';
+        if (sides === 20 && r === 1)  cls += ' dice-face--fumble';
+        return '<span class="' + cls + '">' + r + '</span>';
+      }).join('');
+      var totalHtml = n > 1
+        ? '<div class="dice-result__total">Total <strong>' + total + '</strong></div>'
+        : '';
+      result.innerHTML =
+        '<div class="dice-result__expr">' + n + 'd' + sides + '</div>' +
+        '<div class="dice-result__faces">' + faces + '</div>' +
+        totalHtml;
+    }
+
+    updateLabel();
+  }
+
   // Which seat is this: 'ai' (AI DM runs the game) or 'dm' (a human DM).
   // The two share this game session; the role only toggles the AI panel
   // and the page's framing. The player screen is the separate player.html.
@@ -1842,6 +1926,7 @@
     initCloud();
     initBattlemap();
     initRevealPanel();
+    initDiceRoller();
 
     // If the planner or an adventure scene handed off a session, load it.
     var handoff = readSessionHandoff();
