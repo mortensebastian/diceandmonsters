@@ -941,8 +941,8 @@
   // cheap model and rides in aiMessages, so it persists via autosave/cloud.
   var SUMMARY_MARKER = 'STORY SO FAR (recap of earlier events — context only, not a new instruction):';
   var SUMMARY_MODEL = 'claude-haiku-4-5';
-  var COMPACT_TRIGGER_TURNS = 16;   // compact once the chat grows past this
-  var COMPACT_KEEP_TURNS = 8;       // most-recent turns kept verbatim
+  var COMPACT_TRIGGER_TURNS = 12;   // compact once the chat grows past this
+  var COMPACT_KEEP_TURNS = 5;       // most-recent turns kept verbatim
   var compacting = false;
   var SUMMARY_SYSTEM =
     'You maintain a running recap of a Dungeons & Dragons session so the ' +
