@@ -124,10 +124,10 @@
     // Rebuild the combat log (state.log is oldest-first; insert keeps newest on top).
     el.log.innerHTML = '';
     state.log.forEach(function (e) { appendLogLine(e.text, e.cls); });
-    // Rebuild the AI chat + scene field.
+    // Rebuild the AI chat + scene field (only the last page; older on demand).
     if (el.aiOutput) {
-      el.aiOutput.innerHTML = '';
-      state.chatLog.forEach(function (m) { appendChatBubble(m.role, m.text, m.who); });
+      chatRenderStart = Math.max(0, state.chatLog.length - CHAT_PAGE);
+      renderChatWindow(false);
     }
     if (el.aiScene) el.aiScene.value = (state.scene && state.scene.text) || '';
   }
@@ -936,20 +936,21 @@
 
   function aiStatus(text) { if (el.aiStatus) el.aiStatus.textContent = text || ''; }
 
-  function appendChatBubble(role, text, who) {
+  function appendChatBubble(role, text, opts) {
     if (!text) return;
+    opts = opts || {};
     var block = document.createElement('div');
     block.className = 'ai__msg ai__msg--' + role;
     // An AI teammate's line is tagged with the character's name.
-    if (role === 'player' && who) {
+    if (role === 'player' && opts.who) {
       var ws = document.createElement('span');
       ws.className = 'ai__msg-who';
-      ws.textContent = who + ':';
+      ws.textContent = opts.who + ':';
       block.appendChild(ws);
       block.appendChild(document.createTextNode(text));
       el.aiOutput.appendChild(block);
-      el.aiOutput.scrollTop = el.aiOutput.scrollHeight;
-      return;
+      if (!opts.noScroll) el.aiOutput.scrollTop = el.aiOutput.scrollHeight;
+      return block;
     }
     // DM lines get a ▶ replay button so ElevenLabs can read them aloud again.
     if (role === 'dm' && window.Voice && Voice.hasKey()) {
@@ -973,11 +974,43 @@
       block.textContent = text;
     }
     el.aiOutput.appendChild(block);
-    el.aiOutput.scrollTop = el.aiOutput.scrollHeight;
+    if (!(opts && opts.noScroll)) el.aiOutput.scrollTop = el.aiOutput.scrollHeight;
+    return block;
+  }
+
+  // Only the last CHAT_PAGE bubbles are shown; a "Load earlier" button reveals
+  // older ones in batches so a long session doesn't become an endless scroll.
+  var CHAT_PAGE = 12;
+  var chatRenderStart = 0;
+  function renderChatWindow(keepScroll) {
+    if (!el.aiOutput) return;
+    var log = state.chatLog || [];
+    if (chatRenderStart < 0) chatRenderStart = 0;
+    if (chatRenderStart > log.length) chatRenderStart = log.length;
+    var prevH = el.aiOutput.scrollHeight, prevTop = el.aiOutput.scrollTop;
+    el.aiOutput.innerHTML = '';
+    if (chatRenderStart > 0) {
+      var more = document.createElement('button');
+      more.type = 'button';
+      more.className = 'btn-ai-loadmore';
+      more.textContent = '↑ Load earlier messages (' + chatRenderStart + ')';
+      more.addEventListener('click', function () {
+        chatRenderStart = Math.max(0, chatRenderStart - CHAT_PAGE);
+        renderChatWindow(true);
+      });
+      el.aiOutput.appendChild(more);
+    }
+    for (var i = chatRenderStart; i < log.length; i++) {
+      appendChatBubble(log[i].role, log[i].text, { noScroll: true, who: log[i].who });
+    }
+    // Keep the reading position when revealing older messages; otherwise jump to newest.
+    el.aiOutput.scrollTop = keepScroll
+      ? prevTop + (el.aiOutput.scrollHeight - prevH)
+      : el.aiOutput.scrollHeight;
   }
   function renderChat(role, text, who) {
     if (!text) return;
-    appendChatBubble(role, text, who);
+    appendChatBubble(role, text, { who: who });
     state.chatLog.push({ role: role, text: text, who: who || undefined });
     // Read new DM narration aloud when voice is on (never the player's own lines).
     if (role === 'dm' && window.Voice && Voice.isAuto() && Voice.hasKey() && !viewerMode) {
@@ -1349,6 +1382,7 @@
     aiMessages = [];
     state.chatLog = [];
     if (window.Voice) Voice.stop();
+    chatRenderStart = 0;
     if (el.aiOutput) el.aiOutput.innerHTML = '';
     scheduleSave();
     aiStatus('Chat reset.');
@@ -1359,6 +1393,13 @@
     if (!el.aiSettings) return;
     el.aiSettings.hidden = !open;
     if (el.aiSettingsBtn) el.aiSettingsBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  }
+
+  // Show "✓ key saved" beside the title so the user knows a key is stored
+  // without opening the (collapsed) settings panel.
+  function updateKeyState() {
+    if (!el.aiKeyState) return;
+    el.aiKeyState.hidden = !(window.AIClient && window.AIClient.hasKey());
   }
 
   function saveAiSettings() {
@@ -1372,6 +1413,7 @@
       if (el.voiceModel) { Voice.setTtsModel(el.voiceModel.value); el.voiceModel.value = Voice.getTtsModel(); }
       updateVoiceUi();
     }
+    updateKeyState();
     aiStatus('Saved.');
     setTimeout(function () { aiStatus(''); }, 1400);
   }
@@ -1439,6 +1481,7 @@
   function initAi() {
     el.aiSettingsBtn = document.querySelector('.btn-ai-settings');
     el.aiSettings    = document.querySelector('#ai-settings');
+    el.aiKeyState    = document.querySelector('#ai-key-state');
     el.aiKey         = document.querySelector('#ai-key');
     el.aiModel       = document.querySelector('#ai-model');
     el.aiSaveBtn     = document.querySelector('.btn-ai-save');
@@ -1462,6 +1505,7 @@
 
     el.aiKey.value = window.AIClient.getKey();
     el.aiModel.value = window.AIClient.getModel();
+    updateKeyState();
     if (window.Voice) {
       if (el.voiceKey) el.voiceKey.value = Voice.getKey();
       if (el.voiceId) el.voiceId.value = Voice.getVoice();
@@ -1762,6 +1806,7 @@
       state.combatants = []; state.activeId = null; state.log = []; state.chatLog = [];
       renderAll(); renderTurnOrder();
       if (el.log) el.log.innerHTML = '';
+      chatRenderStart = 0;
       if (el.aiOutput) el.aiOutput.innerHTML = '';
       logLine('Left the shared session.', 'spawn');
     }
@@ -1961,6 +2006,90 @@
     el.areaCard.hidden = false;
   }
 
+  /* ---- Floating dice roller (Play vs AI) ----
+     A pinned die in the corner: tap to open a tray, pick a die type and how
+     many, roll and read the result. Rolls go through the engine (DM.rollDie)
+     so they stay impartial, and each roll is written to the combat log. */
+  function initDiceRoller() {
+    var fab = document.querySelector('#dice-fab');
+    if (!fab) return;
+    var toggleBtn = fab.querySelector('#dice-fab-btn');
+    var tray      = fab.querySelector('#dice-tray');
+    var closeBtn  = fab.querySelector('.dice-tray__close');
+    var chips     = fab.querySelectorAll('.dice-chip');
+    var countInput = fab.querySelector('#dice-count');
+    var stepBtns  = fab.querySelectorAll('.dice-count__btn');
+    var rollBtn   = fab.querySelector('.dice-tray__roll');
+    var rollLabel = fab.querySelector('#dice-roll-label');
+    var result    = fab.querySelector('#dice-result');
+    var sides = 20;
+
+    function count() {
+      var n = parseInt(countInput.value, 10);
+      if (!n || n < 1) n = 1;
+      if (n > 20) n = 20;
+      return n;
+    }
+    function updateLabel() { rollLabel.textContent = count() + 'd' + sides; }
+
+    function openTray(open) {
+      tray.hidden = !open;
+      toggleBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
+
+    toggleBtn.addEventListener('click', function () { openTray(tray.hidden); });
+    closeBtn.addEventListener('click', function () { openTray(false); });
+
+    Array.prototype.forEach.call(chips, function (chip) {
+      chip.addEventListener('click', function () {
+        Array.prototype.forEach.call(chips, function (c) { c.classList.remove('is-active'); });
+        chip.classList.add('is-active');
+        sides = parseInt(chip.getAttribute('data-sides'), 10) || 20;
+        updateLabel();
+      });
+    });
+
+    Array.prototype.forEach.call(stepBtns, function (b) {
+      b.addEventListener('click', function () {
+        var step = parseInt(b.getAttribute('data-step'), 10) || 0;
+        countInput.value = Math.min(20, Math.max(1, count() + step));
+        updateLabel();
+      });
+    });
+    countInput.addEventListener('input', updateLabel);
+
+    rollBtn.addEventListener('click', function () {
+      var n = count();
+      var rolls = [];
+      var total = 0;
+      for (var i = 0; i < n; i++) {
+        var r = window.DM.rollDie(sides);
+        rolls.push(r);
+        total += r;
+      }
+      renderRoll(n, rolls, total);
+      logLine('🎲 ' + n + 'd' + sides + ': [' + rolls.join(', ') + '] = ' + total, 'roll');
+    });
+
+    function renderRoll(n, rolls, total) {
+      var faces = rolls.map(function (r) {
+        var cls = 'dice-face';
+        if (sides === 20 && r === 20) cls += ' dice-face--crit';
+        if (sides === 20 && r === 1)  cls += ' dice-face--fumble';
+        return '<span class="' + cls + '">' + r + '</span>';
+      }).join('');
+      var totalHtml = n > 1
+        ? '<div class="dice-result__total">Total <strong>' + total + '</strong></div>'
+        : '';
+      result.innerHTML =
+        '<div class="dice-result__expr">' + n + 'd' + sides + '</div>' +
+        '<div class="dice-result__faces">' + faces + '</div>' +
+        totalHtml;
+    }
+
+    updateLabel();
+  }
+
   // Which seat is this: 'ai' (AI DM runs the game) or 'dm' (a human DM).
   // The two share this game session; the role only toggles the AI panel
   // and the page's framing. The player screen is the separate player.html.
@@ -1991,6 +2120,41 @@
       if (tag) tag.textContent = 'The AI is your Dungeon Master — it sees the whole map; you see only what your party has found.';
       document.title = 'Play vs AI DM — Dice & Monsters';
     }
+  }
+
+  // Turn a static section into a fold-away panel: the heading toggles a body
+  // wrapper (built from the heading's following siblings), state persisted.
+  var COLLAPSE_PREFIX = 'diceAndMonsters.collapse.';
+  function makeCollapsible(section, head, key) {
+    if (!section || !head) return;
+    section.classList.add('collapsible');
+    head.classList.add('collapsible__head');
+    var body = document.createElement('div');
+    body.className = 'collapse__body';
+    while (head.nextSibling) body.appendChild(head.nextSibling);
+    section.appendChild(body);
+    var caret = document.createElement('span');
+    caret.className = 'collapsible__caret';
+    caret.textContent = '▾';
+    head.appendChild(caret);
+    var stored = null;
+    try { stored = window.localStorage.getItem(COLLAPSE_PREFIX + key); } catch (e) {}
+    if (stored === '1') section.classList.add('is-collapsed');
+    head.setAttribute('role', 'button');
+    head.setAttribute('tabindex', '0');
+    function sync() {
+      head.setAttribute('aria-expanded', section.classList.contains('is-collapsed') ? 'false' : 'true');
+    }
+    function toggle() {
+      var collapsed = section.classList.toggle('is-collapsed');
+      try { window.localStorage.setItem(COLLAPSE_PREFIX + key, collapsed ? '1' : '0'); } catch (e) {}
+      sync();
+    }
+    sync();
+    head.addEventListener('click', toggle);
+    head.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
+    });
   }
 
   function init() {
@@ -2047,6 +2211,13 @@
     initCloud();
     initBattlemap();
     initRevealPanel();
+    initDiceRoller();
+
+    // Fold the heavier secondary panels away when they're not in use
+    // (state remembered per-browser). The chat + combatants stay open.
+    makeCollapsible(document.querySelector('#cloud'), document.querySelector('#cloud .cloud__head'), 'cloud');
+    makeCollapsible(document.querySelector('.picker'), document.querySelector('.picker .players__title'), 'add');
+    makeCollapsible(document.querySelector('.logwrap'), document.querySelector('.logwrap__title'), 'log');
 
     // If the planner or an adventure scene handed off a session, load it.
     var handoff = readSessionHandoff();

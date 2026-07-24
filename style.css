@@ -1223,7 +1223,12 @@ button:disabled { opacity: .4; cursor: not-allowed; box-shadow: none; }
     padding: 18px;
 }
 .ai__head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 10px; }
+.ai__head-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .ai__title { font-size: 16px; color: #9b59b6; }
+.ai__keystate {
+    font-size: 12px; color: #27ae60; background: rgba(39,174,96,.12);
+    border: 1px solid rgba(39,174,96,.35); border-radius: 999px; padding: 2px 9px; white-space: nowrap;
+}
 .btn-ai-settings {
     background: #3b4150; color: #e6e6e6; border: none; border-radius: 6px;
     padding: 6px 12px; font-family: inherit; font-size: 13px; cursor: pointer;
@@ -1250,6 +1255,18 @@ button:disabled { opacity: .4; cursor: not-allowed; box-shadow: none; }
 .btn-ai-save:hover { background: #2ecc71; }
 .ai__hint { flex-basis: 100%; font-size: 12px; color: #6b7280; margin: 0; }
 
+/* Voice settings tucked into a native <details> so the core AI key isn't buried */
+.ai__voice { flex-basis: 100%; background: #1d2029; border: 1px solid #2c3140; border-radius: 8px; padding: 0; }
+.ai__voice-summary {
+    cursor: pointer; list-style: none; padding: 10px 14px; font-size: 13px; color: #9aa3b2;
+    display: flex; align-items: center; gap: 8px;
+}
+.ai__voice-summary::-webkit-details-marker { display: none; }
+.ai__voice-summary::before { content: '▸'; color: #6b7280; font-size: 11px; transition: transform .15s; }
+.ai__voice[open] > .ai__voice-summary::before { transform: rotate(90deg); }
+.ai__voice-summary:hover { color: #e6e6e6; }
+.ai__voice-body { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; padding: 0 14px 14px; }
+
 .ai__row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
 .ai__input--direction { flex: 1; min-width: 180px; width: auto; }
 .btn-ai-scene, .btn-ai-round {
@@ -1265,6 +1282,20 @@ button:disabled { opacity: .4; cursor: not-allowed; box-shadow: none; }
 
 .ai__output { display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px; max-height: 460px; overflow-y: auto; }
 .ai__output:empty { display: none; }
+.btn-ai-loadmore {
+    align-self: center; background: #2c3140; color: #9aa3b2; border: 1px solid #3b4150;
+    border-radius: 6px; padding: 6px 14px; font-family: inherit; font-size: 12px; cursor: pointer;
+    margin-bottom: 2px; flex-shrink: 0;
+}
+.btn-ai-loadmore:hover { background: #3b4150; color: #e6e6e6; box-shadow: none; }
+
+/* Generic collapsible section (wired up in play.js) — click the heading to fold */
+.collapsible__head { cursor: pointer; user-select: none; display: flex; align-items: center; gap: 8px; }
+.collapsible__head:hover .collapsible__caret { color: #e6e6e6; }
+.collapsible__caret { margin-left: auto; color: #6b7280; font-size: 12px; transition: transform .15s; flex-shrink: 0; }
+.collapsible.is-collapsed .collapsible__caret { transform: rotate(-90deg); }
+.collapsible.is-collapsed .collapse__body { display: none; }
+.collapsible.is-collapsed { padding-bottom: 18px; }
 .ai__msg {
     border-radius: 8px; padding: 10px 14px; white-space: pre-wrap; line-height: 1.5;
     max-width: 92%;
@@ -2010,6 +2041,108 @@ button:disabled { opacity: .4; cursor: not-allowed; box-shadow: none; }
 .role-dm #ai-dm { display: none; }                 /* human DM: no AI DM panel */
 .role-ai #reveal-panel { display: none; }          /* AI is the DM: no manual reveal panel */
 .role-ai .item__reveal { display: none; }          /* …nor per-creature reveal toggles */
+
+/* ============================================================
+   Floating dice roller (Play vs AI) — a pinned die you tap to
+   open a small tray: pick a die, how many, roll and read the
+   result. Hidden on the human DM console.
+   ============================================================ */
+.dice-fab {
+    position: fixed; right: 20px; bottom: 20px; z-index: 60;
+    display: flex; flex-direction: column; align-items: flex-end; gap: 12px;
+}
+.role-dm .dice-fab { display: none; }              /* human DM console: no floating roller */
+.dice-fab__btn {
+    width: 60px; height: 60px; border-radius: 50%;
+    background: #c0392b; color: #fff; border: 2px solid #e1b12c;
+    font-size: 28px; line-height: 1; cursor: pointer;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+    transition: transform 0.12s ease, background 0.12s ease;
+}
+.dice-fab__btn:hover { background: #d0453a; transform: translateY(-2px); }
+.dice-fab__btn:active { transform: scale(0.94); }
+
+.dice-tray {
+    width: 260px; padding: 14px;
+    background: #1d2029; border: 1px solid #2c3140; border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
+}
+.dice-tray__head {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 10px;
+}
+.dice-tray__title { font-size: 15px; color: #e1b12c; margin: 0; }
+.dice-tray__close {
+    background: none; border: none; color: #9aa3b2; font-size: 16px;
+    cursor: pointer; line-height: 1; padding: 2px 4px;
+}
+.dice-tray__close:hover { color: #e6e6e6; }
+
+.dice-tray__dice {
+    display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px;
+}
+.dice-chip {
+    flex: 1 0 auto; min-width: 44px; padding: 7px 0;
+    background: #12141a; color: #e6e6e6; border: 1px solid #2c3140;
+    border-radius: 6px; font-size: 13px; cursor: pointer;
+    transition: border-color 0.12s ease, background 0.12s ease;
+}
+.dice-chip:hover { border-color: #4aa3df; }
+.dice-chip.is-active {
+    background: #2980b9; border-color: #4aa3df; color: #fff; font-weight: 600;
+}
+
+.dice-tray__count {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 12px;
+}
+.dice-tray__label { flex: 1; color: #9aa3b2; font-size: 13px; }
+.dice-count__btn {
+    width: 30px; height: 30px; border-radius: 6px;
+    background: #12141a; color: #e6e6e6; border: 1px solid #2c3140;
+    font-size: 18px; line-height: 1; cursor: pointer;
+}
+.dice-count__btn:hover { border-color: #4aa3df; }
+.dice-count__input {
+    width: 48px; text-align: center;
+    background: #12141a; color: #e6e6e6; border: 1px solid #2c3140;
+    border-radius: 6px; padding: 6px 4px; font-size: 14px;
+}
+
+.dice-tray__roll {
+    width: 100%; padding: 10px; margin-bottom: 4px;
+    background: #c0392b; color: #fff; border: none; border-radius: 8px;
+    font-size: 15px; font-weight: 600; cursor: pointer;
+    transition: background 0.12s ease;
+}
+.dice-tray__roll:hover { background: #d0453a; }
+
+.dice-tray__result:empty { display: none; }
+.dice-tray__result {
+    margin-top: 12px; padding-top: 12px; border-top: 1px solid #2c3140;
+    text-align: center;
+}
+.dice-result__expr { color: #9aa3b2; font-size: 12px; margin-bottom: 6px; }
+.dice-result__faces {
+    display: flex; flex-wrap: wrap; gap: 6px; justify-content: center;
+}
+.dice-face {
+    min-width: 30px; padding: 5px 8px;
+    background: #12141a; border: 1px solid #2c3140; border-radius: 6px;
+    color: #e6e6e6; font-size: 15px; font-weight: 600;
+}
+.dice-face--crit { border-color: #27ae60; color: #2ecc71; }
+.dice-face--fumble { border-color: #c0392b; color: #ff6b5e; }
+.dice-result__total {
+    margin-top: 10px; color: #e6e6e6; font-size: 14px;
+}
+.dice-result__total strong { color: #e1b12c; font-size: 20px; }
+
+.log__line--roll { color: #e1b12c; }
+
+@media (max-width: 640px) {
+    .dice-fab { right: 12px; bottom: 12px; }
+    .dice-tray { width: min(80vw, 260px); }
+}
 
 /* Player cloud lobby (player.html) */
 .player-cloud {
