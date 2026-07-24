@@ -1390,9 +1390,27 @@
   }
 
   function showAiSettings(open) {
-    if (!el.aiSettings) return;
-    el.aiSettings.hidden = !open;
-    if (el.aiSettingsBtn) el.aiSettingsBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    // #ai-settings is a native <details>; toggling .open is the whole job.
+    if (el.aiSettings) el.aiSettings.open = !!open;
+  }
+
+  // The model <select> offers Opus/Sonnet plus a "Custom…" escape hatch that
+  // reveals a free-text field for any other model id.
+  var MODEL_PRESETS = ['claude-opus-4-8', 'claude-sonnet-5'];
+  function syncModelSelect() {
+    if (!el.aiModel) return;
+    var m = window.AIClient.getModel();
+    var known = MODEL_PRESETS.indexOf(m) !== -1;
+    el.aiModel.value = known ? m : '__custom__';
+    if (el.aiModelCustom) el.aiModelCustom.value = known ? '' : m;
+    if (el.aiModelCustomField) el.aiModelCustomField.hidden = known;
+  }
+  function chosenModel() {
+    if (!el.aiModel) return '';
+    if (el.aiModel.value === '__custom__') {
+      return ((el.aiModelCustom && el.aiModelCustom.value) || '').trim();
+    }
+    return el.aiModel.value;
   }
 
   // Show "✓ key saved" beside the title so the user knows a key is stored
@@ -1404,9 +1422,8 @@
 
   function saveAiSettings() {
     window.AIClient.setKey((el.aiKey.value || '').trim());
-    var model = (el.aiModel.value || '').trim();
-    window.AIClient.setModel(model || window.AIClient.DEFAULT_MODEL);
-    el.aiModel.value = window.AIClient.getModel();
+    window.AIClient.setModel(chosenModel() || window.AIClient.DEFAULT_MODEL);
+    syncModelSelect();
     if (window.Voice) {
       if (el.voiceKey) Voice.setKey(el.voiceKey.value);
       if (el.voiceId) { Voice.setVoice(el.voiceId.value); el.voiceId.value = Voice.getVoice(); }
@@ -1479,11 +1496,12 @@
   }
 
   function initAi() {
-    el.aiSettingsBtn = document.querySelector('.btn-ai-settings');
     el.aiSettings    = document.querySelector('#ai-settings');
     el.aiKeyState    = document.querySelector('#ai-key-state');
     el.aiKey         = document.querySelector('#ai-key');
     el.aiModel       = document.querySelector('#ai-model');
+    el.aiModelCustom = document.querySelector('#ai-model-custom');
+    el.aiModelCustomField = document.querySelector('#ai-model-custom-field');
     el.aiSaveBtn     = document.querySelector('.btn-ai-save');
     el.aiScene       = document.querySelector('#ai-scene');
     el.aiSceneBtn    = document.querySelector('.btn-ai-scene');
@@ -1504,8 +1522,13 @@
     if (!el.aiOutput || !window.AIClient) return;
 
     el.aiKey.value = window.AIClient.getKey();
-    el.aiModel.value = window.AIClient.getModel();
+    syncModelSelect();
     updateKeyState();
+    el.aiModel.addEventListener('change', function () {
+      var custom = el.aiModel.value === '__custom__';
+      if (el.aiModelCustomField) el.aiModelCustomField.hidden = !custom;
+      if (custom && el.aiModelCustom) el.aiModelCustom.focus();
+    });
     if (window.Voice) {
       if (el.voiceKey) el.voiceKey.value = Voice.getKey();
       if (el.voiceId) el.voiceId.value = Voice.getVoice();
@@ -1560,7 +1583,6 @@
       state.scene = v ? { text: v, title: (state.scene && state.scene.title) || '' } : null;
       scheduleSave();
     });
-    el.aiSettingsBtn.addEventListener('click', function () { showAiSettings(el.aiSettings.hidden); });
     el.aiSaveBtn.addEventListener('click', saveAiSettings);
     el.aiSceneBtn.addEventListener('click', function () {
       sendChat('Set the scene for the players, based on the scene text and the current situation.', '▶ Describe scene');
