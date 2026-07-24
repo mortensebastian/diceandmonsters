@@ -80,6 +80,7 @@
       scene: state.scene,
       chatLog: state.chatLog,
       aiMessages: aiMessages,
+      aiUsage: (window.AIClient && window.AIClient.getUsage) ? window.AIClient.getUsage() : null,
       map: window.Battlemap ? window.Battlemap.getMap() : null
     };
   }
@@ -117,6 +118,7 @@
     state.scene = data.scene || null;
     state.chatLog = data.chatLog || [];
     aiMessages = data.aiMessages || [];
+    if (window.AIClient && window.AIClient.setUsage) window.AIClient.setUsage(data.aiUsage || {});
     if (window.Battlemap) window.Battlemap.setMap(data.map || null);
 
     renderAll();
@@ -957,6 +959,50 @@
 
   function aiStatus(text) { if (el.aiStatus) el.aiStatus.textContent = text || ''; }
 
+  // Compact token count: 0, 940, 12.3k, 1.4M.
+  function fmtTokens(n) {
+    n = n || 0;
+    if (n < 1000) return String(n);
+    if (n < 1e6) return (n / 1e3).toFixed(n < 10000 ? 1 : 0) + 'k';
+    return (n / 1e6).toFixed(1) + 'M';
+  }
+  // USD: <$0.01 shown as "<$0.01", else 2–3 decimals.
+  function fmtCost(c) {
+    c = c || 0;
+    if (c > 0 && c < 0.01) return '<$0.01';
+    return '$' + (c < 1 ? c.toFixed(3) : c.toFixed(2));
+  }
+  // The little token/cost readout in the AI panel header.
+  function renderUsage(u) {
+    if (!el.aiUsage) return;
+    u = u || (window.AIClient && window.AIClient.getUsage ? window.AIClient.getUsage() : null);
+    if (!u || !u.calls) { el.aiUsage.hidden = true; return; }
+    el.aiUsage.hidden = false;
+    el.aiUsage.textContent = '↑ ' + fmtTokens(u.totalIn) + ' · ↓ ' +
+      fmtTokens(u.totalOut) + ' · ~' + fmtCost(u.cost);
+  }
+  // Full breakdown on click/tap.
+  function showUsageBreakdown() {
+    if (!window.AIClient || !window.AIClient.getUsage) return;
+    var u = window.AIClient.getUsage();
+    var cached = u.cacheRead + u.cacheWrite;
+    var lines = [
+      'AI Dungeon Master — usage this session',
+      '',
+      'Requests to Claude: ' + u.calls,
+      'Tokens sent (read by Claude): ' + u.totalIn.toLocaleString(),
+      '  · fresh input: ' + u.input.toLocaleString(),
+      '  · from/to cache: ' + cached.toLocaleString(),
+      'Tokens written back (Claude → us): ' + u.totalOut.toLocaleString(),
+      '',
+      'Estimated cost so far: ~' + fmtCost(u.cost) +
+        ' (' + (window.AIClient.getModel ? window.AIClient.getModel() : 'model') + ' list price)',
+      '',
+      'Reset the chat to start the count over.'
+    ];
+    alert(lines.join('\n'));
+  }
+
   function appendChatBubble(role, text, opts) {
     if (!text) return;
     opts = opts || {};
@@ -1510,6 +1556,7 @@
     aiMessages = [];
     state.chatLog = [];
     if (window.Voice) Voice.stop();
+    if (window.AIClient && window.AIClient.resetUsage) window.AIClient.resetUsage();
     chatRenderStart = 0;
     if (el.aiOutput) el.aiOutput.innerHTML = '';
     renderRecapPanel();
@@ -1642,6 +1689,7 @@
     el.aiInput       = document.querySelector('#ai-input');
     el.aiSendBtn     = document.querySelector('.btn-ai-send');
     el.aiStatus      = document.querySelector('#ai-status');
+    el.aiUsage       = document.querySelector('#ai-usage');
     el.aiOutput      = document.querySelector('#ai-output');
     el.voiceKey      = document.querySelector('#voice-key');
     el.voicePreset   = document.querySelector('#voice-preset');
@@ -1656,6 +1704,8 @@
     syncModelSelect();
     updateKeyState();
     renderRecapPanel();
+    if (window.AIClient.onUsage) window.AIClient.onUsage(renderUsage);
+    if (el.aiUsage) el.aiUsage.addEventListener('click', showUsageBreakdown);
     el.aiModel.addEventListener('change', function () {
       var custom = el.aiModel.value === '__custom__';
       if (el.aiModelCustomField) el.aiModelCustomField.hidden = !custom;

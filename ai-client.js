@@ -23,19 +23,89 @@
 
   var cfg = { mode: 'direct', endpoint: ANTHROPIC_URL };
 
-  // ---- Usage tracking (measurement, no behaviour change) ----
-  // Running tally for the session so the effect of caching/stripping is
-  // visible in the console. Read live via AIClient.sessionUsage.
+  // ---- Usage tracking (tokens + running cost of the AI DM chat) ----
+  // Running tally for the whole session: how many tokens we've SENT to Claude
+  // (input, incl. cached) and how many it has WRITTEN back (output). Read live
+  // via getUsage(); subscribe via onUsage() to drive a UI; the Play page rides
+  // it in the session snapshot so the count survives a reload.
   var sessionUsage = { calls: 0, input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
+  var usageSubscribers = [];
 
-  // Rough USD estimate at the default model's (claude-opus-4-8) list price:
-  // input $5/M, output $25/M, cache read $0.5/M, cache write (5m) $6.25/M.
-  function estCost(u) {
-    return ((u.input || 0) * 5 + (u.output || 0) * 25 +
-            (u.cacheRead || 0) * 0.5 + (u.cacheWrite || 0) * 6.25) / 1e6;
+  // Per-model list prices, USD per 1M tokens:
+  //   [ input, output, cacheRead (0.1x), cacheWrite 5m (1.25x) ].
+  // Matched by substring on the model id; unknown models fall back to Opus.
+  var PRICING = [
+    { match: 'fable',  rate: [10, 50, 1.0, 12.5] },
+    { match: 'mythos', rate: [10, 50, 1.0, 12.5] },
+    { match: 'haiku',  rate: [1, 5, 0.1, 1.25] },
+    { match: 'sonnet', rate: [3, 15, 0.3, 3.75] },
+    { match: 'opus',   rate: [5, 25, 0.5, 6.25] }
+  ];
+  var DEFAULT_RATE = [5, 25, 0.5, 6.25]; // Opus 4.8
+
+  function rateFor(model) {
+    var m = (model || getModel() || '').toLowerCase();
+    for (var i = 0; i < PRICING.length; i++) {
+      if (m.indexOf(PRICING[i].match) !== -1) return PRICING[i].rate;
+    }
+    return DEFAULT_RATE;
   }
 
-  function trackUsage(u) {
+  // USD estimate for a usage tally at the given model's list price.
+  function estCost(u, model) {
+    var r = rateFor(model);
+    return ((u.input || 0) * r[0] + (u.output || 0) * r[1] +
+            (u.cacheRead || 0) * r[2] + (u.cacheWrite || 0) * r[3]) / 1e6;
+  }
+
+  // A copy of the running tally, with derived totals and cost baked in.
+  function getUsage() {
+    var u = {
+      calls: sessionUsage.calls,
+      input: sessionUsage.input,
+      output: sessionUsage.output,
+      cacheRead: sessionUsage.cacheRead,
+      cacheWrite: sessionUsage.cacheWrite
+    };
+    // Total tokens we sent up (fresh input + everything served from / written
+    // to cache is still input we delivered for reading).
+    u.totalIn = u.input + u.cacheRead + u.cacheWrite;
+    u.totalOut = u.output;
+    u.cost = estCost(u);
+    return u;
+  }
+
+  // Restore the tally from a persisted snapshot (Play autosave / cloud save).
+  function setUsage(u) {
+    u = u || {};
+    sessionUsage.calls = u.calls || 0;
+    sessionUsage.input = u.input || 0;
+    sessionUsage.output = u.output || 0;
+    sessionUsage.cacheRead = u.cacheRead || 0;
+    sessionUsage.cacheWrite = u.cacheWrite || 0;
+    notifyUsage();
+  }
+
+  // Subscribe to usage updates. cb(session) is called after every API call
+  // and whenever the tally is reset/restored. Returns an unsubscribe fn.
+  function onUsage(cb) {
+    if (typeof cb !== 'function') return function () {};
+    usageSubscribers.push(cb);
+    try { cb(getUsage()); } catch (e) { /* ignore */ }
+    return function () {
+      var i = usageSubscribers.indexOf(cb);
+      if (i !== -1) usageSubscribers.splice(i, 1);
+    };
+  }
+
+  function notifyUsage() {
+    var snap = getUsage();
+    for (var i = 0; i < usageSubscribers.length; i++) {
+      try { usageSubscribers[i](snap); } catch (e) { /* ignore */ }
+    }
+  }
+
+  function trackUsage(u, model) {
     if (!u) return;
     var call = {
       input: u.input_tokens || 0,
@@ -51,15 +121,17 @@
     try {
       console.log('[AI usage] call in=' + call.input + ' out=' + call.output +
         ' cacheRead=' + call.cacheRead + ' cacheWrite=' + call.cacheWrite +
-        ' ~$' + estCost(call).toFixed(4) +
+        ' ~$' + estCost(call, model).toFixed(4) +
         '  | session: ' + sessionUsage.calls + ' calls, ~$' +
-        estCost(sessionUsage).toFixed(3));
+        estCost(sessionUsage, model).toFixed(3));
     } catch (e) { /* console unavailable */ }
+    notifyUsage();
   }
 
   function resetUsage() {
     sessionUsage.calls = sessionUsage.input = sessionUsage.output =
       sessionUsage.cacheRead = sessionUsage.cacheWrite = 0;
+    notifyUsage();
   }
 
   function configure(o) {
@@ -77,8 +149,9 @@
   // req: { system, messages, tools?, model?, max_tokens? }
   // Returns the parsed Anthropic Messages response object.
   function complete(req) {
+    var model = req.model || getModel();
     var body = {
-      model: req.model || getModel(),
+      model: model,
       max_tokens: req.max_tokens || 1024,
       messages: req.messages
     };
@@ -107,7 +180,7 @@
           throw new Error('Claude API ' + res.status + ': ' + msg);
         }
         var parsed = JSON.parse(txt);
-        trackUsage(parsed.usage);
+        trackUsage(parsed.usage, model);
         return parsed;
       });
     });
@@ -134,6 +207,7 @@
     getKey: getKey, setKey: setKey, hasKey: hasKey,
     getModel: getModel, setModel: setModel, DEFAULT_MODEL: DEFAULT_MODEL,
     complete: complete, textOf: textOf, toolCallsOf: toolCallsOf,
-    sessionUsage: sessionUsage, resetUsage: resetUsage
+    sessionUsage: sessionUsage, resetUsage: resetUsage,
+    getUsage: getUsage, setUsage: setUsage, onUsage: onUsage, estCost: estCost
   };
 })();
