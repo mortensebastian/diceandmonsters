@@ -130,6 +130,7 @@
       renderChatWindow(false);
     }
     if (el.aiScene) el.aiScene.value = (state.scene && state.scene.text) || '';
+    renderRecapPanel();
   }
   function restoreState() {
     var raw;
@@ -1301,11 +1302,30 @@
       aiMessages.push({ role: 'user', content: [{ type: 'text', text: SUMMARY_MARKER + '\n' + summary }] });
       for (var k = 0; k < kept.length; k++) aiMessages.push(kept[k]);
       scheduleSave();
+      renderRecapPanel();
       aiStatus('Earlier turns summarised.');
       setTimeout(function () { aiStatus(''); }, 1600);
     }).catch(function (e) {
       try { console.warn('[compaction] failed:', (e && e.message) || e); } catch (x) { /* no console */ }
     }).then(function () { compacting = false; });
+  }
+
+  // The current running recap text (empty until the first compaction), for the
+  // human-readable "Story so far" panel.
+  function currentRecap() {
+    for (var i = 0; i < aiMessages.length; i++) {
+      if (isSummaryMsg(aiMessages[i])) {
+        return aiMessages[i].content[0].text.slice(SUMMARY_MARKER.length).trim();
+      }
+    }
+    return '';
+  }
+  function renderRecapPanel() {
+    if (!el.aiRecapText) return;
+    var r = currentRecap();
+    el.aiRecapText.hidden = !r;
+    el.aiRecapText.textContent = r || '';
+    if (el.aiRecapEmpty) el.aiRecapEmpty.hidden = !!r;
   }
 
   // Agent-agnostic tool loop. Drives either the AI DM or a specific AI player
@@ -1492,6 +1512,7 @@
     if (window.Voice) Voice.stop();
     chatRenderStart = 0;
     if (el.aiOutput) el.aiOutput.innerHTML = '';
+    renderRecapPanel();
     scheduleSave();
     aiStatus('Chat reset.');
     setTimeout(function () { aiStatus(''); }, 1400);
@@ -1606,6 +1627,8 @@
   function initAi() {
     el.aiSettings    = document.querySelector('#ai-settings');
     el.aiKeyState    = document.querySelector('#ai-key-state');
+    el.aiRecapText   = document.querySelector('#ai-recap-text');
+    el.aiRecapEmpty  = document.querySelector('#ai-recap-empty');
     el.aiKey         = document.querySelector('#ai-key');
     el.aiModel       = document.querySelector('#ai-model');
     el.aiModelCustom = document.querySelector('#ai-model-custom');
@@ -1632,6 +1655,7 @@
     el.aiKey.value = window.AIClient.getKey();
     syncModelSelect();
     updateKeyState();
+    renderRecapPanel();
     el.aiModel.addEventListener('change', function () {
       var custom = el.aiModel.value === '__custom__';
       if (el.aiModelCustomField) el.aiModelCustomField.hidden = !custom;
