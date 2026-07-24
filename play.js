@@ -1396,7 +1396,7 @@
 
   // The model <select> offers Opus/Sonnet plus a "Custom…" escape hatch that
   // reveals a free-text field for any other model id.
-  var MODEL_PRESETS = ['claude-opus-4-8', 'claude-sonnet-5'];
+  var MODEL_PRESETS = ['claude-opus-4-8', 'claude-sonnet-5', 'claude-haiku-4-5'];
   function syncModelSelect() {
     if (!el.aiModel) return;
     var m = window.AIClient.getModel();
