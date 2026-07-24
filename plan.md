@@ -38,17 +38,58 @@ cloud saves and shared live sessions so several people watch the same game.
   ElevenLabs; hidden entirely until a key is set, so the app is unchanged
   without one.
 
-## Next up (rough priority)
+## AI Player — design (Phase 3, in progress)
 
-1. **AI Player (Phase 3)** — the original goal: Claude controls **one** character
-   at the table. Chosen shape (from earlier decisions): tied to a real character
-   **sheet** (1a) and it **acts on its own** (2b), with **enemy HP hidden** from
-   it. **Prerequisite / do this first:** AI-controlled characters must carry HP
-   in the engine (today `createPlayerFromSheet` gives players no HP, so damage
-   isn't applied and the AI can't reason about its own health). Plumb HP for
-   AI-controlled PCs (treat mechanically like an NPC but on the players' side).
-   Reuse `ai-context.js` (`opts.hideEnemyHp`, `opts.selfId`) and add
-   `ai-player.js` (persona + `take_action` tool) mirroring `ai-dm.js`.
+The original goal: Claude sits in a *player's* seat and runs a character. The key
+realisation from the design pass: **"an extra AI teammate" and "a full AI party"
+are the same capability, not two features.** Both are just "an AI that controls
+one or more PCs, driven on each PC's turn." So we build **one** engine and expose
+it as a per-combatant flag; N=1 is a solo AI teammate, N=all is a self-playing
+party. It is also **orthogonal to who DMs** — it must work under the AI DM
+(`?role=ai`), a human DM Console (`?role=dm`), and solo. So it lives in the Game
+Session page as a per-creature toggle, **not** bolted onto the AI-DM chat panel.
+
+### Decisions (locked)
+
+- **Tied to a real character sheet** (HP/attacks/spells/checks come from the sheet).
+- **Per-character loop** — the turn driver calls the model once per AI PC with that
+  PC as `self` + its own persona. Scales evenly 1 → whole party, keeps distinct
+  voices, and limits metagaming (each PC mainly "sees itself"). Costlier than one
+  shared brain, but the existing prompt-cache breakpoint in `runLoop` softens it.
+- **Enemy HP hidden** from the AI player (`AIContext.build(state,{ hideEnemyHp:true,
+  selfId })`), and it never sees `dmNotes` / hidden creatures — same secrecy rules
+  as a human player.
+- **Player HP stays hidden from the DM context.** An AI PC gets *engine-tracked* HP
+  (so damage lands and it can reason about its health), but that exact HP is exposed
+  **only** through its own `self` block — in the shared context every player's HP is
+  banded (`healthy`/`bloodied`/…), never exact. Human players still carry no HP.
+- **Auto on its turn, behind one toggle** — "Auto-run AI turns". When initiative
+  reaches an AI PC it acts itself; combined with the AI DM this yields a self-playing
+  table. The driver always **stops on a human PC's turn** and has a hard iteration
+  cap so it can't run away.
+
+### Build order
+
+1. **Engine HP plumbing** ✅ — `createPlayerFromSheet` stashes the sheet's max HP as
+   `c.sheetHp` (kept separate so human players still have no HP counter).
+   `DM.setAiControlled(c, on, opts)` toggles `c.aiControlled` + `c.persona` and, for a
+   player, gives/removes an engine HP counter (`maxHp`/`hp`). `aiControlled`,
+   `persona`, `sheetHp` are serialized (only when set, so old saves still load).
+2. **`ai-player.js` → `window.AIPlayer`** ✅ — mirrors `ai-dm.js`: a player persona
+   system prompt + a lean tool set (`player_attack`, `move_token`, `set_condition`,
+   `end_turn`) and a `stateBlock`/`STATE_MARKER`. The engine still rolls everything
+   (`player_attack` routes through the same `resolveAttack`/`performAttack` path as
+   `monster_action`).
+3. **Per-card UI toggle** — a "🤖 Let AI play this" control on each player card that
+   calls `setAiControlled`, plus a persona field. Serialized in the snapshot.
+4. **Turn driver** — generalise `runLoop` to take `{ system, tools, executor }` so it
+   can drive either the DM or a specific AI PC. An "Auto-run AI turns" toggle: when the
+   active combatant is an AI PC, run its `AIPlayer` turn; when it's a monster/NPC and
+   the AI DM is on, run the DM; stop on a human PC. Hard iteration cap.
+5. **Presets** — thin wrappers over the flag: "Add an AI teammate" (flag one) and
+   "Fill the party with AI" (flag all players).
+6. **Visibility check** — confirm an AI PC's context never carries `dmNotes`, hidden
+   creatures, or exact enemy HP (reuse `hideEnemyHp` + self-only exact HP).
 2. **NPC-HP fix** — `DM.createNpcFromSheet` defaults maxHp to 1 when the sheet has
    no HP, so imported NPCs die instantly. Default to something sane or prompt.
 3. **Trim Encounter Planner to pure prep** — now that Play is self-sufficient,

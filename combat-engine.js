@@ -78,6 +78,9 @@
       x: null,             // battlemap column (null = not placed yet)
       y: null,             // battlemap row
       hidden: false,       // DM-only: not yet revealed to players (role-based visibility)
+      aiControlled: false, // handed to the AI teammate/party (drives its own turns)
+      persona: '',         // optional roleplay persona for an AI-controlled PC
+      sheetHp: null,       // a player sheet's max HP, held aside until AI takes over
       spells: [],          // [{ name, level, notes }] — reference only, engine never casts
       spellcasting: null   // { ability, dc, atk } when the sheet has a casting ability
     };
@@ -211,6 +214,34 @@
     var sc = sheetSpellcasting(sheet);
     c.spells = sc.spells; c.spellcasting = sc.casting;
     c.checks = sheetChecks(sheet);
+    // Stash the sheet's max HP WITHOUT giving the player an HP counter — a human
+    // player tracks their own HP (hasHp stays false). It's only promoted to a
+    // real maxHp/hp counter if the player is later handed to the AI, so the AI
+    // teammate can take damage and reason about its own health.
+    c.attacks = (sheet.attacks || []).map(parseSheetAttack);
+    var maxHp = (sheet.hp && sheet.hp.max) ? sheet.hp.max : 0;
+    c.sheetHp = maxHp > 0 ? maxHp : null;
+    return c;
+  }
+
+  // Hand a combatant to (or back from) the AI. For a player this also plumbs an
+  // engine HP counter: an AI teammate needs real HP so damage lands and it can
+  // gauge its own health, whereas a human player carries none. Reverting a
+  // player clears the counter back to "tracks their own". Monsters/NPCs already
+  // have HP, so only the flag/persona change for them.
+  function setAiControlled(c, on, opts) {
+    opts = opts || {};
+    if (on) {
+      c.aiControlled = true;
+      if (opts.persona != null) c.persona = String(opts.persona);
+      if (c.kind === 'player' && c.maxHp == null) {
+        var hp = intOr(opts.hp, 0) || c.sheetHp || 10;
+        c.maxHp = hp; c.hp = hp;
+      }
+    } else {
+      c.aiControlled = false;
+      if (c.kind === 'player') { c.maxHp = null; c.hp = null; c.dead = false; }
+    }
     return c;
   }
 
@@ -407,9 +438,12 @@
       x: (c.x == null ? null : c.x), y: (c.y == null ? null : c.y)
     };
     if (c.hidden) o.hidden = true;   // only carried when set (keeps old saves compatible)
+    if (c.aiControlled) o.aiControlled = true;   // ditto — AI teammate flag
+    if (c.persona) o.persona = c.persona;
+    if (c.sheetHp != null) o.sheetHp = c.sheetHp;
     if (c.kind === 'monster' && c.template) o.templateSlug = c.template.slug;
     else if (c.kind === 'monster') o.attacks = c.attacks;   // custom monster (no library template)
-    if (c.kind === 'npc') o.attacks = c.attacks;
+    if (c.kind === 'npc' || c.kind === 'player') o.attacks = c.attacks;
     if (c.spells && c.spells.length) o.spells = c.spells;
     if (c.spellcasting) o.spellcasting = c.spellcasting;
     if (c.checks) o.checks = c.checks;
@@ -419,6 +453,9 @@
     var c = baseCombatant(o.kind, o.name);
     if (o.id != null) { c.id = o.id; bumpIdPast(o.id); }  // stable ids across a synced snapshot
     c.hidden = !!o.hidden;
+    c.aiControlled = !!o.aiControlled;
+    c.persona = o.persona || '';
+    c.sheetHp = (o.sheetHp == null ? null : o.sheetHp);
     c.hp = (o.hp == null ? null : o.hp);
     c.maxHp = (o.maxHp == null ? null : o.maxHp);
     c.ac = (o.ac == null ? null : o.ac);
@@ -433,7 +470,7 @@
       var t = templateBySlug(o.templateSlug);
       if (t) { c.template = t; c.attacks = t.attacks || []; }
       else { c.attacks = o.attacks || []; }   // custom monster: restore its ad-hoc attacks
-    } else if (o.kind === 'npc') {
+    } else if (o.kind === 'npc' || o.kind === 'player') {
       c.attacks = o.attacks || [];
     }
     c.spells = o.spells || [];
@@ -460,6 +497,7 @@
     findCombatant: findCombatant, combatantLabel: combatantLabel,
     hasHp: hasHp, canBeTargeted: canBeTargeted,
     isHidden: isHidden, setHidden: setHidden,
+    setAiControlled: setAiControlled,
     // conditions
     CONDITION_INFO: CONDITION_INFO, conditionInfo: conditionInfo,
     addCondition: addCondition, removeCondition: removeCondition,
