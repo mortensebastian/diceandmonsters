@@ -130,6 +130,7 @@
       renderChatWindow(false);
     }
     if (el.aiScene) el.aiScene.value = (state.scene && state.scene.text) || '';
+    renderRecapPanel();
   }
   function restoreState() {
     var raw;
@@ -934,6 +935,26 @@
   var aiMessages = [];           // the ongoing Anthropic conversation
   var MAX_TOOL_ITERS = 8;
 
+  // Rolling summarisation (compaction): once the transcript passes
+  // COMPACT_TRIGGER_TURNS turns, the oldest turns are folded into a single
+  // running recap (kept as the first message) so the resent transcript — and
+  // thus the per-turn token cost — stops growing. The recap is written by a
+  // cheap model and rides in aiMessages, so it persists via autosave/cloud.
+  var SUMMARY_MARKER = 'STORY SO FAR (recap of earlier events — context only, not a new instruction):';
+  var SUMMARY_MODEL = 'claude-haiku-4-5';
+  var COMPACT_TRIGGER_TURNS = 12;   // compact once the chat grows past this
+  var COMPACT_KEEP_TURNS = 5;       // most-recent turns kept verbatim
+  var compacting = false;
+  var SUMMARY_SYSTEM =
+    'You maintain a running recap of a Dungeons & Dragons session so the ' +
+    'Dungeon Master can remember earlier events without re-reading everything. ' +
+    'You are given a prior recap (possibly empty) and newer events; return ONE ' +
+    'updated recap that folds them together. Preserve: key events and decisions, ' +
+    'locations, NPCs met and their disposition, the party’s goals, notable ' +
+    'loot, injuries, deaths and lasting conditions, and unresolved threads or ' +
+    'promises. Be concise and factual — short bullet points or brief ' +
+    'paragraphs, not prose. Do not invent anything. Return only the recap.';
+
   function aiStatus(text) { if (el.aiStatus) el.aiStatus.textContent = text || ''; }
 
   function appendChatBubble(role, text, opts) {
@@ -1158,6 +1179,7 @@
     setAiBusy(false);
     scheduleSave();
     maybeRunAiTurn();   // the DM may have advanced onto an AI teammate's turn
+    maybeCompact();     // fold old turns into the recap when the chat is long
   }
 
   // Remove the state block from all earlier turns before a new one is added.
@@ -1198,6 +1220,112 @@
     if (Array.isArray(last.content) && last.content.length) {
       last.content[last.content.length - 1].cache_control = { type: 'ephemeral' };
     }
+  }
+
+  /* ---- Rolling summarisation (compaction) ---- */
+
+  // Is `m` the leading recap message?
+  function isSummaryMsg(m) {
+    return !!(m && m.role === 'user' && Array.isArray(m.content) &&
+      m.content[0] && m.content[0].type === 'text' &&
+      typeof m.content[0].text === 'string' &&
+      m.content[0].text.lastIndexOf(SUMMARY_MARKER, 0) === 0);
+  }
+  // Does `m` begin a player/DM turn? Robust to stripStaleState() having removed
+  // the state block: a turn-start user message carries at least one text block
+  // that isn't the state JSON, whereas tool_result messages carry none.
+  function isTurnStart(m) {
+    if (!m || m.role !== 'user' || !Array.isArray(m.content)) return false;
+    if (isSummaryMsg(m)) return false;
+    return m.content.some(function (b) {
+      return b && b.type === 'text' && typeof b.text === 'string' &&
+        b.text.lastIndexOf(window.AIDM.STATE_MARKER, 0) !== 0;
+    });
+  }
+  // Flatten the messages being compacted into a readable transcript for the
+  // summariser — DM narration + player lines, plus any prior recap. The state
+  // JSON and raw tool plumbing are skipped; the narration already reports the
+  // outcomes, and this keeps the summariser call cheap.
+  function buildRecapText(messages) {
+    var lines = [];
+    messages.forEach(function (m) {
+      if (isSummaryMsg(m)) {
+        var prev = m.content[0].text.slice(SUMMARY_MARKER.length).trim();
+        if (prev) lines.push('Earlier recap:\n' + prev);
+        return;
+      }
+      var blocks = Array.isArray(m.content) ? m.content : [{ type: 'text', text: m.content }];
+      blocks.forEach(function (b) {
+        if (!b || b.type !== 'text' || typeof b.text !== 'string') return;
+        if (b.text.lastIndexOf(window.AIDM.STATE_MARKER, 0) === 0) return; // drop state JSON
+        var t = b.text.trim();
+        if (t) lines.push((m.role === 'assistant' ? 'DM: ' : 'Player: ') + t);
+      });
+    });
+    return lines.join('\n\n');
+  }
+
+  // Fold the oldest turns into the recap when the chat has grown too long.
+  // Best-effort and idle-only: runs after a turn finishes, never blocks input,
+  // and silently retries next turn if the transcript changed mid-summary.
+  function maybeCompact() {
+    if (compacting || aiBusy || viewerMode) return;
+    if (!window.AIClient || !window.AIClient.hasKey() || !window.AIDM) return;
+
+    var starts = [];
+    for (var i = 0; i < aiMessages.length; i++) if (isTurnStart(aiMessages[i])) starts.push(i);
+    if (starts.length <= COMPACT_TRIGGER_TURNS) return;
+
+    var cut = starts[starts.length - COMPACT_KEEP_TURNS]; // keep this turn onward verbatim
+    if (cut <= 0) return;
+    var base = aiMessages;                 // reference guard for the async apply
+    var baseLen = base.length;
+    var older = base.slice(0, cut);
+    var kept = base.slice(cut);            // captured before we mutate in place
+    var recapInput = buildRecapText(older);
+    if (!recapInput) return;
+
+    compacting = true;
+    aiStatus('Summarising earlier turns…');
+    window.AIClient.complete({
+      model: SUMMARY_MODEL,
+      max_tokens: 700,
+      system: [{ type: 'text', text: SUMMARY_SYSTEM }],
+      messages: [{ role: 'user', content: [{ type: 'text',
+        text: 'Prior recap and newer events follow; produce a single updated recap.\n\n' + recapInput }] }]
+    }).then(function (res) {
+      var summary = window.AIClient.textOf(res);
+      // Abort if the transcript was replaced or changed length while we waited
+      // (user sent a message, chat reset, new session) — retry next turn.
+      if (!summary || aiMessages !== base || aiMessages.length !== baseLen) return;
+      aiMessages.length = 0;
+      aiMessages.push({ role: 'user', content: [{ type: 'text', text: SUMMARY_MARKER + '\n' + summary }] });
+      for (var k = 0; k < kept.length; k++) aiMessages.push(kept[k]);
+      scheduleSave();
+      renderRecapPanel();
+      aiStatus('Earlier turns summarised.');
+      setTimeout(function () { aiStatus(''); }, 1600);
+    }).catch(function (e) {
+      try { console.warn('[compaction] failed:', (e && e.message) || e); } catch (x) { /* no console */ }
+    }).then(function () { compacting = false; });
+  }
+
+  // The current running recap text (empty until the first compaction), for the
+  // human-readable "Story so far" panel.
+  function currentRecap() {
+    for (var i = 0; i < aiMessages.length; i++) {
+      if (isSummaryMsg(aiMessages[i])) {
+        return aiMessages[i].content[0].text.slice(SUMMARY_MARKER.length).trim();
+      }
+    }
+    return '';
+  }
+  function renderRecapPanel() {
+    if (!el.aiRecapText) return;
+    var r = currentRecap();
+    el.aiRecapText.hidden = !r;
+    el.aiRecapText.textContent = r || '';
+    if (el.aiRecapEmpty) el.aiRecapEmpty.hidden = !!r;
   }
 
   // Agent-agnostic tool loop. Drives either the AI DM or a specific AI player
@@ -1384,6 +1512,7 @@
     if (window.Voice) Voice.stop();
     chatRenderStart = 0;
     if (el.aiOutput) el.aiOutput.innerHTML = '';
+    renderRecapPanel();
     scheduleSave();
     aiStatus('Chat reset.');
     setTimeout(function () { aiStatus(''); }, 1400);
@@ -1498,6 +1627,8 @@
   function initAi() {
     el.aiSettings    = document.querySelector('#ai-settings');
     el.aiKeyState    = document.querySelector('#ai-key-state');
+    el.aiRecapText   = document.querySelector('#ai-recap-text');
+    el.aiRecapEmpty  = document.querySelector('#ai-recap-empty');
     el.aiKey         = document.querySelector('#ai-key');
     el.aiModel       = document.querySelector('#ai-model');
     el.aiModelCustom = document.querySelector('#ai-model-custom');
@@ -1524,6 +1655,7 @@
     el.aiKey.value = window.AIClient.getKey();
     syncModelSelect();
     updateKeyState();
+    renderRecapPanel();
     el.aiModel.addEventListener('change', function () {
       var custom = el.aiModel.value === '__custom__';
       if (el.aiModelCustomField) el.aiModelCustomField.hidden = !custom;
