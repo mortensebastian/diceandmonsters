@@ -127,7 +127,7 @@
     // Rebuild the AI chat + scene field.
     if (el.aiOutput) {
       el.aiOutput.innerHTML = '';
-      state.chatLog.forEach(function (m) { appendChatBubble(m.role, m.text); });
+      state.chatLog.forEach(function (m) { appendChatBubble(m.role, m.text, m.who); });
     }
     if (el.aiScene) el.aiScene.value = (state.scene && state.scene.text) || '';
   }
@@ -320,13 +320,22 @@
     '</div>' + effectsHtml;
   }
   function playerControlsHtml(c) {
+    var ai = !!c.aiControlled;
+    var aiRow = '<div class="ai-ctrl">' +
+      '<button class="btn-ai-toggle ' + (ai ? 'is-on' : '') + '" data-action="toggle-ai" title="' +
+        (ai ? 'The AI is playing this character — click to hand it back to a human' :
+              'Let the AI play this character on its own turns') + '">' +
+        (ai ? '🤖 AI plays this' : '🤖 Let AI play') + '</button>' +
+      (ai ? '<input class="ai-ctrl__persona" data-role="persona" placeholder="persona (optional)" value="' +
+        esc(c.persona || '') + '">' : '') +
+    '</div>';
     return '<div class="manual">' +
       '<label class="ac-edit">AC <input type="number" min="0" ' +
         'class="manual__input manual__input--ac" data-role="ac" ' +
         'value="' + (c.ac != null ? c.ac : '') + '" placeholder="–"></label>' +
       '<button class="btn-set-ac" data-action="set-ac">Set AC</button>' +
       '<button class="btn-remove" data-action="remove">Remove</button>' +
-    '</div>';
+    '</div>' + aiRow;
   }
   // Per-creature visibility toggle. Players never receive a hidden
   // creature (it's stripped in visibility.js before the projection is
@@ -529,6 +538,43 @@
     renderTurnOrder();
   }
 
+  // "Next turn" from the UI: advance, then let an AI teammate take over if the
+  // new active combatant is AI-controlled and auto-run is on.
+  function nextTurnUi() {
+    nextTurn();
+    maybeRunAiTurn();
+  }
+
+  /* ---- Auto-run driver: chain AI teammates through their turns ---- */
+  var autoRunAi = false;
+  var autoTurnGuard = 0;   // stops a runaway loop (e.g. an all-AI table with no end)
+
+  // If auto-run is on and it's an AI teammate's turn, run it, then advance and
+  // repeat. Stops on a human PC or a monster/NPC (the DM runs those). Never
+  // fires while another AI call is in flight (aiBusy) or for viewers.
+  function maybeRunAiTurn() {
+    if (viewerMode || aiBusy || !autoRunAi) return;
+    if (state.activeId == null) return;
+    var c = findCombatant(state.activeId);
+    if (!c || c.dead) return;
+    if (!(c.kind === 'player' && c.aiControlled)) return;
+    if (autoTurnGuard++ > 60) { setAutoRunAi(false); aiStatus('Auto AI turns stopped (turn cap reached).'); return; }
+    runAiPlayerTurn(c, function () {
+      nextTurn();
+      maybeRunAiTurn();
+    });
+  }
+
+  function setAutoRunAi(on) {
+    autoRunAi = !!on;
+    autoTurnGuard = 0;
+    if (el.aiAutoBtn) {
+      el.aiAutoBtn.setAttribute('aria-pressed', autoRunAi ? 'true' : 'false');
+      el.aiAutoBtn.textContent = autoRunAi ? '🤖 Auto AI turns: on' : '🤖 Auto AI turns: off';
+    }
+    if (autoRunAi) maybeRunAiTurn();
+  }
+
   function removeCombatant(id) {
     var c = findCombatant(id);
     state.combatants = state.combatants.filter(function (x) { return x.id !== id; });
@@ -616,9 +662,32 @@
       logLine(label(c) + (c.hidden ? ' is now hidden from players.' : ' is revealed to players.'), 'spawn');
       rerenderCard(c);
       persistState();   // republish the player projection immediately
+    } else if (action === 'toggle-ai') {
+      var on = !c.aiControlled;
+      DM.setAiControlled(c, on);
+      logLine(label(c) + (on ? ' is now played by the AI' +
+        (c.maxHp != null ? ' (' + c.hp + '/' + c.maxHp + ' HP).' : '.') :
+        ' is back under human control.'), 'spawn');
+      renderAll();
+      renderTurnOrder();
+      scheduleSave();
+      maybeRunAiTurn();
     } else if (action === 'remove') {
       removeCombatant(id);
     }
+  }
+
+  // Live-edit an AI teammate's persona from its card (no re-render, so the
+  // field keeps focus while typing).
+  function onListInput(ev) {
+    if (viewerMode) return;
+    var inp = ev.target;
+    if (!inp.matches || !inp.matches('input[data-role="persona"]')) return;
+    var cardNode = inp.closest('.item');
+    var c = cardNode && findCombatant(parseInt(cardNode.getAttribute('data-id'), 10));
+    if (!c) return;
+    c.persona = inp.value;
+    scheduleSave();
   }
 
   function commitTrackInit(c) {
@@ -867,10 +936,21 @@
 
   function aiStatus(text) { if (el.aiStatus) el.aiStatus.textContent = text || ''; }
 
-  function appendChatBubble(role, text) {
+  function appendChatBubble(role, text, who) {
     if (!text) return;
     var block = document.createElement('div');
     block.className = 'ai__msg ai__msg--' + role;
+    // An AI teammate's line is tagged with the character's name.
+    if (role === 'player' && who) {
+      var ws = document.createElement('span');
+      ws.className = 'ai__msg-who';
+      ws.textContent = who + ':';
+      block.appendChild(ws);
+      block.appendChild(document.createTextNode(text));
+      el.aiOutput.appendChild(block);
+      el.aiOutput.scrollTop = el.aiOutput.scrollHeight;
+      return;
+    }
     // DM lines get a ▶ replay button so ElevenLabs can read them aloud again.
     if (role === 'dm' && window.Voice && Voice.hasKey()) {
       var span = document.createElement('span');
@@ -895,10 +975,10 @@
     el.aiOutput.appendChild(block);
     el.aiOutput.scrollTop = el.aiOutput.scrollHeight;
   }
-  function renderChat(role, text) {
+  function renderChat(role, text, who) {
     if (!text) return;
-    appendChatBubble(role, text);
-    state.chatLog.push({ role: role, text: text });
+    appendChatBubble(role, text, who);
+    state.chatLog.push({ role: role, text: text, who: who || undefined });
     // Read new DM narration aloud when voice is on (never the player's own lines).
     if (role === 'dm' && window.Voice && Voice.isAuto() && Voice.hasKey() && !viewerMode) {
       Voice.enqueue(text).catch(function (e) { aiStatus((e && e.message) || 'Voice error.'); });
@@ -1044,6 +1124,7 @@
     aiStatus('');
     setAiBusy(false);
     scheduleSave();
+    maybeRunAiTurn();   // the DM may have advanced onto an AI teammate's turn
   }
 
   // Remove the state block from all earlier turns before a new one is added.
@@ -1068,15 +1149,15 @@
   // very last content block. Within a turn's tool loop the history is
   // append-only, so each follow-up call re-reads the prior prefix from cache
   // (~0.1x) instead of paying full price for the whole transcript again.
-  function markCacheBreakpoint() {
-    for (var i = 0; i < aiMessages.length; i++) {
-      var c = aiMessages[i].content;
+  function markCacheBreakpoint(messages) {
+    for (var i = 0; i < messages.length; i++) {
+      var c = messages[i].content;
       if (!Array.isArray(c)) continue;
       for (var j = 0; j < c.length; j++) {
         if (c[j] && c[j].cache_control) delete c[j].cache_control;
       }
     }
-    var last = aiMessages[aiMessages.length - 1];
+    var last = messages[messages.length - 1];
     if (!last) return;
     if (typeof last.content === 'string') {
       last.content = [{ type: 'text', text: last.content }];
@@ -1086,34 +1167,155 @@
     }
   }
 
-  function runLoop(iter) {
+  // Agent-agnostic tool loop. Drives either the AI DM or a specific AI player
+  // over cfg.messages, with cfg.system / cfg.tools / cfg.executor. Each AI
+  // player's turn uses its OWN short-lived cfg.messages (not the DM transcript)
+  // so it never sees the DM's hidden reasoning — the visibility rule holds even
+  // inside the model's context. cfg: { system, tools, messages, executor,
+  // speaker, speakerName, onDone }.
+  function runAgentLoop(cfg, iter) {
+    iter = iter || 0;
     var noTools = iter > MAX_TOOL_ITERS;   // hard stop: last call is text-only
-    markCacheBreakpoint();
-    // System + tools are static across the whole session; cache them so only
-    // the first call pays full price for that fixed prefix.
+    markCacheBreakpoint(cfg.messages);
+    // System + tools are static; cache them so only the first call pays full
+    // price for that fixed prefix.
     var req = {
-      system: [{ type: 'text', text: window.AIDM.CHAT_SYSTEM, cache_control: { type: 'ephemeral' } }],
-      messages: aiMessages,
+      system: [{ type: 'text', text: cfg.system, cache_control: { type: 'ephemeral' } }],
+      messages: cfg.messages,
       max_tokens: 1024
     };
-    if (!noTools) req.tools = window.AIDM.TOOLS;
+    if (!noTools) req.tools = cfg.tools;
 
     window.AIClient.complete(req).then(function (res) {
-      aiMessages.push({ role: 'assistant', content: res.content });
-      renderChat('dm', window.AIClient.textOf(res));
+      cfg.messages.push({ role: 'assistant', content: res.content });
+      renderChat(cfg.speaker || 'dm', window.AIClient.textOf(res), cfg.speakerName);
 
       var toolCalls = window.AIClient.toolCallsOf(res);
       if (!noTools && res.stop_reason === 'tool_use' && toolCalls.length) {
-        var results = toolCalls.map(executeToolCall);
-        aiMessages.push({ role: 'user', content: results });
-        runLoop(iter + 1);
+        var results = toolCalls.map(cfg.executor);
+        cfg.messages.push({ role: 'user', content: results });
+        // A tool may end the turn (an AI player's end_turn) — stop the loop
+        // instead of prompting the model for yet another action.
+        if (cfg.stopAfter && cfg.stopAfter(toolCalls)) cfg.onDone();
+        else runAgentLoop(cfg, iter + 1);
       } else {
-        finishChat();
+        cfg.onDone();
       }
     }).catch(function (err) {
       aiStatus((err && err.message) || 'Something went wrong.');
       setAiBusy(false);
+      if (cfg.onError) cfg.onError(err);
     });
+  }
+
+  // The AI DM shares one persistent transcript across the whole session.
+  function runLoop(iter) {
+    runAgentLoop({
+      system: window.AIDM.CHAT_SYSTEM,
+      tools: window.AIDM.TOOLS,
+      messages: aiMessages,
+      executor: executeToolCall,
+      speaker: 'dm',
+      onDone: finishChat
+    }, iter);
+  }
+
+  /* ---- AI player: an AI teammate takes its own turn ---- */
+
+  // Tool executor bound to one AI-controlled PC. The character is implicit
+  // (`self`), so these tools never take a combatantId for the actor — an AI
+  // player can only act as itself, never puppet another creature.
+  function executePlayerTool(self) {
+    return function (block) {
+      var input = block.input || {};
+      var id = block.id;
+      try {
+        if (block.name === 'end_turn') {
+          if (input.say) renderChat('player', input.say, self.name);
+          return toolResult(id, 'Turn ended.');
+        }
+        if (block.name === 'player_attack') {
+          var attack = self.attacks && self.attacks[input.attackIndex];
+          if (!attack) return toolResult(id, self.name + ' has no attack at index ' + input.attackIndex + '.', true);
+          var target = (input.targetId != null) ? findCombatant(input.targetId) : null;
+          if (input.targetId != null && !target) return toolResult(id, 'No target with id ' + input.targetId + '.', true);
+          if (input.say) renderChat('player', input.say, self.name);
+          var summary = performAttack(self, attack, target);
+          renderAll();
+          return toolResult(id, summary);
+        }
+        if (block.name === 'set_condition') {
+          if (input.mode === 'remove') {
+            DM.removeCondition(self, input.condition);
+            logLine(label(self) + ' is no longer ' + input.condition + '.', 'spawn');
+          } else {
+            DM.addCondition(self, input.condition);
+            logLine(label(self) + ' is now ' + input.condition + '.', 'spawn');
+          }
+          rerenderCard(self); renderTurnOrder();
+          return toolResult(id, label(self) + ' conditions: ' + (self.conditions.join(', ') || 'none') + '.');
+        }
+        if (block.name === 'move_token') {
+          if (!window.Battlemap) return toolResult(id, 'There is no battlemap in this session.', true);
+          var sz = window.Battlemap.size();
+          var nx = parseInt(input.x, 10), ny = parseInt(input.y, 10);
+          if (isNaN(nx) || isNaN(ny) || nx < 0 || ny < 0 || nx >= sz.cols || ny >= sz.rows) {
+            return toolResult(id, 'Cell ' + input.x + ',' + input.y + ' is off the ' + sz.cols + '×' + sz.rows + ' map.', true);
+          }
+          var from = (self.x != null && self.y != null) ? (self.x + ',' + self.y) : 'off-map';
+          self.x = nx; self.y = ny;
+          if (input.say) renderChat('player', input.say, self.name);
+          renderAll();
+          logLine(label(self) + ' moves to ' + nx + ',' + ny + '.', 'spawn');
+          scheduleSave();
+          return toolResult(id, label(self) + ' moved from ' + from + ' to ' + nx + ',' + ny + '.');
+        }
+        return toolResult(id, 'Unknown tool: ' + block.name, true);
+      } catch (e) {
+        return toolResult(id, 'Tool error: ' + ((e && e.message) || e), true);
+      }
+    };
+  }
+
+  // Run one AI-controlled PC's turn. Uses a fresh, short-lived message list
+  // (seeded with the self-scoped context) — never the DM transcript — so the
+  // teammate only ever sees what a player may see. onDone fires when the turn
+  // ends (or errors), so the auto-driver can advance to the next combatant.
+  function runAiPlayerTurn(self, onDone) {
+    onDone = onDone || function () {};
+    if (!window.AIClient || !window.AIPlayer || !window.AIContext) { aiStatus('AI scripts not loaded.'); onDone(); return; }
+    if (!window.AIClient.hasKey()) { aiStatus('Add your Anthropic API key in Settings first.'); onDone(); return; }
+
+    var ctx = window.AIContext.build(state, {
+      selfId: self.id,
+      hideEnemyHp: true,
+      scene: state.scene,
+      areas: window.Battlemap ? window.Battlemap.getAreas() : null,
+      grid: window.Battlemap ? window.Battlemap.grid() : null
+    });
+    var messages = [{ role: 'user', content: [
+      { type: 'text', text: window.AIPlayer.stateBlock(ctx) },
+      { type: 'text', text: "It's your turn, " + self.name + ". Take your action, then end your turn." }
+    ] }];
+
+    setAiBusy(true);
+    aiStatus(self.name + ' is deciding…');
+    runAgentLoop({
+      system: window.AIPlayer.systemFor(self.persona),
+      tools: window.AIPlayer.TOOLS,
+      messages: messages,
+      executor: executePlayerTool(self),
+      speaker: 'player',
+      speakerName: self.name,
+      stopAfter: function (calls) {
+        return calls.some(function (b) { return b && b.name === 'end_turn'; });
+      },
+      onDone: function () {
+        renderAll(); renderTurnOrder(); aiStatus(''); setAiBusy(false); scheduleSave();
+        onDone();
+      },
+      onError: onDone
+    }, 0);
   }
 
   function sendChat(userText, displayLabel) {
@@ -1243,6 +1445,7 @@
     el.aiScene       = document.querySelector('#ai-scene');
     el.aiSceneBtn    = document.querySelector('.btn-ai-scene');
     el.aiRoundBtn    = document.querySelector('.btn-ai-round');
+    el.aiAutoBtn     = document.querySelector('.btn-ai-auto');
     el.aiResetBtn    = document.querySelector('.btn-ai-reset');
     el.aiInput       = document.querySelector('#ai-input');
     el.aiSendBtn     = document.querySelector('.btn-ai-send');
@@ -1321,6 +1524,7 @@
     el.aiRoundBtn.addEventListener('click', function () {
       sendChat("It's the monsters' and NPCs' turn — run their actions against the party now, one creature at a time, then stop.", "▶ Run monsters’ turn");
     });
+    if (el.aiAutoBtn) el.aiAutoBtn.addEventListener('click', function () { setAutoRunAi(!autoRunAi); });
     el.aiResetBtn.addEventListener('click', resetChat);
     el.aiSendBtn.addEventListener('click', function () {
       var v = el.aiInput.value; el.aiInput.value = ''; sendChat(v);
@@ -1832,8 +2036,9 @@
     el.loadBtn.addEventListener('click', loadSelectedEncounter);
     el.clearBtn.addEventListener('click', clearTable);
     el.initBtn.addEventListener('click', rollInitiative);
-    el.nextBtn.addEventListener('click', nextTurn);
+    el.nextBtn.addEventListener('click', nextTurnUi);
     el.list.addEventListener('click', onListClick);
+    el.list.addEventListener('input', onListInput);
     el.list.addEventListener('keydown', onListKeydown);
     el.turnOrder.addEventListener('click', onTrackClick);
     el.turnOrder.addEventListener('keydown', onTrackKeydown);

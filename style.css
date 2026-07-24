@@ -1285,6 +1285,11 @@ button:disabled { opacity: .4; cursor: not-allowed; box-shadow: none; }
     background: #1f2b38; border-right: 3px solid #4aa3df; color: #e6e6e6;
     align-self: flex-end;
 }
+.ai__msg--player {
+    background: #12141a; border-left: 3px solid #27ae60; color: #d7dbe2;
+    align-self: flex-start;
+}
+.ai__msg--player .ai__msg-who { color: #27ae60; font-weight: 600; margin-right: 6px; }
 
 .ai__row--quick { gap: 8px; }
 .btn-ai-reset { background: #3b4150; color: #e6e6e6; }
@@ -1301,6 +1306,25 @@ button:disabled { opacity: .4; cursor: not-allowed; box-shadow: none; }
 }
 .btn-ai-mic:hover { background: #2c3140; }
 .btn-ai-mic[aria-pressed="true"] { background: #c0392b; color: #fff; }
+.btn-ai-auto {
+    background: #3b4150; color: #e6e6e6; border: none; border-radius: 6px;
+    padding: 8px 12px; font-family: inherit; font-size: 13px; cursor: pointer;
+}
+.btn-ai-auto:hover { background: #2c3140; }
+.btn-ai-auto[aria-pressed="true"] { background: #27ae60; color: #fff; }
+
+/* AI-teammate toggle on a player card */
+.ai-ctrl { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 8px; }
+.btn-ai-toggle {
+    background: #12141a; color: #cfd4dd; border: 1px solid #3b4150; border-radius: 6px;
+    padding: 6px 12px; font-family: inherit; font-size: 13px; cursor: pointer;
+}
+.btn-ai-toggle:hover { background: #2c3140; }
+.btn-ai-toggle.is-on { background: #27ae60; color: #fff; border-color: #27ae60; }
+.ai-ctrl__persona {
+    flex: 1; min-width: 160px; background: #12141a; color: #e6e6e6;
+    border: 1px solid #2c3140; border-radius: 6px; padding: 6px 10px; font-family: inherit; font-size: 13px;
+}
 
 .ai__composer { margin-bottom: 0; }
 .ai__input--chat { flex: 1; min-width: 200px; width: auto; }

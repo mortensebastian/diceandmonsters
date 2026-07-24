@@ -246,6 +246,7 @@
             <div class="ai__row ai__row--quick">
                 <button class="btn-ai-scene" type="button">Describe scene</button>
                 <button class="btn-ai-round" type="button">Run monsters’ turn</button>
+                <button class="btn-ai-auto" type="button" aria-pressed="false" title="When it's an AI-played character's turn, let it act on its own">🤖 Auto AI turns: off</button>
                 <button class="btn-ai-reset" type="button" title="Start a fresh conversation">Reset chat</button>
                 <button class="btn-ai-speak" type="button" hidden aria-pressed="false" title="Read the DM's narration aloud">🔊 Voice off</button>
                 <span id="ai-status" class="ai__status"></span>
@@ -292,6 +293,7 @@
         <script src="ai-context.js"></script>
         <script src="ai-client.js"></script>
         <script src="ai-dm.js"></script>
+        <script src="ai-player.js"></script>
         <script src="voice.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
         <script src="supabase-config.js"></script>

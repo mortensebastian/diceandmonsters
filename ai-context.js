@@ -45,14 +45,28 @@
     }
     if (DM.hasHp(c)) {
       var isEnemy = (c.kind === 'monster' || c.kind === 'npc');
-      if (isEnemy && opts.hideEnemyHp) {
+      if (opts.self) {
+        // The self block always shows exact HP — the AI needs to know its own.
+        v.hp = c.hp; v.maxHp = c.maxHp;
+      } else if (isEnemy && opts.hideEnemyHp) {
+        v.health = hpBand(c);
+      } else if (c.kind === 'player') {
+        // An AI-controlled PC has an engine HP counter, but its EXACT HP is only
+        // ever exposed through its own self block — in the shared context (DM and
+        // other players) a player's HP is banded, never a raw number.
         v.health = hpBand(c);
       } else {
         v.hp = c.hp; v.maxHp = c.maxHp;
       }
     } else {
-      // No HP counter (a human player in AI-DM mode): never invent one.
+      // No HP counter (a human player): never invent one.
       v.health = 'unknown (player tracks their own)';
+    }
+    if (opts.self) {
+      if (c.spells && c.spells.length) v.spells = c.spells;
+      if (c.spellcasting) v.spellcasting = c.spellcasting;
+      if (c.checks) v.checks = c.checks;
+      if (c.persona) v.persona = c.persona;
     }
     // Battlemap cell, so the DM can reason about position and range.
     if (c.x != null && c.y != null) v.pos = { x: c.x, y: c.y };
@@ -113,7 +127,7 @@
     if (opts.grid) ctx.mapGrid = opts.grid;
     if (opts.selfId != null) {
       var self = DM.findCombatant(state.combatants, opts.selfId);
-      if (self) ctx.self = combatantView(self, { hideEnemyHp: false });
+      if (self) ctx.self = combatantView(self, { self: true });
     }
     return ctx;
   }
