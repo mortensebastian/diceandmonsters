@@ -1229,16 +1229,22 @@ button:disabled { opacity: .4; cursor: not-allowed; box-shadow: none; }
     font-size: 12px; color: #27ae60; background: rgba(39,174,96,.12);
     border: 1px solid rgba(39,174,96,.35); border-radius: 999px; padding: 2px 9px; white-space: nowrap;
 }
-.btn-ai-settings {
-    background: #3b4150; color: #e6e6e6; border: none; border-radius: 6px;
-    padding: 6px 12px; font-family: inherit; font-size: 13px; cursor: pointer;
-}
-.btn-ai-settings:hover { background: #2c3140; }
-
+/* Settings is a native <details> so the toggle can't silently break */
 .ai__settings {
-    background: #12141a; border: 1px solid #2c3140; border-radius: 8px;
-    padding: 14px; margin-bottom: 12px;
+    background: #12141a; border: 1px solid #2c3140; border-radius: 8px; margin-bottom: 12px;
+}
+.ai__settings-summary {
+    cursor: pointer; list-style: none; user-select: none;
+    padding: 10px 14px; font-size: 13px; color: #e6e6e6;
+    display: flex; align-items: center; gap: 8px;
+}
+.ai__settings-summary::-webkit-details-marker { display: none; }
+.ai__settings-summary::before { content: '▸'; color: #6b7280; font-size: 11px; transition: transform .15s; }
+.ai__settings[open] > .ai__settings-summary::before { transform: rotate(90deg); }
+.ai__settings-summary:hover { background: #1d2029; border-radius: 8px 8px 0 0; }
+.ai__settings-body {
     display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end;
+    padding: 0 14px 14px;
 }
 .ai__field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #9aa3b2; flex: 1; min-width: 180px; }
 .ai__field--wide { width: 100%; flex-basis: 100%; margin-bottom: 12px; }

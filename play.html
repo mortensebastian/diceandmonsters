@@ -211,41 +211,50 @@
                     <h2 class="ai__title">AI Dungeon Master</h2>
                     <span id="ai-key-state" class="ai__keystate" hidden>✓ key saved</span>
                 </div>
-                <button class="btn-ai-settings" type="button" aria-expanded="false">Settings ⚙</button>
             </div>
 
-            <div class="ai__settings" id="ai-settings" hidden>
-                <label class="ai__field">Anthropic API key
-                    <input type="password" id="ai-key" class="ai__input" placeholder="sk-ant-…" autocomplete="off">
-                </label>
-                <label class="ai__field">Model
-                    <input type="text" id="ai-model" class="ai__input" placeholder="claude-opus-4-8">
-                </label>
+            <details class="ai__settings" id="ai-settings">
+                <summary class="ai__settings-summary">Settings ⚙</summary>
+                <div class="ai__settings-body">
+                    <label class="ai__field">Anthropic API key
+                        <input type="password" id="ai-key" class="ai__input" placeholder="sk-ant-…" autocomplete="off">
+                    </label>
+                    <label class="ai__field">Model
+                        <select id="ai-model" class="ai__input">
+                            <option value="claude-opus-4-8">Opus 4.8 — smartest DM</option>
+                            <option value="claude-sonnet-5">Sonnet 5 — faster &amp; cheaper</option>
+                            <option value="__custom__">Custom…</option>
+                        </select>
+                    </label>
+                    <label class="ai__field" id="ai-model-custom-field" hidden>Custom model id
+                        <input type="text" id="ai-model-custom" class="ai__input" placeholder="claude-…">
+                    </label>
 
-                <details class="ai__voice" id="ai-voice">
-                    <summary class="ai__voice-summary">🔊 Voice (optional — read narration aloud &amp; mic input)</summary>
-                    <div class="ai__voice-body">
-                        <label class="ai__field">ElevenLabs API key
-                            <input type="password" id="voice-key" class="ai__input" placeholder="ElevenLabs key" autocomplete="off">
-                        </label>
-                        <label class="ai__field">Voice preset
-                            <select id="voice-preset" class="ai__input"></select>
-                        </label>
-                        <label class="ai__field">Voice ID
-                            <input type="text" id="voice-id" class="ai__input" placeholder="JBFqnCBsd6RMkjVDRZzb">
-                        </label>
-                        <label class="ai__field">Voice model
-                            <select id="voice-model-preset" class="ai__input"></select>
-                        </label>
-                        <label class="ai__field">Voice model ID
-                            <input type="text" id="voice-model" class="ai__input" placeholder="eleven_flash_v2_5">
-                        </label>
-                    </div>
-                </details>
+                    <details class="ai__voice" id="ai-voice">
+                        <summary class="ai__voice-summary">🔊 Voice (optional — read narration aloud &amp; mic input)</summary>
+                        <div class="ai__voice-body">
+                            <label class="ai__field">ElevenLabs API key
+                                <input type="password" id="voice-key" class="ai__input" placeholder="ElevenLabs key" autocomplete="off">
+                            </label>
+                            <label class="ai__field">Voice preset
+                                <select id="voice-preset" class="ai__input"></select>
+                            </label>
+                            <label class="ai__field">Voice ID
+                                <input type="text" id="voice-id" class="ai__input" placeholder="JBFqnCBsd6RMkjVDRZzb">
+                            </label>
+                            <label class="ai__field">Voice model
+                                <select id="voice-model-preset" class="ai__input"></select>
+                            </label>
+                            <label class="ai__field">Voice model ID
+                                <input type="text" id="voice-model" class="ai__input" placeholder="eleven_flash_v2_5">
+                            </label>
+                        </div>
+                    </details>
 
-                <button class="btn-ai-save" type="button">Save</button>
-                <p class="ai__hint">Your keys are stored only in this browser (localStorage). The Anthropic key goes straight to Anthropic; the ElevenLabs key (for reading narration aloud and mic input) goes straight to ElevenLabs. Get them at console.anthropic.com and elevenlabs.io.</p>
-            </div>
+                    <button class="btn-ai-save" type="button">Save</button>
+                    <p class="ai__hint">Your keys are stored only in this browser (localStorage). The Anthropic key goes straight to Anthropic; the ElevenLabs key (for reading narration aloud and mic input) goes straight to ElevenLabs. Get them at console.anthropic.com and elevenlabs.io.</p>
+                </div>
+            </details>
 
             <label class="ai__field ai__field--wide">Scene (optional — grounds the DM; “DM notes:” stays private)
                 <textarea id="ai-scene" class="ai__textarea" rows="3" placeholder="Paste or write the current scene's read-aloud text (and DM notes: …)"></textarea>
