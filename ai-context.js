@@ -25,6 +25,20 @@
     return 'healthy';
   }
 
+  // Whether this combatant's full attack list is worth sending in the shared
+  // combatants array. Attack stat blocks are the single biggest slice of the
+  // per-turn state, so only include them where the recipient actually rolls
+  // with that creature:
+  //   - the self block always carries its own attacks (opts.self);
+  //   - the AI DM (no selfId) rolls for monsters/NPCs, never for players;
+  //   - an AI player (opts.selfId set) gets its own attacks via the self block
+  //     and needs nobody else's, so the shared list carries none.
+  function needsAttacks(c, opts) {
+    if (opts.self) return true;
+    if (opts.selfId != null) return false;
+    return c.kind === 'monster' || c.kind === 'npc';
+  }
+
   // A combatant is an "enemy" from the AI's seat if it's a monster/npc
   // (AI DM) — for AI-player mode the caller marks its own side.
   function combatantView(c, opts) {
@@ -33,7 +47,7 @@
       dead: !!c.dead, conditions: c.conditions.slice(),
       initiative: c.initiative
     };
-    if (c.attacks && c.attacks.length) {
+    if (c.attacks && c.attacks.length && needsAttacks(c, opts)) {
       v.attacks = c.attacks.map(function (a, i) {
         return {
           index: i, name: a.name, toHit: a.toHit,
@@ -99,10 +113,13 @@
     return out;
   }
 
-  // recentLog: array of {text} (newest last), from state.log.
+  // recentLog: array of {text} (newest last), from state.log. Kept short — the
+  // current facts (HP/conditions/position) all live in the snapshot above, and
+  // the DM's own narration in the transcript re-states recent events, so only a
+  // handful of the latest log lines are needed for cause-and-effect continuity.
   function recentLog(state, n) {
     var log = state.log || [];
-    return log.slice(-(n || 15)).map(function (e) { return e.text; });
+    return log.slice(-(n || 8)).map(function (e) { return e.text; });
   }
 
   function build(state, opts) {
