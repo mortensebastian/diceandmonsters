@@ -1246,6 +1246,33 @@
     }
   }
 
+  // Companion to stripStaleState: once a turn is complete, its tool-call
+  // plumbing has already been narrated and its outcomes captured in the log +
+  // the DM's prose, so the verbose flavour is dead weight in the resent history.
+  // Shrink it — drop the flavour `say`/`note` fields from tool_use inputs and
+  // clip long tool_result text — while keeping every block and its id intact
+  // (the API requires each tool_use and tool_result to stay paired). Called at
+  // each turn boundary, so it only ever touches completed turns, never the
+  // in-flight tool loop.
+  var TOOL_RESULT_CLIP = 90;
+  function trimStaleToolPlumbing() {
+    for (var i = 0; i < aiMessages.length; i++) {
+      var m = aiMessages[i];
+      if (!m || !Array.isArray(m.content)) continue;
+      for (var j = 0; j < m.content.length; j++) {
+        var b = m.content[j];
+        if (!b) continue;
+        if (b.type === 'tool_use' && b.input && typeof b.input === 'object') {
+          delete b.input.say;
+          delete b.input.note;
+        } else if (b.type === 'tool_result' && typeof b.content === 'string' &&
+                   b.content.length > TOOL_RESULT_CLIP) {
+          b.content = b.content.slice(0, TOOL_RESULT_CLIP - 1) + '…';
+        }
+      }
+    }
+  }
+
   // Keep exactly one ephemeral cache breakpoint in the message history, on the
   // very last content block. Within a turn's tool loop the history is
   // append-only, so each follow-up call re-reads the prior prefix from cache
@@ -1542,6 +1569,7 @@
 
     renderChat('user', displayLabel || userText);
     stripStaleState();
+    trimStaleToolPlumbing();
     aiMessages.push({ role: 'user', content: [
       { type: 'text', text: window.AIDM.stateBlock(ctx) },
       { type: 'text', text: userText }
