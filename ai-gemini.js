@@ -46,6 +46,33 @@
   function getModel() { try { return window.localStorage.getItem(MODEL_LS) || DEFAULT_MODEL; } catch (e) { return DEFAULT_MODEL; } }
   function setModel(m){ try { window.localStorage.setItem(MODEL_LS, m || DEFAULT_MODEL); } catch (e) { /* ignore */ } }
 
+  // Relay URL (Supabase edge function). When set, the key stays server-side and
+  // the browser never holds it — this is the mode for a shared free tier.
+  var RELAY_LS = 'diceAndMonsters.geminiRelay';
+  function getRelay() { try { return window.localStorage.getItem(RELAY_LS) || ''; } catch (e) { return ''; } }
+  function setRelay(u) { try { window.localStorage.setItem(RELAY_LS, u || ''); } catch (e) { /* ignore */ } }
+
+  // The Supabase publishable/anon key (public) — the `apikey` header the
+  // functions gateway expects.
+  function anonKey() {
+    try { return (window.SUPABASE_CONFIG && window.SUPABASE_CONFIG.anonKey) || ''; } catch (e) { return ''; }
+  }
+
+  // The signed-in user's Supabase access token, so the relay can gate on a real
+  // account (falls back to the anon key, which the relay rejects → "sign in").
+  function authToken() {
+    try {
+      var c = window.Cloud && window.Cloud.raw && window.Cloud.raw();
+      if (c && c.auth && c.auth.getSession) {
+        return c.auth.getSession().then(function (r) {
+          var s = r && r.data && r.data.session;
+          return (s && s.access_token) || anonKey();
+        }).catch(function () { return anonKey(); });
+      }
+    } catch (e) { /* ignore */ }
+    return Promise.resolve(anonKey());
+  }
+
   // ---- helpers -------------------------------------------------------------
 
   function asText(x) {
@@ -148,14 +175,8 @@
     };
   }
 
-  // ---- the provider entry point (matches registerProvider's contract) ------
-  // req: canonical { system, messages, tools?, model?, max_tokens? }
-  function complete(req, passedModel) {
-    // Prefer an explicitly-passed gemini model; otherwise our stored default.
-    var model = (passedModel && /gemini/i.test(passedModel)) ? passedModel : getModel();
-    var key = getKey();
-    if (!key) return Promise.reject(new Error('No Gemini API key set. Add it in localStorage (diceAndMonsters.geminiKey).'));
-
+  // Build the Gemini generateContent request body from a canonical request.
+  function buildBody(req) {
     var body = {
       contents: toGeminiContents(req.messages),
       generationConfig: { maxOutputTokens: req.max_tokens || 1024 }
@@ -165,23 +186,56 @@
     if (req.tools && req.tools.length) {
       body.tools = [{ function_declarations: req.tools.map(toGeminiTool) }];
     }
+    return body;
+  }
 
-    return fetch(cfg.endpoint(model, key), {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(body)
-    }).then(function (res) {
-      return res.text().then(function (txt) {
-        var parsed;
-        try { parsed = JSON.parse(txt); } catch (e) { parsed = null; }
-        if (!res.ok) {
-          var msg = txt;
-          if (parsed && parsed.error && parsed.error.message) msg = parsed.error.message;
-          throw new Error('Gemini API ' + res.status + ': ' + msg);
-        }
-        return fromGemini(parsed, model);
-      });
+  // Normalize a fetch Response (from Google directly OR from the relay, which
+  // returns Google's JSON verbatim) into the canonical Anthropic-shaped result.
+  function parseResponse(res, model) {
+    return res.text().then(function (txt) {
+      var parsed;
+      try { parsed = JSON.parse(txt); } catch (e) { parsed = null; }
+      if (!res.ok) {
+        var msg = txt;
+        if (parsed && parsed.error && parsed.error.message) msg = parsed.error.message;
+        throw new Error('Gemini API ' + res.status + ': ' + msg);
+      }
+      return fromGemini(parsed, model);
     });
+  }
+
+  // ---- the provider entry point (matches registerProvider's contract) ------
+  // req: canonical { system, messages, tools?, model?, max_tokens? }
+  //
+  // Two transports:
+  //  • RELAY (free tier): a relay URL is set → POST { model, request } to it
+  //    with the user's Supabase session token. The key lives ONLY server-side.
+  //  • DIRECT (BYOK/dev): no relay → call Google directly with the localStorage
+  //    key. Never ship a shared key this way.
+  function complete(req, passedModel) {
+    var model = (passedModel && /gemini/i.test(passedModel)) ? passedModel : getModel();
+    var body = buildBody(req);
+    var relay = getRelay();
+
+    if (relay) {
+      return authToken().then(function (token) {
+        var headers = { 'content-type': 'application/json' };
+        var ak = anonKey();
+        if (ak) headers['apikey'] = ak;
+        if (token) headers['authorization'] = 'Bearer ' + token;
+        return fetch(relay, {
+          method: 'POST', headers: headers,
+          body: JSON.stringify({ model: model, request: body })
+        }).then(function (res) { return parseResponse(res, model); });
+      });
+    }
+
+    var key = getKey();
+    if (!key) return Promise.reject(new Error('No Gemini API key set (and no relay configured). Set diceAndMonsters.geminiKey for direct use, or diceAndMonsters.geminiRelay for the server-side relay.'));
+    return fetch(cfg.endpoint(model, key), {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body)
+    }).then(function (res) { return parseResponse(res, model); });
   }
 
   // Register with AIClient if present (this file loads AFTER ai-client.js).
@@ -193,6 +247,7 @@
   window.GeminiProvider = {
     complete: complete,
     getKey: getKey, setKey: setKey, hasKey: hasKey,
-    getModel: getModel, setModel: setModel, DEFAULT_MODEL: DEFAULT_MODEL
+    getModel: getModel, setModel: setModel, DEFAULT_MODEL: DEFAULT_MODEL,
+    getRelay: getRelay, setRelay: setRelay
   };
 })();
