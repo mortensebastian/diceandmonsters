@@ -218,20 +218,29 @@
             <details class="ai__settings" id="ai-settings">
                 <summary class="ai__settings-summary">Settings ⚙</summary>
                 <div class="ai__settings-body">
-                    <label class="ai__field">Anthropic API key
-                        <input type="password" id="ai-key" class="ai__input" placeholder="sk-ant-…" autocomplete="off">
-                    </label>
-                    <label class="ai__field">Model
-                        <select id="ai-model" class="ai__input">
-                            <option value="claude-opus-4-8">Opus 4.8 — smartest DM</option>
-                            <option value="claude-sonnet-5">Sonnet 5 — faster &amp; cheaper</option>
-                            <option value="claude-haiku-4-5">Haiku 4.5 — cheapest, good enough</option>
-                            <option value="__custom__">Custom…</option>
+                    <label class="ai__field">Dungeon Master engine
+                        <select id="ai-provider" class="ai__input">
+                            <option value="gemini">Gemini Flash — free</option>
+                            <option value="anthropic">Claude — use your own key</option>
                         </select>
                     </label>
-                    <label class="ai__field" id="ai-model-custom-field" hidden>Custom model id
-                        <input type="text" id="ai-model-custom" class="ai__input" placeholder="claude-…">
-                    </label>
+                    <p class="ai__hint" id="ai-gemini-note" hidden>Free — the DM runs on Google Gemini. No key needed; just play.</p>
+                    <div id="ai-claude-fields" hidden>
+                        <label class="ai__field">Anthropic API key
+                            <input type="password" id="ai-key" class="ai__input" placeholder="sk-ant-…" autocomplete="off">
+                        </label>
+                        <label class="ai__field">Model
+                            <select id="ai-model" class="ai__input">
+                                <option value="claude-opus-4-8">Opus 4.8 — smartest DM</option>
+                                <option value="claude-sonnet-5">Sonnet 5 — faster &amp; cheaper</option>
+                                <option value="claude-haiku-4-5">Haiku 4.5 — cheapest, good enough</option>
+                                <option value="__custom__">Custom…</option>
+                            </select>
+                        </label>
+                        <label class="ai__field" id="ai-model-custom-field" hidden>Custom model id
+                            <input type="text" id="ai-model-custom" class="ai__input" placeholder="claude-…">
+                        </label>
+                    </div>
 
                     <details class="ai__voice" id="ai-voice">
                         <summary class="ai__voice-summary">🔊 Voice (optional — read narration aloud &amp; mic input)</summary>

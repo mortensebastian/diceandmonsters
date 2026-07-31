@@ -49,7 +49,20 @@
   // Relay URL (Supabase edge function). When set, the key stays server-side and
   // the browser never holds it — this is the mode for a shared free tier.
   var RELAY_LS = 'diceAndMonsters.geminiRelay';
-  function getRelay() { try { return window.localStorage.getItem(RELAY_LS) || ''; } catch (e) { return ''; } }
+  // The relay URL is derived from the Supabase project by default (the URL is
+  // public — only the key behind it is secret), so the free tier works with no
+  // per-user setup. A localStorage value overrides it; set it to '' to force
+  // direct BYOK for local dev.
+  function defaultRelay() {
+    try {
+      var u = window.SUPABASE_CONFIG && window.SUPABASE_CONFIG.url;
+      return u ? (u.replace(/\/+$/, '') + '/functions/v1/gemini') : '';
+    } catch (e) { return ''; }
+  }
+  function getRelay() {
+    try { var v = window.localStorage.getItem(RELAY_LS); if (v != null) return v; } catch (e) { /* ignore */ }
+    return defaultRelay();
+  }
   function setRelay(u) { try { window.localStorage.setItem(RELAY_LS, u || ''); } catch (e) { /* ignore */ } }
 
   // The Supabase publishable/anon key (public) — the `apikey` header the
@@ -58,19 +71,25 @@
     try { return (window.SUPABASE_CONFIG && window.SUPABASE_CONFIG.anonKey) || ''; } catch (e) { return ''; }
   }
 
-  // The signed-in user's Supabase access token, so the relay can gate on a real
-  // account (falls back to the anon key, which the relay rejects → "sign in").
+  // A Supabase session token so the relay can gate on a user. Free-tier players
+  // never sign up: if there's no session we create an ANONYMOUS one (requires
+  // "Anonymous sign-ins" enabled in the Supabase project). Falls back to the
+  // anon key, which the relay rejects with "Sign in required".
   function authToken() {
-    try {
-      var c = window.Cloud && window.Cloud.raw && window.Cloud.raw();
-      if (c && c.auth && c.auth.getSession) {
-        return c.auth.getSession().then(function (r) {
-          var s = r && r.data && r.data.session;
-          return (s && s.access_token) || anonKey();
+    var c;
+    try { c = window.Cloud && window.Cloud.raw && window.Cloud.raw(); } catch (e) { /* ignore */ }
+    if (!(c && c.auth && c.auth.getSession)) return Promise.resolve(anonKey());
+    return c.auth.getSession().then(function (r) {
+      var s = r && r.data && r.data.session;
+      if (s && s.access_token) return s.access_token;
+      if (c.auth.signInAnonymously) {
+        return c.auth.signInAnonymously().then(function (r2) {
+          var s2 = r2 && r2.data && r2.data.session;
+          return (s2 && s2.access_token) || anonKey();
         }).catch(function () { return anonKey(); });
       }
-    } catch (e) { /* ignore */ }
-    return Promise.resolve(anonKey());
+      return anonKey();
+    }).catch(function () { return anonKey(); });
   }
 
   // ---- helpers -------------------------------------------------------------
