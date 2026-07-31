@@ -23,6 +23,19 @@
 
   var cfg = { mode: 'direct', endpoint: ANTHROPIC_URL };
 
+  // ---- Provider registry (ADDITIVE — Anthropic is the built-in default) ----
+  // Optional extra providers (e.g. Gemini) register themselves here via
+  // registerProvider(). They translate to/from the canonical Anthropic-shaped
+  // response so nothing downstream (play.js, ai-dm.js) changes.
+  // TO REMOVE GEMINI (or any add-on provider): delete its file (ai-gemini.js)
+  // and its <script> tag. This registry then goes inert and the Anthropic path
+  // below runs exactly as before — no other edits needed.
+  var providers = {};
+  var PROVIDER_LS = 'diceAndMonsters.aiProvider';
+  function registerProvider(name, fn) { if (name && typeof fn === 'function') providers[name] = fn; }
+  function getProvider() { try { return window.localStorage.getItem(PROVIDER_LS) || 'anthropic'; } catch (e) { return 'anthropic'; } }
+  function setProvider(p) { try { window.localStorage.setItem(PROVIDER_LS, p || 'anthropic'); } catch (e) { /* ignore */ } }
+
   // ---- Usage tracking (tokens + running cost of the AI DM chat) ----
   // Running tally for the whole session: how many tokens we've SENT to Claude
   // (input, incl. cached) and how many it has WRITTEN back (output). Read live
@@ -39,7 +52,13 @@
     { match: 'mythos', rate: [10, 50, 1.0, 12.5] },
     { match: 'haiku',  rate: [1, 5, 0.1, 1.25] },
     { match: 'sonnet', rate: [3, 15, 0.3, 3.75] },
-    { match: 'opus',   rate: [5, 25, 0.5, 6.25] }
+    { match: 'opus',   rate: [5, 25, 0.5, 6.25] },
+    // Google Gemini — PLACEHOLDER rates (USD per 1M). VERIFY current pricing at
+    // ai.google.dev/pricing before trusting the cost readout. Cache-write is 0
+    // (Gemini bills context caching differently). Safe to delete with Gemini.
+    { match: 'flash-lite', rate: [0.10, 0.40, 0.025, 0] },
+    { match: 'flash',      rate: [0.30, 2.50, 0.075, 0] },
+    { match: 'gemini',     rate: [0.30, 2.50, 0.075, 0] }
   ];
   var DEFAULT_RATE = [5, 25, 0.5, 6.25]; // Opus 4.8
 
@@ -150,6 +169,23 @@
   // Returns the parsed Anthropic Messages response object.
   function complete(req) {
     var model = req.model || getModel();
+
+    // Route to a registered add-on provider when one is active. It returns a
+    // canonical (Anthropic-shaped) response; we track usage against the model
+    // it reports so the cost estimate uses that provider's rates.
+    var provider = req.provider || getProvider();
+    if (provider && provider !== 'anthropic') {
+      if (!providers[provider]) {
+        // Provider selected but its file was removed → fall back to Anthropic.
+        try { console.warn('[AI] provider "' + provider + '" not loaded; using Anthropic.'); } catch (e) {}
+      } else {
+        return Promise.resolve(providers[provider](req, model)).then(function (canonical) {
+          trackUsage(canonical.usage, canonical.model || model);
+          return canonical;
+        });
+      }
+    }
+
     var body = {
       model: model,
       max_tokens: req.max_tokens || 1024,
@@ -208,6 +244,8 @@
     getModel: getModel, setModel: setModel, DEFAULT_MODEL: DEFAULT_MODEL,
     complete: complete, textOf: textOf, toolCallsOf: toolCallsOf,
     sessionUsage: sessionUsage, resetUsage: resetUsage,
-    getUsage: getUsage, setUsage: setUsage, onUsage: onUsage, estCost: estCost
+    getUsage: getUsage, setUsage: setUsage, onUsage: onUsage, estCost: estCost,
+    // Provider registry (add-on providers like Gemini plug in here).
+    registerProvider: registerProvider, getProvider: getProvider, setProvider: setProvider
   };
 })();
