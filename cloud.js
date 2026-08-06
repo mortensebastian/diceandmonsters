@@ -50,8 +50,36 @@
   function isReady() { return ready; }
 
   /* ---- Auth ---- */
+
+  // Where a confirmation / recovery link should land the user. Without this
+  // Supabase falls back to the project's "Site URL" (localhost by default),
+  // so the mail either points at a dead address or never helps. The URL must
+  // be allow-listed under Authentication → URL Configuration → Redirect URLs
+  // (see SUPABASE.md).
+  function redirectUrl() {
+    if (typeof location === 'undefined' || !location.origin) return undefined;
+    return location.origin + location.pathname;
+  }
+
   function signIn(email, password) { return client.auth.signInWithPassword({ email: email, password: password }); }
-  function signUp(email, password) { return client.auth.signUp({ email: email, password: password }); }
+  function signUp(email, password) {
+    return client.auth.signUp({
+      email: email, password: password,
+      options: { emailRedirectTo: redirectUrl() }
+    });
+  }
+  // Re-send the sign-up confirmation mail for an address that registered but
+  // never confirmed. Older supabase-js has no auth.resend() — fall back to
+  // signUp(), which re-sends for an unconfirmed user.
+  function resendSignup(email, password) {
+    if (client.auth.resend) {
+      return client.auth.resend({
+        type: 'signup', email: email,
+        options: { emailRedirectTo: redirectUrl() }
+      });
+    }
+    return signUp(email, password || Math.random().toString(36).slice(2) + 'Aa1!');
+  }
   function signOut() { return client.auth.signOut(); }
 
   /* ---- Play sessions ---- */
@@ -163,7 +191,7 @@
   window.Cloud = {
     available: available, init: init, isReady: isReady,
     onAuth: onAuth, user: user,
-    signIn: signIn, signUp: signUp, signOut: signOut,
+    signIn: signIn, signUp: signUp, signOut: signOut, resendSignup: resendSignup,
     listSessions: listSessions, saveSession: saveSession,
     loadSession: loadSession, deleteSession: deleteSession,
     savePlayerView: savePlayerView, deletePlayerView: deletePlayerView,

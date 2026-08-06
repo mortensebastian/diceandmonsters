@@ -1508,6 +1508,12 @@ button:disabled { opacity: .4; cursor: not-allowed; box-shadow: none; }
 .btn-aw-signin { background: #4aa3df; }
 .btn-aw-signup { background: #27ae60; }
 .authwidget__status { font-size: 12px; color: #9aa3b2; }
+.btn-aw-resend {
+    border: 1px solid #2c3140; background: #12141a; color: #9aa3b2;
+    border-radius: 6px; padding: 6px 8px; font-family: inherit; font-size: 12px;
+    cursor: pointer;
+}
+.btn-aw-resend:hover { color: #e6e6e6; border-color: #4aa3df; }
 .cloud__signin-hint { color: #9aa3b2; font-size: 14px; }
 
 /**********************************************
