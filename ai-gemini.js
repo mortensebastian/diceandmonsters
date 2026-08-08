@@ -53,10 +53,15 @@
   // public — only the key behind it is secret), so the free tier works with no
   // per-user setup. A localStorage value overrides it; set it to '' to force
   // direct BYOK for local dev.
+  // The deployed edge function's slug. It happens to be 'hyper-action' (the
+  // dashboard's auto-generated name — a function's slug can't be renamed after
+  // creation), but the code in it IS the Gemini relay. If you ever recreate the
+  // function with the slug 'gemini', change this back to 'gemini'.
+  var RELAY_FN = 'hyper-action';
   function defaultRelay() {
     try {
       var u = window.SUPABASE_CONFIG && window.SUPABASE_CONFIG.url;
-      return u ? (u.replace(/\/+$/, '') + '/functions/v1/gemini') : '';
+      return u ? (u.replace(/\/+$/, '') + '/functions/v1/' + RELAY_FN) : '';
     } catch (e) { return ''; }
   }
   function getRelay() {
