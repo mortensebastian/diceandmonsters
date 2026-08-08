@@ -1422,9 +1422,17 @@
 
     window.AIClient.complete(req).then(function (res) {
       cfg.messages.push({ role: 'assistant', content: res.content });
-      renderChat(cfg.speaker || 'dm', window.AIClient.textOf(res), cfg.speakerName);
-
+      var text = window.AIClient.textOf(res);
       var toolCalls = window.AIClient.toolCallsOf(res);
+      renderChat(cfg.speaker || 'dm', text, cfg.speakerName);
+
+      // A reply with no text and no action is a silent failure (blocked content,
+      // wrong model id, etc.) — surface it instead of leaving the chat blank.
+      if (!text && (!toolCalls || !toolCalls.length)) {
+        renderChat('dm', '⚠️ Empty reply from the model (' + (res.model || 'unknown model') +
+          '). It may have been blocked or the model id is wrong — check AI Settings.');
+      }
+
       if (!noTools && res.stop_reason === 'tool_use' && toolCalls.length) {
         var results = toolCalls.map(cfg.executor);
         cfg.messages.push({ role: 'user', content: results });
@@ -1436,7 +1444,9 @@
         cfg.onDone();
       }
     }).catch(function (err) {
-      aiStatus((err && err.message) || 'Something went wrong.');
+      var msg = (err && err.message) || 'Something went wrong.';
+      aiStatus(msg);
+      renderChat('dm', '⚠️ AI error: ' + msg);   // make the failure visible in-chat
       setAiBusy(false);
       if (cfg.onError) cfg.onError(err);
     });
