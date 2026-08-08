@@ -29,7 +29,8 @@
 
   var KEY_LS   = 'diceAndMonsters.geminiKey';
   var MODEL_LS = 'diceAndMonsters.geminiModel';
-  var DEFAULT_MODEL = 'gemini-flash-latest';   // change freely; verify the id at ai.google.dev
+  var DEFAULT_MODEL = 'gemini-2.5-flash';   // free tier is PINNED to 2.5 Flash —
+  // the cheapest good Flash (~5x cheaper than the latest 3.x). Not user-selectable.
 
   var cfg = {
     // Direct browser → Google. For a shared free tier, replace this with a
@@ -43,7 +44,10 @@
   function getKey()   { try { return window.localStorage.getItem(KEY_LS) || ''; } catch (e) { return ''; } }
   function setKey(k)  { try { window.localStorage.setItem(KEY_LS, k || ''); } catch (e) { /* ignore */ } }
   function hasKey()   { return !!getKey(); }
-  function getModel() { try { return window.localStorage.getItem(MODEL_LS) || DEFAULT_MODEL; } catch (e) { return DEFAULT_MODEL; } }
+  // Pinned to DEFAULT_MODEL for the free tier — deliberately ignores any stored
+  // value (e.g. a stale 'gemini-flash-latest' from before). If you later offer
+  // model choice (paid tiers), read MODEL_LS here again.
+  function getModel() { return DEFAULT_MODEL; }
   function setModel(m){ try { window.localStorage.setItem(MODEL_LS, m || DEFAULT_MODEL); } catch (e) { /* ignore */ } }
 
   // Relay URL (Supabase edge function). When set, the key stays server-side and
