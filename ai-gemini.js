@@ -149,10 +149,16 @@
         content.forEach(function (b) {
           if (!b) return;
           if (b.type === 'text') {
-            if (b.text) parts.push({ text: b.text });
+            if (b.text) {
+              var tp = { text: b.text };
+              if (b.thoughtSignature) tp.thoughtSignature = b.thoughtSignature;
+              parts.push(tp);
+            }
           } else if (b.type === 'tool_use') {
             idToName[b.id] = b.name;
-            parts.push({ functionCall: { name: b.name, args: b.input || {} } });
+            var fp = { functionCall: { name: b.name, args: b.input || {} } };
+            if (b.thoughtSignature) fp.thoughtSignature = b.thoughtSignature;
+            parts.push(fp);
           } else if (b.type === 'tool_result') {
             var name = idToName[b.tool_use_id] || b.tool_use_id || 'tool';
             var resp = { content: asText(b.content) };
@@ -178,16 +184,25 @@
 
     parts.forEach(function (p) {
       if (p == null) return;
+      // Gemini 2.5+ attaches an opaque thoughtSignature to (some) parts and
+      // REQUIRES it echoed back verbatim on the next request — otherwise the
+      // follow-up tool-loop call 400s. Carry it on the canonical block so
+      // toGeminiContents can restore it.
+      var sig = p.thoughtSignature || p.thought_signature;
       if (typeof p.text === 'string' && p.text) {
-        content.push({ type: 'text', text: p.text });
+        var tb = { type: 'text', text: p.text };
+        if (sig) tb.thoughtSignature = sig;
+        content.push(tb);
       } else if (p.functionCall) {
         sawTool = true;
-        content.push({
+        var tu = {
           type: 'tool_use',
           id: 'g' + (n++),
           name: p.functionCall.name,
           input: p.functionCall.args || {}
-        });
+        };
+        if (sig) tu.thoughtSignature = sig;
+        content.push(tu);
       }
     });
 
