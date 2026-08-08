@@ -114,11 +114,21 @@ Session page as a per-creature toggle, **not** bolted onto the AI-DM chat panel.
      Enable Turnstile/hCaptcha on the anonymous provider (Supabase Auth) and pass
      the token from the client before real launch. Abuse control for the free
      tier.
-   - **TODO — verify Gemini pricing** rows in `ai-client.js` `PRICING` (currently
-     placeholders) against ai.google.dev/pricing so the cost readout is accurate.
-   - **TODO — per-user quota / tiering** in the relay (it already gates on a
-     signed-in user; add rate limits + a real premium path that moves Claude
-     server-side instead of a pasted key).
+   - **Done — Gemini pricing + cost readout.** `PRICING` now has real per-model
+     Gemini rates (2.5/3.x flash + lite), and the usage counter costs a session
+     at the *actual* model's rate (was defaulting to Opus). Re-verify against
+     ai.google.dev/pricing periodically.
+   - **Done (interim) — daily spend cap.** `GEMINI_DAILY_CAP_USD` (=$1) in
+     `ai-client.js` blocks Gemini calls once ~$1/browser/UTC-day is spent, so a
+     runaway auto-DM/auto-player loop can't burn credit. The counter shows
+     "today ~$X/$1". **Soft guard only — per browser (localStorage), NOT
+     bot-proof.**
+   - **TODO — server-side per-user cap (the real bot defense).** Enforce the
+     daily/quota cap in the relay per Supabase user (a `gemini_usage` table +
+     RLS, incremented in the edge function), since the client-side cap is
+     bypassable. Pair with the captcha above and a real premium path that moves
+     Claude server-side instead of a pasted key. Adjust/remove the client cap
+     when this lands.
 6. ~~**Voice (TTS)** — read the DM's narration aloud.~~ **Done** via ElevenLabs
    (`voice.js`): TTS for the DM's narration + STT push-to-talk for player input.
    Possible follow-ups: let live viewers hear the DM too; a Supabase relay so the

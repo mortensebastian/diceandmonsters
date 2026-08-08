@@ -45,6 +45,8 @@
   // it in the session snapshot so the count survives a reload.
   var sessionUsage = { calls: 0, input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
   var usageSubscribers = [];
+  var lastModel = '';   // model of the most recent call, so the cost readout uses
+                        // the ACTUAL provider's rates (e.g. Gemini, not the Claude default)
 
   // Per-model list prices, USD per 1M tokens:
   //   [ input, output, cacheRead (0.1x), cacheWrite 5m (1.25x) ].
@@ -55,12 +57,21 @@
     { match: 'haiku',  rate: [1, 5, 0.1, 1.25] },
     { match: 'sonnet', rate: [3, 15, 0.3, 3.75] },
     { match: 'opus',   rate: [5, 25, 0.5, 6.25] },
-    // Google Gemini — PLACEHOLDER rates (USD per 1M). VERIFY current pricing at
-    // ai.google.dev/pricing before trusting the cost readout. Cache-write is 0
-    // (Gemini bills context caching differently). Safe to delete with Gemini.
-    { match: 'flash-lite', rate: [0.10, 0.40, 0.025, 0] },
-    { match: 'flash',      rate: [0.30, 2.50, 0.075, 0] },
-    { match: 'gemini',     rate: [0.30, 2.50, 0.075, 0] }
+    // Google Gemini — [input, output, cacheRead≈0.25×in, cacheWrite 0].
+    // Observed list prices (USD per 1M); re-verify at ai.google.dev/pricing.
+    // Order matters (first substring match wins): specific versions before the
+    // generic 'flash'/'gemini' fallbacks. NB: the "latest" Flash (3.6) is far
+    // pricier than 2.5-flash — 2.5 is the cheap option.
+    { match: '2.5-flash-lite', rate: [0.10, 0.40, 0.025, 0] },
+    { match: '2.5-flash',      rate: [0.30, 2.50, 0.075, 0] },
+    { match: '3.6-flash',      rate: [1.50, 7.50, 0.375, 0] },
+    { match: '3.5-flash-lite', rate: [0.30, 2.50, 0.075, 0] },
+    { match: '3.5-flash',      rate: [1.50, 9.00, 0.375, 0] },
+    { match: '3.1-flash-lite', rate: [0.25, 1.50, 0.0625, 0] },
+    { match: 'flash-latest',   rate: [1.50, 7.50, 0.375, 0] }, // 'latest' → newest Flash (3.6)
+    { match: 'flash-lite',     rate: [0.10, 0.40, 0.025, 0] },
+    { match: 'flash',          rate: [1.50, 7.50, 0.375, 0] },
+    { match: 'gemini',         rate: [1.50, 7.50, 0.375, 0] }
   ];
   var DEFAULT_RATE = [5, 25, 0.5, 6.25]; // Opus 4.8
 
@@ -92,7 +103,7 @@
     // to cache is still input we delivered for reading).
     u.totalIn = u.input + u.cacheRead + u.cacheWrite;
     u.totalOut = u.output;
-    u.cost = estCost(u);
+    u.cost = estCost(u, lastModel);
     return u;
   }
 
@@ -128,6 +139,7 @@
 
   function trackUsage(u, model) {
     if (!u) return;
+    if (model) lastModel = model;
     var call = {
       input: u.input_tokens || 0,
       output: u.output_tokens || 0,
@@ -153,6 +165,28 @@
     sessionUsage.calls = sessionUsage.input = sessionUsage.output =
       sessionUsage.cacheRead = sessionUsage.cacheWrite = 0;
     notifyUsage();
+  }
+
+  // ---- Daily spend cap for the free (Gemini) tier ----
+  // A soft, per-browser guard so a runaway auto-DM/auto-player loop (or one
+  // account) can't quietly burn the owner's Gemini credit. It is NOT bot-proof
+  // — localStorage is per browser; a determined bot with fresh sessions bypasses
+  // it. The real defense is a per-user cap in the relay (see plan.md). Tune or
+  // remove GEMINI_DAILY_CAP_USD as the premium/quota system lands.
+  var GEMINI_DAILY_CAP_USD = 1.00;
+  var DAILY_LS = 'diceAndMonsters.geminiDaily';
+  function utcDay() { return new Date().toISOString().slice(0, 10); }
+  function geminiSpentToday() {
+    try {
+      var r = JSON.parse(window.localStorage.getItem(DAILY_LS) || '{}');
+      return (r && r.day === utcDay()) ? (r.cost || 0) : 0;
+    } catch (e) { return 0; }
+  }
+  function addGeminiSpend(cost) {
+    try {
+      window.localStorage.setItem(DAILY_LS,
+        JSON.stringify({ day: utcDay(), cost: geminiSpentToday() + (cost || 0) }));
+    } catch (e) { /* ignore */ }
   }
 
   function configure(o) {
@@ -181,8 +215,22 @@
         // Provider selected but its file was removed → fall back to Anthropic.
         try { console.warn('[AI] provider "' + provider + '" not loaded; using Anthropic.'); } catch (e) {}
       } else {
+        // Free-tier daily cap: don't let runaway loops burn Gemini credit.
+        if (provider === 'gemini' && geminiSpentToday() >= GEMINI_DAILY_CAP_USD) {
+          return Promise.reject(new Error('Daily free limit reached (~$' +
+            GEMINI_DAILY_CAP_USD.toFixed(2) + ' of Gemini today). Try again tomorrow, ' +
+            'or add your own Claude key in Settings.'));
+        }
         return Promise.resolve(providers[provider](req, model)).then(function (canonical) {
-          trackUsage(canonical.usage, canonical.model || model);
+          var m = canonical.model || model;
+          trackUsage(canonical.usage, m);
+          if (provider === 'gemini') {
+            var cu = canonical.usage || {};
+            addGeminiSpend(estCost({
+              input: cu.input_tokens || 0, output: cu.output_tokens || 0,
+              cacheRead: cu.cache_read_input_tokens || 0, cacheWrite: cu.cache_creation_input_tokens || 0
+            }, m));
+          }
           return canonical;
         });
       }
@@ -248,6 +296,8 @@
     sessionUsage: sessionUsage, resetUsage: resetUsage,
     getUsage: getUsage, setUsage: setUsage, onUsage: onUsage, estCost: estCost,
     // Provider registry (add-on providers like Gemini plug in here).
-    registerProvider: registerProvider, getProvider: getProvider, setProvider: setProvider
+    registerProvider: registerProvider, getProvider: getProvider, setProvider: setProvider,
+    // Free-tier daily spend guard (Gemini).
+    geminiSpentToday: geminiSpentToday, geminiDailyCap: GEMINI_DAILY_CAP_USD
   };
 })();
