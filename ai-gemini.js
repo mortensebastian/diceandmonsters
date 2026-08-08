@@ -116,8 +116,14 @@
   }
 
   // Anthropic tool  →  Gemini functionDeclaration (input_schema IS JSON Schema).
+  // Gemini rejects a parameters schema with no properties, so no-argument tools
+  // (roll_initiative, advance_turn) must omit `parameters` entirely — otherwise
+  // the whole tools array is invalid and every DM call 400s.
   function toGeminiTool(t) {
-    return { name: t.name, description: t.description || '', parameters: t.input_schema || { type: 'object', properties: {} } };
+    var d = { name: t.name, description: t.description || '' };
+    var s = t.input_schema;
+    if (s && s.properties && Object.keys(s.properties).length) d.parameters = s;
+    return d;
   }
 
   // Canonical message array  →  Gemini `contents`.
