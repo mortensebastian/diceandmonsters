@@ -49,9 +49,23 @@
   function user() { return currentUser; }
   function isReady() { return ready; }
 
-  /* ---- Auth ---- */
-  function signIn(email, password) { return client.auth.signInWithPassword({ email: email, password: password }); }
-  function signUp(email, password) { return client.auth.signUp({ email: email, password: password }); }
+  /* ---- Auth ----
+     captchaToken is optional: it's only produced when a captcha provider
+     is configured (see captcha.js) and is what Supabase's Attack
+     Protection verifies server-side. Undefined when unused, so the
+     no-captcha setup behaves exactly as before. */
+  function signIn(email, password, captchaToken) {
+    return client.auth.signInWithPassword({
+      email: email, password: password,
+      options: captchaToken ? { captchaToken: captchaToken } : undefined
+    });
+  }
+  function signUp(email, password, captchaToken) {
+    return client.auth.signUp({
+      email: email, password: password,
+      options: captchaToken ? { captchaToken: captchaToken } : undefined
+    });
+  }
   function signOut() { return client.auth.signOut(); }
 
   /* ---- Play sessions ---- */

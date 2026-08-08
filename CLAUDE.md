@@ -167,6 +167,18 @@ Gameplay is split into three roles, each seeing only what it should:
   `.nav` bar** (top-right pin on the home page which has no nav). Signed out:
   "Sign in"; signed in: "Logged in as <email>" + Sign out. Auth is shared across
   pages (same origin).
+- **`captcha.js` → `window.Captcha`** — bot guard on account creation, used
+  only by `auth-ui.js`. Two modes: **provider** (when
+  `SUPABASE_CONFIG.captcha = { provider:'turnstile'|'hcaptcha', siteKey }` is
+  set) renders the widget and hands the token to `Cloud.signUp/signIn` as
+  Supabase's `options.captchaToken` — the only mode that really stops bots,
+  because Supabase verifies it server-side (Auth → Attack Protection); and
+  **local** (the default, no key) which shows a dice question + honeypot +
+  a min-fill-time check — a speed bump against dumb form bots, not security,
+  since a script can POST to the auth endpoint directly. The provider widget
+  gates sign-in too (Supabase enforces both); the local question gates only
+  sign-up. If the provider script can't load, it falls back to the local
+  question rather than locking humans out. Setup steps in `SUPABASE.md`.
 - **`cloud-sync.js` → `window.CloudSync`** — syncs a `localStorage` collection to
   Supabase (no UI of its own). Used by Character/Adventure/Encounter. Merges
   cloud + local by id on sign-in (union, nothing lost), pushes local changes up
