@@ -978,8 +978,14 @@
     u = u || (window.AIClient && window.AIClient.getUsage ? window.AIClient.getUsage() : null);
     if (!u || !u.calls) { el.aiUsage.hidden = true; return; }
     el.aiUsage.hidden = false;
-    el.aiUsage.textContent = '↑ ' + fmtTokens(u.totalIn) + ' · ↓ ' +
+    var txt = '↑ ' + fmtTokens(u.totalIn) + ' · ↓ ' +
       fmtTokens(u.totalOut) + ' · ~' + fmtCost(u.cost);
+    // On the free tier, also show today's spend against the daily cap.
+    if (currentProvider() === 'gemini' && window.AIClient && window.AIClient.geminiSpentToday) {
+      var cap = window.AIClient.geminiDailyCap || 1;
+      txt += ' · today ~' + fmtCost(window.AIClient.geminiSpentToday()) + '/$' + cap.toFixed(0);
+    }
+    el.aiUsage.textContent = txt;
   }
   // Full breakdown on click/tap.
   function showUsageBreakdown() {
@@ -995,11 +1001,16 @@
       '  · from/to cache: ' + cached.toLocaleString(),
       'Tokens written back (Claude → us): ' + u.totalOut.toLocaleString(),
       '',
-      'Estimated cost so far: ~' + fmtCost(u.cost) +
-        ' (' + (window.AIClient.getModel ? window.AIClient.getModel() : 'model') + ' list price)',
+      'Estimated cost so far: ~' + fmtCost(u.cost) + ' (list price)',
       '',
       'Reset the chat to start the count over.'
     ];
+    if (currentProvider() === 'gemini' && window.AIClient.geminiSpentToday) {
+      var cap = window.AIClient.geminiDailyCap || 1;
+      lines.splice(lines.length - 1, 0,
+        'Free-tier spend today: ~' + fmtCost(window.AIClient.geminiSpentToday()) +
+        ' of a ~$' + cap.toFixed(2) + '/day cap (per browser).', '');
+    }
     alert(lines.join('\n'));
   }
 
