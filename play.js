@@ -1343,7 +1343,7 @@
   // and silently retries next turn if the transcript changed mid-summary.
   function maybeCompact() {
     if (compacting || aiBusy || viewerMode) return;
-    if (!window.AIClient || !window.AIClient.hasKey() || !window.AIDM) return;
+    if (!window.AIClient || !providerReady() || !window.AIDM) return;
 
     var starts = [];
     for (var i = 0; i < aiMessages.length; i++) if (isTurnStart(aiMessages[i])) starts.push(i);
@@ -1518,7 +1518,7 @@
   function runAiPlayerTurn(self, onDone) {
     onDone = onDone || function () {};
     if (!window.AIClient || !window.AIPlayer || !window.AIContext) { aiStatus('AI scripts not loaded.'); onDone(); return; }
-    if (!window.AIClient.hasKey()) { aiStatus('Add your Anthropic API key in Settings first.'); onDone(); return; }
+    if (!providerReady()) { aiStatus('Add your Anthropic API key in Settings first.'); onDone(); return; }
 
     var ctx = window.AIContext.build(state, {
       selfId: self.id,
@@ -1557,7 +1557,7 @@
     userText = (userText || '').trim();
     if (!userText) return;
     if (!window.AIClient || !window.AIDM || !window.AIContext) { aiStatus('AI scripts not loaded.'); return; }
-    if (!window.AIClient.hasKey()) { aiStatus('Add your Anthropic API key in Settings first.'); showAiSettings(true); return; }
+    if (!providerReady()) { aiStatus('Add your Anthropic API key in Settings first.'); showAiSettings(true); return; }
 
     var sceneText = (el.aiScene && el.aiScene.value.trim()) || '';
     state.scene = sceneText ? { text: sceneText } : null;
@@ -1598,6 +1598,26 @@
     if (el.aiSettings) el.aiSettings.open = !!open;
   }
 
+  // Which AI engine is active. Default is Gemini (free); Claude needs a key.
+  function currentProvider() {
+    if (el.aiProvider && el.aiProvider.value) return el.aiProvider.value;
+    return (window.AIClient && window.AIClient.getProvider) ? window.AIClient.getProvider() : 'anthropic';
+  }
+  // Ready to talk to the model? Gemini rides the relay (no user key); Claude
+  // needs the user's key in localStorage.
+  function providerReady() {
+    if (!window.AIClient) return false;
+    if (currentProvider() === 'anthropic') return window.AIClient.hasKey();
+    return true;
+  }
+  // Show the Claude key/model fields only when Claude is the chosen engine.
+  function syncProviderUi() {
+    var claude = currentProvider() === 'anthropic';
+    if (el.aiClaudeFields) el.aiClaudeFields.hidden = !claude;
+    if (el.aiGeminiNote) el.aiGeminiNote.hidden = claude;
+    updateKeyState();
+  }
+
   // The model <select> offers Opus/Sonnet plus a "Custom…" escape hatch that
   // reveals a free-text field for any other model id.
   var MODEL_PRESETS = ['claude-opus-4-8', 'claude-sonnet-5', 'claude-haiku-4-5'];
@@ -1621,20 +1641,25 @@
   // without opening the (collapsed) settings panel.
   function updateKeyState() {
     if (!el.aiKeyState) return;
-    el.aiKeyState.hidden = !(window.AIClient && window.AIClient.hasKey());
+    var anth = currentProvider() === 'anthropic';
+    el.aiKeyState.hidden = !(anth && window.AIClient && window.AIClient.hasKey());
   }
 
   function saveAiSettings() {
-    window.AIClient.setKey((el.aiKey.value || '').trim());
-    window.AIClient.setModel(chosenModel() || window.AIClient.DEFAULT_MODEL);
-    syncModelSelect();
+    var provider = el.aiProvider ? el.aiProvider.value : 'anthropic';
+    if (window.AIClient.setProvider) window.AIClient.setProvider(provider);
+    if (provider === 'anthropic') {
+      window.AIClient.setKey((el.aiKey.value || '').trim());
+      window.AIClient.setModel(chosenModel() || window.AIClient.DEFAULT_MODEL);
+      syncModelSelect();
+    }
     if (window.Voice) {
       if (el.voiceKey) Voice.setKey(el.voiceKey.value);
       if (el.voiceId) { Voice.setVoice(el.voiceId.value); el.voiceId.value = Voice.getVoice(); }
       if (el.voiceModel) { Voice.setTtsModel(el.voiceModel.value); el.voiceModel.value = Voice.getTtsModel(); }
       updateVoiceUi();
     }
-    updateKeyState();
+    syncProviderUi();
     aiStatus('Saved.');
     setTimeout(function () { aiStatus(''); }, 1400);
   }
@@ -1708,6 +1733,9 @@
     el.aiModel       = document.querySelector('#ai-model');
     el.aiModelCustom = document.querySelector('#ai-model-custom');
     el.aiModelCustomField = document.querySelector('#ai-model-custom-field');
+    el.aiProvider    = document.querySelector('#ai-provider');
+    el.aiClaudeFields = document.querySelector('#ai-claude-fields');
+    el.aiGeminiNote  = document.querySelector('#ai-gemini-note');
     el.aiSaveBtn     = document.querySelector('.btn-ai-save');
     el.aiScene       = document.querySelector('#ai-scene');
     el.aiSceneBtn    = document.querySelector('.btn-ai-scene');
@@ -1729,8 +1757,9 @@
     if (!el.aiOutput || !window.AIClient) return;
 
     el.aiKey.value = window.AIClient.getKey();
+    if (el.aiProvider && window.AIClient.getProvider) el.aiProvider.value = window.AIClient.getProvider();
     syncModelSelect();
-    updateKeyState();
+    syncProviderUi();
     renderRecapPanel();
     if (window.AIClient.onUsage) window.AIClient.onUsage(renderUsage);
     if (el.aiUsage) el.aiUsage.addEventListener('click', showUsageBreakdown);
@@ -1739,6 +1768,7 @@
       if (el.aiModelCustomField) el.aiModelCustomField.hidden = !custom;
       if (custom && el.aiModelCustom) el.aiModelCustom.focus();
     });
+    if (el.aiProvider) el.aiProvider.addEventListener('change', syncProviderUi);
     if (window.Voice) {
       if (el.voiceKey) el.voiceKey.value = Voice.getKey();
       if (el.voiceId) el.voiceId.value = Voice.getVoice();

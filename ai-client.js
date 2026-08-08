@@ -33,8 +33,10 @@
   var providers = {};
   var PROVIDER_LS = 'diceAndMonsters.aiProvider';
   function registerProvider(name, fn) { if (name && typeof fn === 'function') providers[name] = fn; }
-  function getProvider() { try { return window.localStorage.getItem(PROVIDER_LS) || 'anthropic'; } catch (e) { return 'anthropic'; } }
-  function setProvider(p) { try { window.localStorage.setItem(PROVIDER_LS, p || 'anthropic'); } catch (e) { /* ignore */ } }
+  // Default provider is 'gemini' (the free tier). 'anthropic' is still the
+  // built-in transport below; users switch to it in Settings to use their key.
+  function getProvider() { try { return window.localStorage.getItem(PROVIDER_LS) || 'gemini'; } catch (e) { return 'gemini'; } }
+  function setProvider(p) { try { window.localStorage.setItem(PROVIDER_LS, p || 'gemini'); } catch (e) { /* ignore */ } }
 
   // ---- Usage tracking (tokens + running cost of the AI DM chat) ----
   // Running tally for the whole session: how many tokens we've SENT to Claude

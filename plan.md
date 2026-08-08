@@ -103,6 +103,22 @@ Session page as a per-creature toggle, **not** bolted onto the AI-DM chat panel.
    Anthropic key server-side so the whole group can use the AI without each
    person needing their own key. `ai-client.js` is already pluggable — only the
    endpoint/mode changes. This is the "Phase 4b" of the AI plan.
+   - **Done (Gemini free tier):** `ai-client.js` now has a provider registry;
+     `ai-gemini.js` is a self-contained Gemini provider that translates to/from
+     the canonical (Anthropic) shape. Free tier is the **default** and runs on
+     Gemini via the `supabase/functions/gemini` relay (key server-side),
+     auto-signing in anonymously so players need no setup. Settings has an engine
+     toggle (Gemini free / Claude BYOK) for the interim premium path.
+   - **TODO — captcha for anonymous sign-ins.** Supabase warns that without
+     captcha, bots can spam anonymous sign-ins → MAU bloat + burned Gemini quota.
+     Enable Turnstile/hCaptcha on the anonymous provider (Supabase Auth) and pass
+     the token from the client before real launch. Abuse control for the free
+     tier.
+   - **TODO — verify Gemini pricing** rows in `ai-client.js` `PRICING` (currently
+     placeholders) against ai.google.dev/pricing so the cost readout is accurate.
+   - **TODO — per-user quota / tiering** in the relay (it already gates on a
+     signed-in user; add rate limits + a real premium path that moves Claude
+     server-side instead of a pasted key).
 6. ~~**Voice (TTS)** — read the DM's narration aloud.~~ **Done** via ElevenLabs
    (`voice.js`): TTS for the DM's narration + STT push-to-talk for player input.
    Possible follow-ups: let live viewers hear the DM too; a Supabase relay so the
@@ -124,5 +140,8 @@ Session page as a per-creature toggle, **not** bolted onto the AI-DM chat panel.
 - Run `supabase/schema.sql` in the Supabase SQL Editor (idempotent). It includes
   `play_sessions` and `user_collections`.
 - Enable Email auth in Supabase; turn **off** "Confirm email" for painless testing.
+- For the Gemini free tier: deploy `supabase/functions/gemini`, set the
+  `GEMINI_API_KEY` secret, and enable **Anonymous sign-ins** (Auth → Providers).
+  Add captcha there before real launch (see next-list item 5).
 - Deploy = push to `master` (GitHub Pages). Hard-refresh / private tab to bust
   the JS/CSS cache after a deploy.
