@@ -1624,7 +1624,7 @@
   function syncProviderUi() {
     var claude = currentProvider() === 'anthropic';
     if (el.aiClaudeFields) el.aiClaudeFields.hidden = !claude;
-    if (el.aiGeminiNote) el.aiGeminiNote.hidden = claude;
+    if (el.aiGeminiFields) el.aiGeminiFields.hidden = claude;
     updateKeyState();
   }
 
@@ -1662,6 +1662,8 @@
       window.AIClient.setKey((el.aiKey.value || '').trim());
       window.AIClient.setModel(chosenModel() || window.AIClient.DEFAULT_MODEL);
       syncModelSelect();
+    } else if (provider === 'gemini' && window.GeminiProvider && el.aiGeminiModel) {
+      window.GeminiProvider.setModel(el.aiGeminiModel.value);
     }
     if (window.Voice) {
       if (el.voiceKey) Voice.setKey(el.voiceKey.value);
@@ -1745,7 +1747,8 @@
     el.aiModelCustomField = document.querySelector('#ai-model-custom-field');
     el.aiProvider    = document.querySelector('#ai-provider');
     el.aiClaudeFields = document.querySelector('#ai-claude-fields');
-    el.aiGeminiNote  = document.querySelector('#ai-gemini-note');
+    el.aiGeminiFields = document.querySelector('#ai-gemini-fields');
+    el.aiGeminiModel = document.querySelector('#ai-gemini-model');
     el.aiSaveBtn     = document.querySelector('.btn-ai-save');
     el.aiScene       = document.querySelector('#ai-scene');
     el.aiSceneBtn    = document.querySelector('.btn-ai-scene');
@@ -1768,6 +1771,7 @@
 
     el.aiKey.value = window.AIClient.getKey();
     if (el.aiProvider && window.AIClient.getProvider) el.aiProvider.value = window.AIClient.getProvider();
+    if (el.aiGeminiModel && window.GeminiProvider && window.GeminiProvider.getModel) el.aiGeminiModel.value = window.GeminiProvider.getModel();
     syncModelSelect();
     syncProviderUi();
     renderRecapPanel();
