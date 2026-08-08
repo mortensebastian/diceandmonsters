@@ -1508,6 +1508,24 @@ button:disabled { opacity: .4; cursor: not-allowed; box-shadow: none; }
 .btn-aw-signin { background: #4aa3df; }
 .btn-aw-signup { background: #27ae60; }
 .authwidget__status { font-size: 12px; color: #9aa3b2; }
+
+/* Captcha (captcha.js) — bot guard on the sign-up form. */
+.captcha {
+    background: #12141a; border: 1px solid #2c3140; border-radius: 6px;
+    padding: 8px; display: flex; flex-direction: column; gap: 6px;
+}
+.captcha__box { display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: #9aa3b2; }
+.captcha__q { color: #e6e6e6; font-size: 13px; line-height: 1.35; }
+.captcha__in {
+    background: #1d2029; border: 1px solid #2c3140; color: #e6e6e6;
+    border-radius: 6px; padding: 7px 10px; font-family: inherit; font-size: 13px; width: 100%;
+}
+.captcha__note { font-size: 11px; color: #e1b12c; }
+/* Honeypot: out of sight for humans, irresistible to form-filling bots. */
+.captcha__hp {
+    position: absolute; left: -9999px; width: 1px; height: 1px;
+    opacity: 0; pointer-events: none;
+}
 .cloud__signin-hint { color: #9aa3b2; font-size: 14px; }
 
 /**********************************************

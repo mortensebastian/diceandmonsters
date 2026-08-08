@@ -38,6 +38,46 @@ Supabase's free tier, with no server to run yourself.
    - **Project URL** (e.g. `https://xxxx.supabase.co`)
    - **anon public** key (the long one labelled `anon` / `public`)
 
+## Stopping bots from creating accounts (captcha)
+
+Sign-up always runs through `captcha.js`. Out of the box it shows a
+small **dice question** plus a hidden honeypot field and a "filled in
+impossibly fast" timing check. That's enough to turn away naive
+form-filling bots, but it runs in the browser — a determined script can
+skip the form and POST to the Supabase auth endpoint directly.
+
+For protection that actually holds, let **Supabase** verify a captcha
+token server-side:
+
+1. Create a free site at [Cloudflare
+   Turnstile](https://dash.cloudflare.com/?to=/:account/turnstile) (or
+   [hCaptcha](https://www.hcaptcha.com/)) and add your domain
+   (`mortensebastian.github.io`, plus `localhost` for local testing).
+   You get a **site key** (public) and a **secret key** (private).
+2. In Supabase: **Authentication → Attack Protection → Enable Captcha
+   protection**, pick the same provider, paste the **secret key**, save.
+3. In `supabase-config.js`, add the **site key**:
+
+   ```js
+   window.SUPABASE_CONFIG = {
+     url: '…', anonKey: '…',
+     captcha: { provider: 'turnstile', siteKey: '0x4AAA…' }
+   };
+   ```
+
+The site key is public by design — safe to commit. The secret key lives
+only in Supabase; never put it in this repo.
+
+With that on, Supabase rejects any sign-up (and sign-in) without a valid
+token, so bots can't get in through the API either. The widget then
+appears in the sign-in panel automatically; if it can't load (offline,
+blocked), the form falls back to the dice question so humans aren't
+locked out — Supabase will still refuse the request and say so.
+
+Also worth turning on while you're in that screen: **Authentication →
+Sign In / Providers → Confirm email**, so an address has to be real
+before the account works.
+
 ## What I need from you
 
 Send me those two values (Project URL + anon public key), or paste
